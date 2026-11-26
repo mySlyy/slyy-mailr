@@ -1,4 +1,4 @@
-Slyy Mail 0.1.0 — first preview
+Slyy Mailr 0.1.0 — first preview
 
 Native mail, calendar and video-call client for macOS (Apple Silicon + Intel) and iPhone/iPad,
 for our own IMAP/SMTP, CalDAV and Jitsi servers.
@@ -13,5 +13,5 @@ invitations to and from Outlook/Google/Apple (iTIP), accept/maybe/decline from t
 **Video**: one-click Jitsi rooms on vid.rocket.re-cloud.io in events, mails and "Meet now";
 "Join" from reminders.
 
-**Install (macOS)**: open the DMG and drag Slyy Mail to Applications. This preview is not notarized yet:
+**Install (macOS)**: open the DMG and drag Slyy Mailr to Applications. This preview is not notarized yet:
 on first start, right-click the app → Open (or System Settings → Privacy & Security → Open Anyway).

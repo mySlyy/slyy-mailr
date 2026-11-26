@@ -23,7 +23,7 @@ jobs:
       MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
       RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Select newest Xcode
         shell: bash
@@ -54,8 +54,8 @@ jobs:
             -derivedDataPath build -destination 'generic/platform=macOS' \
             ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
-            build 2>&1 | tee build-macos.log | grep -E "error:|warning: unre|BUILD (SUCCEEDED|FAILED)" || true
-          test -d "build/Build/Products/Release/Slyy Mail.app"
+            build 2>&1 | tee build-macos.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build-macos.log
 
       - name: Build iOS app (simulator, compile check)
         shell: bash
@@ -75,7 +75,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          APP="build/Build/Products/Release/Slyy Mail.app"
+          APP="build/Build/Products/Release/Slyy Mailr.app"
           KC=build.keychain
           security create-keychain -p ci "$KC"
           security default-keychain -s "$KC"
@@ -93,26 +93,26 @@ jobs:
       - name: Package DMG
         shell: bash
         run: |
-          APP="build/Build/Products/Release/Slyy Mail.app"
+          APP="build/Build/Products/Release/Slyy Mailr.app"
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist")
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          lipo -info "$APP/Contents/MacOS/Slyy Mail"
+          lipo -info "$APP/Contents/MacOS/Slyy Mailr"
           codesign --verify --deep --verbose=2 "$APP" || true
           mkdir -p dmg dist
           cp -R "$APP" dmg/
           ln -s /Applications dmg/Applications
-          NAME="slyy-mail-$VERSION-mac-universal.dmg"
-          hdiutil create -volname "Slyy Mail $VERSION" -srcfolder dmg -ov -format UDZO "dist/$NAME"
+          NAME="slyy-mailr-$VERSION-mac-universal.dmg"
+          hdiutil create -volname "Slyy Mailr $VERSION" -srcfolder dmg -ov -format UDZO "dist/$NAME"
           (cd dist && shasum -a 256 "$NAME" > "$NAME.sha256")
           ls -la dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
-          name: slyy-mail-macos
+          name: slyy-mailr-macos
           path: dist/*
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: build-logs
@@ -124,11 +124,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --title "Slyy Mail $VERSION" --notes-file RELEASE_NOTES.md
+          gh release create "$GITHUB_REF_NAME" dist/* --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md
 
       - name: Publish to mySlyy/releases (tags only, needs RELEASES_TOKEN)
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.RELEASES_TOKEN != '' }}
         shell: bash
         run: |
-          GH_TOKEN="$RELEASES_TOKEN" gh release create "mail-v$VERSION" dist/* -R mySlyy/releases \
-            --title "Slyy Mail $VERSION" --notes-file RELEASE_NOTES.md
+          GH_TOKEN="$RELEASES_TOKEN" gh release create "mailr-v$VERSION" dist/* -R mySlyy/releases \
+            --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md

@@ -51,7 +51,7 @@ struct SidebarView: View {
                 }
             }
         }
-        .navigationTitle(model.account?.displayName.isEmpty == false ? model.account!.displayName : "Slyy Mail")
+        .navigationTitle(model.account?.displayName.isEmpty == false ? model.account!.displayName : "Slyy Mailr")
         .refreshable { await model.refresh() }
         .toolbar {
             ToolbarItemGroup {

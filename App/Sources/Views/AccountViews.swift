@@ -72,7 +72,7 @@ struct AccountSetupView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Slyy Mail").font(.largeTitle.weight(.bold))
+                        Text("Slyy Mailr").font(.largeTitle.weight(.bold))
                         Text("Mail, calendar and video calls on your own servers.").foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 8)

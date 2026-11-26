@@ -1,9 +1,10 @@
 import Foundation
+import SlyyMailKit
 import Security
 
 /// Account passwords in the system Keychain (never in UserDefaults or files).
 enum Keychain {
-    static let service = "ai.slyy.mail"
+    static let service = "ai.slyy.mailr"
 
     static func setPassword(_ password: String, for account: UUID) throws {
         let query: [String: Any] = [
@@ -55,7 +56,7 @@ final class ContactsStore {
 
     init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("Slyy Mail", isDirectory: true)
+        let dir = base.appendingPathComponent("Slyy Mailr", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         url = dir.appendingPathComponent("contacts.json")
         if let data = try? Data(contentsOf: url), let list = try? JSONDecoder().decode([EmailAddress].self, from: data) {

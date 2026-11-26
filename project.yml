@@ -31,16 +31,16 @@ targets:
     info:
       path: App/Generated/Info-macOS.plist
       properties:
-        CFBundleDisplayName: Slyy Mail
-        CFBundleName: Slyy Mail
+        CFBundleDisplayName: Slyy Mailr
+        CFBundleName: Slyy Mailr
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, de]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
-        NSCameraUsageDescription: Slyy Mail uses the camera for video calls.
-        NSMicrophoneUsageDescription: Slyy Mail uses the microphone for video calls.
+        NSCameraUsageDescription: Slyy Mailr uses the camera for video calls.
+        NSMicrophoneUsageDescription: Slyy Mailr uses the microphone for video calls.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         CFBundleURLTypes:
@@ -58,8 +58,8 @@ targets:
         com.apple.security.files.downloads.read-write: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mail
-        PRODUCT_NAME: Slyy Mail
+        PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr
+        PRODUCT_NAME: Slyy Mailr
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
   SlyyMail-iOS:
@@ -74,8 +74,8 @@ targets:
     info:
       path: App/Generated/Info-iOS.plist
       properties:
-        CFBundleDisplayName: Slyy Mail
-        CFBundleName: Slyy Mail
+        CFBundleDisplayName: Slyy Mailr
+        CFBundleName: Slyy Mailr
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, de]
         CFBundleShortVersionString: $(MARKETING_VERSION)
@@ -86,8 +86,8 @@ targets:
           UIApplicationSupportsMultipleScenes: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
-        NSCameraUsageDescription: Slyy Mail uses the camera for video calls.
-        NSMicrophoneUsageDescription: Slyy Mail uses the microphone for video calls.
+        NSCameraUsageDescription: Slyy Mailr uses the camera for video calls.
+        NSMicrophoneUsageDescription: Slyy Mailr uses the microphone for video calls.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         CFBundleURLTypes:
@@ -96,7 +96,7 @@ targets:
         UIBackgroundModes: [audio]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mail
-        PRODUCT_NAME: Slyy Mail
+        PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr
+        PRODUCT_NAME: Slyy Mailr
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO

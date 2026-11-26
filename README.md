@@ -1,4 +1,4 @@
-# Slyy Mail
+# Slyy Mailr
 
 Native (Swift/SwiftUI) replacement for Outlook on our own infrastructure:
 
