@@ -43,7 +43,7 @@ const features = [
       <h2>Install</h2>
       <ol>
         <li>Open the DMG and drag Slyy Mailr to Applications.</li>
-        <li>This preview is not notarized yet: on first start, right-click the app and choose Open.</li>
+        <li>Signed and notarized by Apple: it opens without warnings.</li>
         <li>Sign in with your <code>@slyy.ai</code> address. Servers: <code>imap.slyy.ai</code>, <code>smtp.slyy.ai</code>, <code>dav.slyy.ai</code>.</li>
       </ol>
     </section>
