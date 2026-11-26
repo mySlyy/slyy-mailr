@@ -34,6 +34,13 @@ Every push to `main` builds and tests. When `MARKETING_VERSION` in `project.yml`
 CI creates `v<version>` with the DMG, and publishes `mailr-v<version>` to
 <https://github.com/mySlyy/releases> when `RELEASES_TOKEN` is set.
 
+Each `v<version>` release also carries `SlyyMailr.dmg` (+ `.sha256`), a byte-identical copy of the
+versioned DMG under a fixed name. The slyy.ai download button links to
+<https://github.com/mySlyy/slyy-mailr/releases/latest/download/SlyyMailr.dmg>, which GitHub resolves to the
+newest non-draft, non-prerelease release. Releasing by hand: upload both names, e.g.
+`cp slyy-mailr-<v>-mac-universal.dmg SlyyMailr.dmg && shasum -a 256 SlyyMailr.dmg > SlyyMailr.dmg.sha256 && gh release upload v<v> SlyyMailr.dmg SlyyMailr.dmg.sha256`.
+Never mark a release as prerelease if it should reach the download button; mark it prerelease if it should not.
+
 Repository secrets:
 
 | Secret | What |
