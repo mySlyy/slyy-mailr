@@ -30,7 +30,7 @@ final class CalendarTests: XCTestCase {
     END:DAYLIGHT\r
     END:VTIMEZONE\r
     BEGIN:VEVENT\r
-    ORGANIZER;CN="Heiko M.":mailto:heiko@ecotech.de\r
+    ORGANIZER;CN="Heiko M.":mailto:heiko@slyy.ai\r
     ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Alice:mailto:alice@example.com\r
     DESCRIPTION;LANGUAGE=de-DE:Agenda:\\n- Angebot\\, Termine\\n\r
      - Lager\r

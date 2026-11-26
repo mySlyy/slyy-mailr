@@ -21,10 +21,10 @@ final class MIMETests: XCTestCase {
     }
 
     func testAddressList() {
-        let list = EmailAddress.parseList("\"Müller, Hans\" <hans@ecotech.de>, bob@example.com, =?utf-8?Q?J=C3=BCrgen?= <j@x.de>, Team <team@x.de>")
+        let list = EmailAddress.parseList("\"Müller, Hans\" <hans@slyy.ai>, bob@example.com, =?utf-8?Q?J=C3=BCrgen?= <j@x.de>, Team <team@x.de>")
         XCTAssertEqual(list.count, 4)
         XCTAssertEqual(list[0].name, "Müller, Hans")
-        XCTAssertEqual(list[0].address, "hans@ecotech.de")
+        XCTAssertEqual(list[0].address, "hans@slyy.ai")
         XCTAssertEqual(list[1].address, "bob@example.com")
         XCTAssertEqual(list[2].name, "Jürgen")
         XCTAssertEqual(EmailAddress(name: "Müller, Hans", address: "h@x.de").headerValue.hasPrefix("=?UTF-8?B?"), true)
