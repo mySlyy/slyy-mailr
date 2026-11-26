@@ -5,6 +5,8 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -118,13 +120,21 @@ jobs:
           name: build-logs
           path: "*.log"
 
-      - name: GitHub release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: GitHub release (tag push creates it)
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md
+
+      - name: Attach DMG to the published release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber -R "$GITHUB_REPOSITORY"
 
       - name: Publish to mySlyy/releases (tags only, needs RELEASES_TOKEN)
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.RELEASES_TOKEN != '' }}
