@@ -92,6 +92,10 @@ jobs:
             --entitlements App/Generated/SlyyMail-macOS.entitlements -s "$IDENTITY" "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
 
+      - name: Note when the build is not notarized
+        if: ${{ env.MACOS_CERT_P12 == '' || env.ASC_KEY_P8 == '' }}
+        run: echo "::warning::Signing secrets missing; this DMG is not notarized and will not be released."
+
       - name: Package DMG
         shell: bash
         run: |
@@ -145,8 +149,8 @@ jobs:
           name: build-logs
           path: "*.log"
 
-      - name: Release new version (main, once per version)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Release new version (main, once per version, notarized builds only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.MACOS_CERT_P12 != '' && env.ASC_KEY_P8 != ''
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -159,7 +163,7 @@ jobs:
           fi
 
       - name: Publish to mySlyy/releases (needs RELEASES_TOKEN secret)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.RELEASES_TOKEN != ''
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.RELEASES_TOKEN != '' && env.MACOS_CERT_P12 != '' && env.ASC_KEY_P8 != ''
         shell: bash
         run: |
           export GH_TOKEN="$RELEASES_TOKEN"

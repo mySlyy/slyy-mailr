@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Drop into the slyy.ai Nuxt site as pages/tools/mailr.vue → https://slyy.ai/tools/mailr
-const version = '0.1.0'
+const version = '0.1.1'
 const tag = `mailr-v${version}`
 const dmg = `https://github.com/mySlyy/releases/releases/download/${tag}/slyy-mailr-${version}-mac-universal.dmg`
 const notes = `https://github.com/mySlyy/releases/releases/tag/${tag}`

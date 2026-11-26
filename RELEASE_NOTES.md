@@ -1,4 +1,4 @@
-Slyy Mailr 0.1.0 — first preview
+Slyy Mailr 0.1.1 — first preview
 
 Native mail, calendar and video-call client for macOS (Apple Silicon + Intel) and iPhone/iPad,
 for our own IMAP/SMTP, CalDAV and Jitsi servers.
