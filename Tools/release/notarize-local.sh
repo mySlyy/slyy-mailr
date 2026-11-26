@@ -11,7 +11,7 @@ INPUT=${1:?input .dmg or .app}
 P12=${2:?Developer ID Application .p12}
 P8=${3:?App Store Connect API key .p8}
 KEY_ID=${4:?API key id}
-ISSUER=${5:?API issuer id}
+ISSUER=${5:-}   # empty for Individual API keys
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 ENTITLEMENTS="$ROOT/Tools/release/SlyyMailr-macOS.entitlements"
 WORK=$(mktemp -d)
@@ -50,7 +50,8 @@ hdiutil create -volname "Slyy Mailr $VERSION" -srcfolder "$WORK/dmg" -ov -format
 codesign --force --timestamp -s "$IDENTITY" "$DMG"
 
 # 4. Notarize, staple, check.
-xcrun notarytool submit "$DMG" --key "$P8" --key-id "$KEY_ID" --issuer "$ISSUER" --wait --timeout 30m
+AUTH=(--key "$P8" --key-id "$KEY_ID"); [ -n "$ISSUER" ] && AUTH+=(--issuer "$ISSUER")
+xcrun notarytool submit "$DMG" "${AUTH[@]}" --wait --timeout 30m
 xcrun stapler staple "$DMG"
 xcrun stapler validate "$DMG"
 spctl --assess --type open --context context:primary-signature -v "$DMG"

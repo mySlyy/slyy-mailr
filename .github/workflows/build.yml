@@ -124,8 +124,11 @@ jobs:
           KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
           # Accept the .p8 either as its PEM text or base64 of it.
           if echo "$ASC_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then printf '%s\n' "$ASC_KEY_P8" > "$KEY"; else echo "$ASC_KEY_P8" | base64 --decode > "$KEY"; fi
-          xcrun notarytool submit "$DMG" --key "$KEY" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait --timeout 30m | tee notary.log
-          grep -q "status: Accepted" notary.log || { ID=$(awk '/ id:/{print $2; exit}' notary.log); xcrun notarytool log "$ID" --key "$KEY" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" || true; exit 1; }
+          # Team API keys need the issuer id; Individual API keys must not pass one.
+          AUTH=(--key "$KEY" --key-id "$ASC_KEY_ID")
+          if [ -n "$ASC_ISSUER_ID" ]; then AUTH+=(--issuer "$ASC_ISSUER_ID"); fi
+          xcrun notarytool submit "$DMG" "${AUTH[@]}" --wait --timeout 30m | tee notary.log
+          grep -q "status: Accepted" notary.log || { ID=$(awk '/ id:/{print $2; exit}' notary.log); [ -n "$ID" ] && xcrun notarytool log "$ID" "${AUTH[@]}" || true; exit 1; }
           rm "$KEY"
           xcrun stapler staple "$DMG"
           xcrun stapler validate "$DMG"

@@ -42,7 +42,7 @@ Repository secrets:
 | `MACOS_CERT_PASSWORD` | its password |
 | `ASC_KEY_P8` | App Store Connect API key: the `.p8` text (or its base64) |
 | `ASC_KEY_ID` | the key id (the `XXXX` in `AuthKey_XXXX.p8`) |
-| `ASC_ISSUER_ID` | the issuer id from App Store Connect → Users and Access → Integrations |
+| `ASC_ISSUER_ID` | issuer id (App Store Connect → Users and Access → Integrations); only for Team API keys, leave unset for Individual keys |
 | `RELEASES_TOKEN` | fine-grained token with contents:write on mySlyy/releases |
 
 With the first four set, CI signs the app with the hardened runtime, notarizes and staples the DMG.
