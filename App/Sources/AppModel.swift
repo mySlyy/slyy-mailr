@@ -1,0 +1,647 @@
+import SwiftUI
+import SlyyMailKit
+import UserNotifications
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+enum SidebarItem: Hashable {
+    case folder(String)
+    case calendar
+}
+
+enum CalendarMode: String, CaseIterable, Identifiable {
+    case day, week, month
+    var id: String { rawValue }
+    var title: LocalizedStringKey {
+        switch self {
+        case .day: return "Day"
+        case .week: return "Week"
+        case .month: return "Month"
+        }
+    }
+}
+
+enum ComposeKind {
+    case new
+    case to(EmailAddress)
+    case reply(ParsedMessage)
+    case replyAll(ParsedMessage)
+    case forward(ParsedMessage)
+    case draft(MessageSummary)
+    case mailto(URL)
+}
+
+/// Editable state of a message being written.
+struct ComposeDraft: Identifiable {
+    let id = UUID()
+    var to = ""
+    var cc = ""
+    var bcc = ""
+    var subject = ""
+    var body = ""
+    var attachments: [OutgoingAttachment] = []
+    var inReplyTo: String?
+    var references: [String] = []
+    var draftUID: UInt32?
+    var showCcBcc = false
+
+    var isEmpty: Bool { to.isEmpty && cc.isEmpty && subject.isEmpty && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty }
+
+    func message(from: EmailAddress) -> OutgoingMessage {
+        let m = OutgoingMessage(
+            from: from,
+            to: EmailAddress.parseList(to),
+            cc: EmailAddress.parseList(cc),
+            bcc: EmailAddress.parseList(bcc),
+            subject: subject,
+            text: body,
+            html: HTMLText.fromPlain(body),
+            attachments: attachments,
+            inReplyTo: inReplyTo,
+            references: references
+        )
+        return m
+    }
+
+    init() {}
+
+    init(_ m: OutgoingMessage, signature: String) {
+        to = m.to.map(\.headerValue).joined(separator: ", ")
+        cc = m.cc.map(\.headerValue).joined(separator: ", ")
+        subject = m.subject
+        body = (signature.isEmpty ? "" : "\n\n-- \n" + signature) + m.text
+        attachments = m.attachments
+        inReplyTo = m.inReplyTo
+        references = m.references
+        showCcBcc = !m.cc.isEmpty
+    }
+}
+
+@MainActor
+@Observable
+final class AppModel {
+    static let shared = AppModel()
+
+    // Account
+    private(set) var account: AccountSettings?
+    private(set) var mail: MailService?
+    private(set) var calendarService: CalendarService?
+    private var watcher: MailWatcher?
+    let contacts = ContactsStore()
+    let cache = MessageCache.standard()
+
+    // Mail
+    var sidebarSelection: SidebarItem? = .folder("INBOX")
+    private(set) var folders: [IMAPFolder] = []
+    private(set) var messages: [MessageSummary] = []
+    private(set) var totalMessages = 0
+    private var page = 0
+    var selectedMessageIDs: Set<String> = []
+    private(set) var openSummary: MessageSummary?
+    private(set) var openMessage: ParsedMessage?
+    private(set) var isLoadingMessage = false
+    var searchText = ""
+    private(set) var isSearching = false
+    private(set) var isRefreshing = false
+    var composeDraft: ComposeDraft?
+
+    // Calendar
+    private(set) var calendars: [CalDAVCalendar] = []
+    var hiddenCalendars: Set<String> = []
+    private(set) var events: [CalendarEvent] = []
+    var calendarDate = Date()
+    var calendarMode: CalendarMode = .week
+    var editingEvent: CalendarEvent?
+    var selectedEvent: CalendarEvent?
+    private var loadedRange: (Date, Date)?
+
+    // Video
+    /// iOS: presented full screen. macOS: RootView opens a window and clears it.
+    var videoCall: URL?
+
+    var errorMessage: String?
+
+    private init() {
+        Task { await bootstrap() }
+    }
+
+    var currentFolder: String? {
+        if case .folder(let f) = sidebarSelection { return f }
+        return nil
+    }
+
+    var currentFolderInfo: IMAPFolder? {
+        folders.first { $0.serverPath == currentFolder }
+    }
+
+    var visibleEvents: [CalendarEvent] {
+        events.filter { !hiddenCalendars.contains($0.calendarURL ?? "") }
+    }
+
+    func report(_ error: Error) {
+        errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    }
+
+    // MARK: Accounts
+
+    private static let accountsKey = "accounts.v1"
+
+    private func storedAccounts() -> [AccountSettings] {
+        guard let data = UserDefaults.standard.data(forKey: Self.accountsKey) else { return [] }
+        return (try? JSONDecoder().decode([AccountSettings].self, from: data)) ?? []
+    }
+
+    private func persist(_ accounts: [AccountSettings]) {
+        if let data = try? JSONEncoder().encode(accounts) { UserDefaults.standard.set(data, forKey: Self.accountsKey) }
+    }
+
+    func bootstrap() async {
+        guard let a = storedAccounts().first, let pw = Keychain.password(for: a.id) else { return }
+        await activate(a, password: pw)
+    }
+
+    /// Verifies the servers, stores the account and starts syncing.
+    func addAccount(_ settings: AccountSettings, password: String) async throws {
+        try await MailService.verify(settings, password: password)
+        try Keychain.setPassword(password, for: settings.id)
+        persist([settings])
+        await activate(settings, password: password)
+    }
+
+    func updateAccount(_ settings: AccountSettings, password: String?) async throws {
+        let pw = password?.isEmpty == false ? password! : (Keychain.password(for: settings.id) ?? "")
+        try await MailService.verify(settings, password: pw)
+        try Keychain.setPassword(pw, for: settings.id)
+        persist([settings])
+        await activate(settings, password: pw)
+    }
+
+    func removeAccount() async {
+        guard let a = account else { return }
+        await watcher?.stop()
+        await mail?.disconnect()
+        Keychain.delete(for: a.id)
+        cache.clear(account: a.id)
+        persist([])
+        account = nil
+        mail = nil
+        calendarService = nil
+        folders = []
+        messages = []
+        events = []
+        calendars = []
+        openMessage = nil
+        openSummary = nil
+        ReminderScheduler.clear()
+    }
+
+    private func activate(_ a: AccountSettings, password: String) async {
+        await watcher?.stop()
+        await mail?.disconnect()
+        account = a
+        let m = MailService(account: a, password: password, cache: cache)
+        mail = m
+        calendarService = CalendarService(account: a, password: password, mail: m)
+        // Show cached list immediately, then sync.
+        messages = cache.summaries(folder: "INBOX", account: a.id)
+        await refresh()
+        let w = MailWatcher(account: a, password: password)
+        watcher = w
+        await w.start(folder: "INBOX") {
+            await AppModel.shared.mailChanged()
+        }
+        await ReminderScheduler.requestAuthorization()
+        cache.prune()
+    }
+
+    // MARK: Mail
+
+    func refresh() async {
+        guard let mail else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        do {
+            folders = try await mail.folders()
+            updateBadge()
+            if sidebarSelection == .calendar {
+                await loadEvents(force: true)
+            } else {
+                await loadMessages(reset: true)
+            }
+        } catch {
+            report(error)
+        }
+    }
+
+    func mailChanged() async {
+        guard let mail else { return }
+        if let f = try? await mail.folders() { folders = f; updateBadge() }
+        if currentFolder == "INBOX" && searchText.isEmpty { await loadMessages(reset: true) }
+    }
+
+    func select(_ item: SidebarItem?) {
+        sidebarSelection = item
+        openMessage = nil
+        openSummary = nil
+        selectedMessageIDs = []
+        searchText = ""
+        Task {
+            if item == .calendar {
+                await loadEvents(force: false)
+            } else {
+                if let f = currentFolder, let a = account { messages = cache.summaries(folder: f, account: a.id) }
+                await loadMessages(reset: true)
+            }
+        }
+    }
+
+    func loadMessages(reset: Bool) async {
+        guard let mail, let folder = currentFolder else { return }
+        if reset { page = 0 }
+        do {
+            let r = try await mail.messages(in: folder, page: page)
+            guard folder == currentFolder else { return }
+            totalMessages = r.total
+            if reset {
+                messages = r.messages
+            } else {
+                let known = Set(messages.map(\.id))
+                messages += r.messages.filter { !known.contains($0.id) }
+            }
+            contacts.add(r.messages.flatMap(\.from))
+        } catch {
+            report(error)
+        }
+    }
+
+    var canLoadMore: Bool { searchText.isEmpty && messages.count < totalMessages }
+
+    func loadMore() async {
+        guard canLoadMore else { return }
+        page += 1
+        await loadMessages(reset: false)
+    }
+
+    func search() async {
+        guard let mail, let folder = currentFolder else { return }
+        let q = searchText.trimmingCharacters(in: .whitespaces)
+        if q.isEmpty { await loadMessages(reset: true); return }
+        isSearching = true
+        defer { isSearching = false }
+        do {
+            messages = try await mail.search(in: folder, text: q)
+        } catch {
+            report(error)
+        }
+    }
+
+    func open(_ s: MessageSummary?) async {
+        guard let s, let mail else {
+            openSummary = nil
+            openMessage = nil
+            return
+        }
+        if s.isDraft {
+            compose(.draft(s))
+            return
+        }
+        openSummary = s
+        openMessage = nil
+        isLoadingMessage = true
+        defer { isLoadingMessage = false }
+        do {
+            let m = try await mail.message(s)
+            guard openSummary?.id == s.id else { return }
+            openMessage = m
+            if !s.isSeen { setLocalFlag("\\Seen", on: true, ids: [s.id]) }
+            contacts.add(m.from + m.to + m.cc)
+            // Apply incoming replies/cancellations to my calendar automatically.
+            for part in m.calendarParts {
+                let method = ICalendarReader.read(part).method
+                if method == "REPLY" || method == "CANCEL" {
+                    try? await calendarService?.apply(itip: part)
+                }
+            }
+        } catch {
+            report(error)
+        }
+    }
+
+    var selectedMessages: [MessageSummary] {
+        messages.filter { selectedMessageIDs.contains($0.id) }
+    }
+
+    private func setLocalFlag(_ flag: String, on: Bool, ids: Set<String>) {
+        for i in messages.indices where ids.contains(messages[i].id) {
+            if on { messages[i].flags.insert(flag) } else { messages[i].flags.remove(flag) }
+        }
+        if let s = openSummary, ids.contains(s.id) {
+            if on { openSummary?.flags.insert(flag) } else { openSummary?.flags.remove(flag) }
+        }
+        if flag == "\\Seen", let f = folders.firstIndex(where: { $0.serverPath == currentFolder }) {
+            folders[f].unseen = max(0, folders[f].unseen + (on ? -ids.count : ids.count))
+            updateBadge()
+        }
+    }
+
+    func toggleFlag(_ flag: String, for list: [MessageSummary]) async {
+        guard let mail, !list.isEmpty else { return }
+        let on = !list.allSatisfy { $0.flags.contains(flag) }
+        setLocalFlag(flag, on: on, ids: Set(list.map(\.id)))
+        do { try await mail.setFlag(flag, on: on, for: list) } catch { report(error) }
+    }
+
+    private func removeLocally(_ list: [MessageSummary]) {
+        let ids = Set(list.map(\.id))
+        messages.removeAll { ids.contains($0.id) }
+        selectedMessageIDs.subtract(ids)
+        if let s = openSummary, ids.contains(s.id) {
+            openSummary = nil
+            openMessage = nil
+        }
+        totalMessages = max(0, totalMessages - list.count)
+    }
+
+    func delete(_ list: [MessageSummary]) async {
+        guard let mail, !list.isEmpty else { return }
+        removeLocally(list)
+        do { try await mail.delete(list) } catch { report(error); await loadMessages(reset: true) }
+    }
+
+    func archive(_ list: [MessageSummary]) async {
+        guard let mail, !list.isEmpty else { return }
+        removeLocally(list)
+        do { try await mail.archive(list) } catch { report(error); await loadMessages(reset: true) }
+    }
+
+    func move(_ list: [MessageSummary], to folder: IMAPFolder) async {
+        guard let mail, !list.isEmpty else { return }
+        removeLocally(list)
+        do { try await mail.move(list, to: folder.serverPath) } catch { report(error); await loadMessages(reset: true) }
+    }
+
+    func createFolder(_ name: String) async {
+        guard let mail, !name.isEmpty else { return }
+        do {
+            try await mail.createFolder(name)
+            folders = try await mail.folders()
+        } catch { report(error) }
+    }
+
+    func deleteFolder(_ f: IMAPFolder) async {
+        guard let mail else { return }
+        do {
+            try await mail.deleteFolder(f)
+            folders = try await mail.folders()
+            if currentFolder == f.serverPath { select(.folder("INBOX")) }
+        } catch { report(error) }
+    }
+
+    func renameFolder(_ f: IMAPFolder, to name: String) async {
+        guard let mail, !name.isEmpty else { return }
+        do {
+            try await mail.renameFolder(f, to: name)
+            folders = try await mail.folders()
+        } catch { report(error) }
+    }
+
+    private func updateBadge() {
+        let unread = folders.first { $0.specialUse == .inbox }?.unseen ?? 0
+        #if os(macOS)
+        NSApp?.dockTile.badgeLabel = unread > 0 ? String(unread) : nil
+        #else
+        UNUserNotificationCenter.current().setBadgeCount(unread) { _ in }
+        #endif
+    }
+
+    // MARK: Compose
+
+    func compose(_ kind: ComposeKind) {
+        guard let a = account else { return }
+        let me = a.address
+        switch kind {
+        case .new:
+            var d = ComposeDraft()
+            if !a.signature.isEmpty { d.body = "\n\n-- \n" + a.signature }
+            composeDraft = d
+        case .to(let addr):
+            var d = ComposeDraft()
+            d.to = addr.headerValue
+            if !a.signature.isEmpty { d.body = "\n\n-- \n" + a.signature }
+            composeDraft = d
+        case .reply(let m):
+            composeDraft = ComposeDraft(m.draft(.reply, me: me), signature: a.signature)
+        case .replyAll(let m):
+            composeDraft = ComposeDraft(m.draft(.replyAll, me: me), signature: a.signature)
+        case .forward(let m):
+            composeDraft = ComposeDraft(m.draft(.forward, me: me), signature: a.signature)
+        case .mailto(let url):
+            var d = ComposeDraft()
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            d.to = comps?.path.removingPercentEncoding ?? ""
+            for item in comps?.queryItems ?? [] {
+                switch item.name.lowercased() {
+                case "subject": d.subject = item.value ?? ""
+                case "body": d.body = item.value ?? ""
+                case "cc": d.cc = item.value ?? ""; d.showCcBcc = true
+                case "bcc": d.bcc = item.value ?? ""; d.showCcBcc = true
+                default: break
+                }
+            }
+            composeDraft = d
+        case .draft(let s):
+            Task {
+                guard let mail else { return }
+                do {
+                    let m = try await mail.message(s, markSeen: false)
+                    var d = ComposeDraft()
+                    d.to = m.to.map(\.headerValue).joined(separator: ", ")
+                    d.cc = m.cc.map(\.headerValue).joined(separator: ", ")
+                    d.subject = m.subject
+                    d.body = m.textBody ?? m.htmlBody.map(HTMLText.toPlain) ?? ""
+                    d.attachments = m.attachments.map { OutgoingAttachment(filename: $0.filename, mimeType: $0.mimeType, data: $0.data) }
+                    d.inReplyTo = m.inReplyTo
+                    d.references = m.references
+                    d.draftUID = s.uid
+                    d.showCcBcc = !m.cc.isEmpty
+                    composeDraft = d
+                } catch { report(error) }
+            }
+        }
+    }
+
+    func send(_ draft: ComposeDraft) async -> Bool {
+        guard let mail, let a = account else { return false }
+        let msg = draft.message(from: a.address)
+        guard !msg.envelopeRecipients.isEmpty else {
+            errorMessage = String(localized: "Add at least one recipient.")
+            return false
+        }
+        if let bad = (msg.to + msg.cc + msg.bcc).first(where: { !$0.isValid }) {
+            errorMessage = String(localized: "Invalid address: \(bad.address)")
+            return false
+        }
+        do {
+            try await mail.send(msg, replacingDraft: draft.draftUID)
+            contacts.add(msg.to + msg.cc + msg.bcc)
+            if let original = openSummary, draft.inReplyTo != nil, draft.inReplyTo == openMessage?.messageID {
+                setLocalFlag("\\Answered", on: true, ids: [original.id])
+                try? await mail.setFlag("\\Answered", on: true, for: [original])
+            }
+            return true
+        } catch {
+            report(error)
+            return false
+        }
+    }
+
+    /// Saves to Drafts; returns the draft with its new UID.
+    func saveDraft(_ draft: ComposeDraft) async -> ComposeDraft {
+        guard let mail, let a = account, !draft.isEmpty else { return draft }
+        var d = draft
+        do {
+            d.draftUID = try await mail.saveDraft(d.message(from: a.address), replacing: d.draftUID)
+        } catch {
+            // Autosave failures are not worth an alert; the user can still send.
+        }
+        return d
+    }
+
+    // MARK: Invites
+
+    func respond(to invite: CalendarEvent, status: ParticipationStatus) async {
+        guard let cal = calendarService else { return }
+        do {
+            try await cal.respond(to: invite, status: status)
+            loadedRange = nil
+        } catch { report(error) }
+    }
+
+    // MARK: Calendar
+
+    func range(for date: Date, mode: CalendarMode) -> (Date, Date) {
+        var cal = Calendar.current
+        cal.firstWeekday = 2
+        switch mode {
+        case .day:
+            let s = cal.startOfDay(for: date)
+            return (s, cal.date(byAdding: .day, value: 1, to: s)!)
+        case .week:
+            let s = cal.dateInterval(of: .weekOfYear, for: date)!.start
+            return (s, cal.date(byAdding: .day, value: 7, to: s)!)
+        case .month:
+            let m = cal.dateInterval(of: .month, for: date)!
+            let s = cal.dateInterval(of: .weekOfYear, for: m.start)!.start
+            return (s, cal.date(byAdding: .day, value: 42, to: s)!)
+        }
+    }
+
+    func loadEvents(force: Bool) async {
+        guard let cal = calendarService, await cal.isAvailable else { return }
+        // Load a wider window than visible so paging feels instant.
+        let (vs, ve) = range(for: calendarDate, mode: calendarMode)
+        if !force, let r = loadedRange, r.0 <= vs, r.1 >= ve { return }
+        let from = Calendar.current.date(byAdding: .day, value: -21, to: vs)!
+        let to = Calendar.current.date(byAdding: .day, value: 42, to: ve)!
+        do {
+            if calendars.isEmpty || force { calendars = try await cal.calendars() }
+            events = try await cal.events(from: from, to: to)
+            loadedRange = (from, to)
+            await ReminderScheduler.schedule(events.filter { !hiddenCalendars.contains($0.calendarURL ?? "") })
+        } catch {
+            report(error)
+        }
+    }
+
+    func moveCalendar(by step: Int) {
+        let comp: Calendar.Component = calendarMode == .day ? .day : calendarMode == .week ? .weekOfYear : .month
+        calendarDate = Calendar.current.date(byAdding: comp, value: step, to: calendarDate) ?? calendarDate
+        Task { await loadEvents(force: false) }
+    }
+
+    func newEvent(at date: Date?) {
+        guard let a = account else { return }
+        sidebarSelection = .calendar
+        let start = date ?? Self.nextHalfHour()
+        var e = CalendarEvent(summary: "", start: start, end: start.addingTimeInterval(3600), timeZoneID: TimeZone.current.identifier)
+        e.organizer = a.address
+        e.calendarURL = calendars.first { !$0.isReadOnly }?.url
+        editingEvent = e
+    }
+
+    static func nextHalfHour() -> Date {
+        let now = Date()
+        let cal = Calendar.current
+        let minute = cal.component(.minute, from: now)
+        let add = minute < 30 ? 30 - minute : 60 - minute
+        return cal.date(bySetting: .second, value: 0, of: cal.date(byAdding: .minute, value: add, to: now)!) ?? now
+    }
+
+    func save(event: CalendarEvent, notify: Bool) async -> Bool {
+        guard let cal = calendarService else { return false }
+        do {
+            let saved = try await cal.save(event, notify: notify)
+            contacts.add(saved.attendees.map { EmailAddress(name: $0.name, address: $0.email) })
+            selectedEvent = nil
+            await loadEvents(force: true)
+            return true
+        } catch {
+            report(error)
+            return false
+        }
+    }
+
+    func delete(event: CalendarEvent) async {
+        guard let cal = calendarService else { return }
+        do {
+            try await cal.delete(event)
+            selectedEvent = nil
+            events.removeAll { $0.uid == event.uid }
+            await loadEvents(force: true)
+        } catch { report(error) }
+    }
+
+    // MARK: Video
+
+    func join(_ url: URL) {
+        guard let a = account else {
+            videoCall = url
+            return
+        }
+        videoCall = JitsiRoom.joinURL(url, displayName: a.displayName, email: a.email)
+    }
+
+    /// Ad-hoc meeting: new room, link copied to the clipboard, call opened.
+    func meetNow() {
+        let url = JitsiRoom.newURL(server: account?.jitsiURL ?? JitsiRoom.defaultServer)
+        copyToClipboard(url.absoluteString)
+        join(url)
+    }
+
+    /// New room + mail with the link to the given people (e.g. "Call" on a message).
+    func call(_ people: [EmailAddress]) {
+        let url = JitsiRoom.newURL(server: account?.jitsiURL ?? JitsiRoom.defaultServer)
+        var d = ComposeDraft()
+        d.to = people.map(\.headerValue).joined(separator: ", ")
+        d.subject = String(localized: "Video call now")
+        d.body = JitsiRoom.descriptionBlock(url)
+        composeDraft = d
+        join(url)
+    }
+
+    func copyToClipboard(_ s: String) {
+        #if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(s, forType: .string)
+        #else
+        UIPasteboard.general.string = s
+        #endif
+    }
+
+    func handle(url: URL) {
+        if url.scheme?.lowercased() == "mailto" { compose(.mailto(url)) }
+    }
+}

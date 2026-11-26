@@ -8,3 +8,4 @@ build/
 xcuserdata/
 dist/
 __pycache__/
+App/Generated/

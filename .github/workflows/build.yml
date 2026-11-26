@@ -1,0 +1,134 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      # Optional secrets; steps that need them are skipped when empty.
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        shell: bash
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          swift --version
+
+      - name: Register error matcher
+        run: echo "::add-matcher::.github/swift-matcher.json"
+
+      - name: Core library tests
+        shell: bash
+        run: swift test --package-path Packages/SlyyMailKit 2>&1 | tail -n 60
+
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          brew install xcodegen >/dev/null
+          xcodegen generate
+
+      - name: Build macOS app (universal)
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project SlyyMail.xcodeproj -scheme SlyyMail-macOS -configuration Release \
+            -derivedDataPath build -destination 'generic/platform=macOS' \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
+            build 2>&1 | tee build-macos.log | grep -E "error:|warning: unre|BUILD (SUCCEEDED|FAILED)" || true
+          test -d "build/Build/Products/Release/Slyy Mail.app"
+
+      - name: Build iOS app (simulator, compile check)
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project SlyyMail.xcodeproj -scheme SlyyMail-iOS -configuration Debug \
+            -derivedDataPath build-ios -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-ios.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build-ios.log
+
+      - name: Sign and notarize (only when Developer ID secrets are set)
+        if: ${{ env.MACOS_CERT_P12 != '' }}
+        shell: bash
+        env:
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          APP="build/Build/Products/Release/Slyy Mail.app"
+          KC=build.keychain
+          security create-keychain -p ci "$KC"
+          security default-keychain -s "$KC"
+          security unlock-keychain -p ci "$KC"
+          echo "$MACOS_CERT_P12" | base64 --decode > cert.p12
+          security import cert.p12 -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci "$KC"
+          IDENTITY=$(security find-identity -v -p codesigning "$KC" | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          codesign --force --deep --options runtime --timestamp \
+            --entitlements App/Generated/SlyyMail-macOS.entitlements -s "$IDENTITY" "$APP"
+          ditto -c -k --keepParent "$APP" notarize.zip
+          xcrun notarytool submit notarize.zip --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "$APP"
+
+      - name: Package DMG
+        shell: bash
+        run: |
+          APP="build/Build/Products/Release/Slyy Mail.app"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          lipo -info "$APP/Contents/MacOS/Slyy Mail"
+          codesign --verify --deep --verbose=2 "$APP" || true
+          mkdir -p dmg dist
+          cp -R "$APP" dmg/
+          ln -s /Applications dmg/Applications
+          NAME="slyy-mail-$VERSION-mac-universal.dmg"
+          hdiutil create -volname "Slyy Mail $VERSION" -srcfolder dmg -ov -format UDZO "dist/$NAME"
+          (cd dist && shasum -a 256 "$NAME" > "$NAME.sha256")
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slyy-mail-macos
+          path: dist/*
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-logs
+          path: "*.log"
+
+      - name: GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --title "Slyy Mail $VERSION" --notes-file RELEASE_NOTES.md
+
+      - name: Publish to mySlyy/releases (tags only, needs RELEASES_TOKEN)
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.RELEASES_TOKEN != '' }}
+        shell: bash
+        run: |
+          GH_TOKEN="$RELEASES_TOKEN" gh release create "mail-v$VERSION" dist/* -R mySlyy/releases \
+            --title "Slyy Mail $VERSION" --notes-file RELEASE_NOTES.md
