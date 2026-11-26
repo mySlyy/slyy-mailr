@@ -66,6 +66,17 @@ public struct IMAPFolder: Codable, Hashable, Sendable, Identifiable {
     public var unseen: Int
     public var total: Int
 
+    public init(path: String, serverPath: String, name: String, delimiter: String, flags: [String], specialUse: SpecialUse?, unseen: Int, total: Int) {
+        self.path = path
+        self.serverPath = serverPath
+        self.name = name
+        self.delimiter = delimiter
+        self.flags = flags
+        self.specialUse = specialUse
+        self.unseen = unseen
+        self.total = total
+    }
+
     public var id: String { serverPath }
     public var isSelectable: Bool { !flags.contains { $0.caseInsensitiveCompare("\\Noselect") == .orderedSame || $0.caseInsensitiveCompare("\\NonExistent") == .orderedSame } }
     /// Nesting level for indentation.
@@ -85,6 +96,21 @@ public struct MessageSummary: Codable, Hashable, Sendable, Identifiable {
     public var messageID: String?
     public var hasAttachments: Bool
     public var isInvite: Bool
+
+    public init(uid: UInt32, folder: String, flags: Set<String>, date: Date, size: Int, from: [EmailAddress], to: [EmailAddress], cc: [EmailAddress], subject: String, messageID: String?, hasAttachments: Bool, isInvite: Bool) {
+        self.uid = uid
+        self.folder = folder
+        self.flags = flags
+        self.date = date
+        self.size = size
+        self.from = from
+        self.to = to
+        self.cc = cc
+        self.subject = subject
+        self.messageID = messageID
+        self.hasAttachments = hasAttachments
+        self.isInvite = isInvite
+    }
 
     public var id: String { "\(folder)#\(uid)" }
     public var isSeen: Bool { flags.contains("\\Seen") }

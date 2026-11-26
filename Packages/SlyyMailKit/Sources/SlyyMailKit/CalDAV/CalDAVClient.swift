@@ -24,6 +24,14 @@ public struct CalDAVCalendar: Codable, Hashable, Sendable, Identifiable {
     public var ctag: String?
     public var isReadOnly: Bool
 
+    public init(url: String, name: String, color: String?, ctag: String?, isReadOnly: Bool) {
+        self.url = url
+        self.name = name
+        self.color = color
+        self.ctag = ctag
+        self.isReadOnly = isReadOnly
+    }
+
     public var id: String { url }
 }
 

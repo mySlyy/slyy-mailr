@@ -11,7 +11,7 @@ packages:
     path: Packages/SlyyMailKit
 settings:
   base:
-    MARKETING_VERSION: "0.1.1"
+    MARKETING_VERSION: "0.2.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     LOCALIZATION_PREFERS_STRING_CATALOGS: NO
@@ -22,7 +22,8 @@ targets:
   SlyyMail-macOS:
     type: application
     platform: macOS
-    scheme: {}
+    scheme:
+      testTargets: [SlyyMailrTests]
     sources:
       - path: App/Sources
       - path: App/Resources
@@ -60,7 +61,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr
         PRODUCT_NAME: Slyy Mailr
+        PRODUCT_MODULE_NAME: SlyyMailr
         ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_TESTABILITY: YES
         COMBINE_HIDPI_IMAGES: YES
   SlyyMail-iOS:
     type: application
@@ -98,5 +101,20 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr
         PRODUCT_NAME: Slyy Mailr
+        PRODUCT_MODULE_NAME: SlyyMailr
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
+  SlyyMailrTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: App/Tests
+    dependencies:
+      - target: SlyyMail-macOS
+      - package: SlyyMailKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Slyy Mailr.app/Contents/MacOS/Slyy Mailr"
+        BUNDLE_LOADER: "$(TEST_HOST)"

@@ -1,16 +1,17 @@
-Slyy Mailr 0.1.1 — first notarized preview
+Slyy Mailr 0.2.0 — Slyy design and bug fixes
 
-Native mail, calendar and video-call client for macOS (Apple Silicon + Intel) and iPhone/iPad,
-for our own IMAP/SMTP, CalDAV and Jitsi servers.
+**New look**: the app now follows the Slyy wireframes — Hanken Grotesk and Martian Mono, square
+controls, the blue accent, hairline borders. New layouts for mail, compose, calendar, the meeting
+editor, sign-in and the video call window; iPhone gets the Mail / Calendar / Settings tab bar.
 
-**Mail**: IMAP (TLS/STARTTLS), push via IDLE, folders incl. German/Outlook names, search,
-flags, archive, move, drafts autosave, attachments, reply/forward, HTML mail with remote images blocked,
-offline cache (30 days).
+**Fixed**
+- Sign-in for slyy.ai: server settings are found via the domain's MX host (autoconfig.slyy.ai has a
+  wrong certificate, and imap.slyy.ai is the web server). The calendar is found on the mail server.
+- Hangs and missing or mixed-up mail when several things loaded at once (list refresh, opening a
+  message, new-mail push).
+- Sign-in no longer waits 30 minutes on an unresponsive server; errors say what to check.
+- New-mail push (IDLE) is no longer cut after 30 seconds on Mac/iPhone.
+- Invitations are marked in the message list; video links are a card in compose.
 
-**Calendar**: CalDAV (auto-discovery), day/week/month views, recurring events (DST-safe),
-invitations to and from Outlook/Google/Apple (iTIP), accept/maybe/decline from the inbox, reminders.
-
-**Video**: one-click Jitsi rooms on vid.rocket.re-cloud.io in events, mails and "Meet now";
-"Join" from reminders.
-
-**Install (macOS)**: open the DMG and drag Slyy Mailr to Applications. The app is signed with Developer ID and notarized by Apple, so it opens without warnings.
+**Install (macOS)**: open the DMG and drag Slyy Mailr to Applications. Signed with Developer ID and
+notarized by Apple.

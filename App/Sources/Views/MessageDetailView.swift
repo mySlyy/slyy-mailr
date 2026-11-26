@@ -4,90 +4,161 @@ import UniformTypeIdentifiers
 
 struct MessageDetailView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var allowImages = false
     @State private var exporting: Attachment?
+
+    var phone: Bool { sizeClass == .compact }
 
     var body: some View {
         Group {
             if let m = model.openMessage, let s = model.openSummary {
                 VStack(alignment: .leading, spacing: 0) {
-                    header(m, s)
-                    if let invite = invite(in: m) {
-                        InviteCard(invite: invite.event, method: invite.method)
-                            .padding(.horizontal)
-                            .padding(.bottom, 8)
-                    }
-                    if !visibleAttachments(m).isEmpty {
-                        attachments(m)
-                    }
-                    if hasRemoteContent(m) && !allowImages {
-                        HStack {
-                            Image(systemName: "photo.badge.exclamationmark")
-                            Text("Remote images are blocked to protect your privacy.")
-                            Spacer()
-                            Button("Load images") { allowImages = true }
+                    if !phone { actionBar(m, s) }
+                    VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            header(m, s)
+                            if let invite = invite(in: m) {
+                                InviteCard(invite: invite.event, method: invite.method, phone: phone)
+                            }
+                            if !visibleAttachments(m).isEmpty { attachments(m) }
+                            if hasRemoteContent(m) && !allowImages {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "photo")
+                                    Text("Remote images are blocked to protect your privacy.")
+                                    Spacer()
+                                    Button("Load images") { allowImages = true }
+                                        .buttonStyle(SlyyOutlineButtonStyle(height: 28))
+                                }
+                                .font(Slyy.font(13))
+                                .padding(10)
+                                .background(Slyy.panel)
+                            }
                         }
-                        .font(.callout)
-                        .padding(8)
-                        .background(.yellow.opacity(0.15))
+                        .padding(.horizontal, phone ? 18 : 28)
+                        .padding(.top, 20)
+                        .padding(.bottom, 8)
+                        .frame(maxWidth: 760, alignment: .leading)
+                        MailHTMLView(html: bodyHTML(m), allowRemoteContent: allowImages) { url in
+                            model.compose(.mailto(url))
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, phone ? 2 : 12)
                     }
-                    Divider()
-                    MailHTMLView(html: bodyHTML(m), allowRemoteContent: allowImages) { url in
-                        model.compose(.mailto(url))
-                    }
+                    if phone { phoneReplyBar(m) }
                 }
                 .id(s.id)
                 .onChange(of: s.id) { _, _ in allowImages = false }
-                .toolbar { toolbar(m, s) }
+                #if os(iOS)
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button { Task { await model.archive([s]) } } label: { Image(systemName: "archivebox") }
+                            .accessibilityLabel("Archive")
+                        Button { Task { await model.delete([s]) } } label: { Image(systemName: "trash") }
+                            .accessibilityLabel("Delete")
+                    }
+                }
+                #endif
             } else if model.isLoadingMessage {
-                ProgressView()
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ContentUnavailableView("No message selected", systemImage: "envelope")
+                VStack(spacing: 8) {
+                    Image(systemName: "envelope").font(.system(size: 28)).foregroundStyle(Slyy.lineStrong)
+                    Text("No message selected").foregroundStyle(Slyy.muted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .background(Color.white)
         .fileExporter(isPresented: Binding(get: { exporting != nil }, set: { if !$0 { exporting = nil } }),
                       document: exporting.map { AttachmentDocument(data: $0.data) },
                       contentType: .data,
                       defaultFilename: exporting?.filename) { _ in exporting = nil }
     }
 
+    func actionBar(_ m: ParsedMessage, _ s: MessageSummary) -> some View {
+        HStack(spacing: 4) {
+            Button("Reply") { model.compose(.reply(m)) }
+                .keyboardShortcut("r", modifiers: [.command])
+            Button("Reply all") { model.compose(.replyAll(m)) }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+            Button("Forward") { model.compose(.forward(m)) }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+            Spacer()
+            Button(s.isFlagged ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: [s]) } }
+            Button("Archive") { Task { await model.archive([s]) } }
+            Button("Delete") { Task { await model.delete([s]) } }
+        }
+        .buttonStyle(.slyyOutline)
+        .padding(.horizontal, 16)
+        .padding(.top, topInset)
+        .padding(.bottom, 10)
+        .bottomHairline()
+    }
+
+    var topInset: CGFloat {
+        #if os(macOS)
+        return 30
+        #else
+        return 10
+        #endif
+    }
+
+    func phoneReplyBar(_ m: ParsedMessage) -> some View {
+        HStack(spacing: 8) {
+            Button("Reply") { model.compose(.reply(m)) }
+                .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
+            Button("Reply all") { model.compose(.replyAll(m)) }
+                .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
+            Button("Forward") { model.compose(.forward(m)) }
+                .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
+        .background(Color.white)
+    }
+
     func header(_ m: ParsedMessage, _ s: MessageSummary) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(m.subject.isEmpty ? String(localized: "(no subject)") : m.subject)
-                .font(.title2.weight(.semibold))
+                .font(Slyy.font(phone ? 21 : 22, .semibold))
+                .tracking(-0.2)
                 .textSelection(.enabled)
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    if let from = m.from.first {
-                        Menu {
-                            Button("Write to \(from.address)") { model.compose(.to(from)) }
-                            Button("Video call") { model.call([from]) }
-                            Button("Copy address") { model.copyToClipboard(from.address) }
-                        } label: {
-                            Text(from.name.isEmpty ? from.address : "\(from.name) <\(from.address)>").fontWeight(.medium)
-                        }
-                        .menuStyle(.button)
-                        .buttonStyle(.borderless)
-                        .fixedSize()
+            HStack(alignment: .firstTextBaseline) {
+                if let from = m.from.first {
+                    Menu {
+                        Button("Write to \(from.address)") { model.compose(.to(from)) }
+                        Button("Video call") { model.call([from]) }
+                        Button("Copy address") { model.copyToClipboard(from.address) }
+                    } label: {
+                        (Text(from.name.isEmpty ? from.address : from.name).font(Slyy.font(14, .semibold)).foregroundStyle(Slyy.ink)
+                         + Text(from.name.isEmpty ? "" : "  <\(from.address)>").font(Slyy.font(14)).foregroundStyle(Slyy.muted))
                     }
-                    if !m.to.isEmpty { recipients("To", m.to) }
-                    if !m.cc.isEmpty { recipients("Cc", m.cc) }
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .fixedSize()
                 }
                 Spacer()
                 Text((m.date ?? s.date).formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Slyy.font(13))
+                    .foregroundStyle(Slyy.muted)
+            }
+            if !m.to.isEmpty || !m.cc.isEmpty {
+                Text(recipientLine(m))
+                    .font(Slyy.font(13))
+                    .foregroundStyle(Slyy.muted)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
             }
         }
-        .padding()
     }
 
-    func recipients(_ label: LocalizedStringKey, _ list: [EmailAddress]) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(label).foregroundStyle(.secondary)
-            Text(list.map(\.display).joined(separator: ", ")).lineLimit(2).textSelection(.enabled)
-        }
-        .font(.caption)
+    func recipientLine(_ m: ParsedMessage) -> String {
+        var s = String(localized: "To") + " " + m.to.map(\.display).joined(separator: ", ")
+        if !m.cc.isEmpty { s += " · " + String(localized: "Cc") + " " + m.cc.map(\.display).joined(separator: ", ") }
+        return s
     }
 
     func visibleAttachments(_ m: ParsedMessage) -> [Attachment] {
@@ -96,7 +167,7 @@ struct MessageDetailView: View {
 
     func attachments(_ m: ParsedMessage) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack {
+            HStack(spacing: 8) {
                 ForEach(visibleAttachments(m)) { a in
                     Menu {
                         Button("Save…") { exporting = a }
@@ -105,19 +176,22 @@ struct MessageDetailView: View {
                         Button("Open") { openAttachment(a) }
                         #endif
                     } label: {
-                        Label("\(a.filename) (\(ByteCountFormatter.string(fromByteCount: Int64(a.data.count), countStyle: .file)))", systemImage: "doc")
-                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Image(systemName: SlyyIcon.doc).imageScale(.small)
+                            Text("\(a.filename) · \(ByteCountFormatter.string(fromByteCount: Int64(a.data.count), countStyle: .file))")
+                                .lineLimit(1)
+                        }
+                        .font(Slyy.font(13))
+                        .foregroundStyle(Slyy.ink)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Slyy.panel)
                     }
                     .menuStyle(.button)
-                        .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
                     .fixedSize()
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.quaternary, in: Capsule())
                 }
             }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
         }
     }
 
@@ -131,28 +205,10 @@ struct MessageDetailView: View {
     }
     #endif
 
-    @ToolbarContentBuilder
-    func toolbar(_ m: ParsedMessage, _ s: MessageSummary) -> some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button { model.compose(.reply(m)) } label: { Label("Reply", systemImage: "arrowshape.turn.up.left") }
-                .keyboardShortcut("r", modifiers: [.command])
-            Button { model.compose(.replyAll(m)) } label: { Label("Reply All", systemImage: "arrowshape.turn.up.left.2") }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-            Button { model.compose(.forward(m)) } label: { Label("Forward", systemImage: "arrowshape.turn.up.right") }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
-            Button { Task { await model.toggleFlag("\\Flagged", for: [s]) } } label: {
-                Label(s.isFlagged ? "Unflag" : "Flag", systemImage: s.isFlagged ? "flag.slash" : "flag")
-            }
-            Button { Task { await model.archive([s]) } } label: { Label("Archive", systemImage: "archivebox") }
-            Button(role: .destructive) { Task { await model.delete([s]) } } label: { Label("Delete", systemImage: "trash") }
-        }
-    }
-
     // MARK: Body
 
     func bodyHTML(_ m: ParsedMessage) -> String {
         if let html = m.htmlBody {
-            // Inline images referenced as cid: are embedded as data: URLs.
             var out = html
             for a in m.attachments where a.contentID != nil {
                 out = out.replacingOccurrences(of: "cid:\(a.contentID!)", with: "data:\(a.mimeType);base64,\(a.data.base64EncodedString())")
@@ -178,68 +234,140 @@ struct MessageDetailView: View {
     }
 }
 
-/// Invitation summary with RSVP buttons (REQUEST), or info for REPLY/CANCEL.
+/// Invitation card from the wireframe: date badge, title, when, organizer, Join; RSVP strip below.
 struct InviteCard: View {
     @Environment(AppModel.self) private var model
     let invite: CalendarEvent
     let method: String
+    var phone = false
     @State private var answered: ParticipationStatus?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: method == "CANCEL" ? "calendar.badge.minus" : "calendar.badge.clock")
-                    .font(.title2)
-                    .foregroundStyle(method == "CANCEL" ? Color.red : Color.accentColor)
-                VStack(alignment: .leading) {
-                    Text(invite.summary).font(.headline)
-                    Text(EventFormat.when(invite)).font(.callout).foregroundStyle(.secondary)
-                    if let org = invite.organizer { Text("Organizer: \(org.display)").font(.caption).foregroundStyle(.secondary) }
+        VStack(alignment: .leading, spacing: 0) {
+            if phone {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(EventFormat.short(invite).uppercased())
+                        .font(Slyy.font(11, .semibold))
+                        .tracking(0.66)
+                        .foregroundStyle(Slyy.accent)
+                    Text(invite.summary).font(Slyy.font(17, .semibold))
+                    Text(subtitle).font(Slyy.font(13)).foregroundStyle(Slyy.ink2)
                 }
-                Spacer()
+                .padding(14)
                 if let v = invite.videoURL {
-                    Button { model.join(v) } label: { Label("Join", systemImage: "video.fill") }
-                        .buttonStyle(.borderedProminent)
+                    Button { model.join(v) } label: { Label("Join video call", systemImage: SlyyIcon.video) }
+                        .buttonStyle(SlyyAccentButtonStyle(fullWidth: true, height: 44))
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 14)
                 }
-            }
-            switch method {
-            case "REQUEST":
-                HStack {
-                    rsvp("Accept", .accepted, "checkmark.circle")
-                    rsvp("Maybe", .tentative, "questionmark.circle")
-                    rsvp("Decline", .declined, "xmark.circle")
-                    Spacer()
-                    if let a = answered ?? myStatus, a != .needsAction {
-                        Text(EventFormat.status(a)).font(.caption).foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 16) {
+                    dateBadge
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(invite.summary).font(Slyy.font(16, .semibold))
+                        Text(EventFormat.when(invite) + (invite.isRecurring ? " · " + String(localized: "repeats") : ""))
+                            .foregroundStyle(Slyy.ink2)
+                        Text(subtitle).font(Slyy.font(13)).foregroundStyle(Slyy.muted)
+                    }
+                    Spacer(minLength: 8)
+                    if let v = invite.videoURL, method != "CANCEL" {
+                        Button { model.join(v) } label: { Label("Join", systemImage: SlyyIcon.video) }
+                            .buttonStyle(.slyyAccent)
                     }
                 }
-            case "CANCEL":
-                Text("This event was cancelled and removed from your calendar.").font(.callout)
-            case "REPLY":
-                if let a = invite.attendees.first {
-                    Text("\(a.name.isEmpty ? a.email : a.name): \(EventFormat.status(a.status))").font(.callout)
-                }
-            default:
-                EmptyView()
+                .padding(16)
             }
+            footer
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(Rectangle().stroke(method == "CANCEL" ? Slyy.danger : Slyy.ink, lineWidth: 1))
     }
 
-    var myStatus: ParticipationStatus? {
-        model.account.flatMap { invite.status(of: $0.email) }
+    var subtitle: String {
+        var parts: [String] = []
+        if let org = invite.organizer { parts.append(String(localized: "Organizer \(org.display)")) }
+        if !invite.attendees.isEmpty { parts.append(String(localized: "\(invite.attendees.count) people")) }
+        return parts.joined(separator: " · ")
     }
 
-    func rsvp(_ title: LocalizedStringKey, _ status: ParticipationStatus, _ icon: String) -> some View {
-        Button {
+    var dateBadge: some View {
+        VStack(spacing: 0) {
+            Text(invite.start.formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                .font(Slyy.font(11, .medium))
+                .tracking(0.66)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 2)
+                .background(Slyy.accent)
+            Text(invite.start.formatted(.dateTime.day()))
+                .font(Slyy.font(22, .bold))
+                .padding(.vertical, 4)
+        }
+        .frame(width: 56)
+        .hairlineBorder()
+    }
+
+    @ViewBuilder
+    var footer: some View {
+        switch method {
+        case "REQUEST":
+            if phone {
+                HStack(spacing: 0) {
+                    rsvp("Accept", .accepted)
+                    rsvp("Maybe", .tentative)
+                    rsvp("Decline", .declined)
+                }
+                .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
+            } else {
+                HStack(spacing: 8) {
+                    rsvp("Accept", .accepted)
+                    rsvp("Maybe", .tentative)
+                    rsvp("Decline", .declined)
+                    Spacer()
+                    Text(statusText).font(Slyy.font(13)).foregroundStyle(Slyy.ink2)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Slyy.sidebar)
+                .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
+            }
+        case "CANCEL":
+            Text("This event was cancelled and removed from your calendar.")
+                .font(Slyy.font(13))
+                .padding(.horizontal, 16).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Slyy.sidebar)
+        case "REPLY":
+            if let a = invite.attendees.first {
+                Text("\(a.name.isEmpty ? a.email : a.name): \(EventFormat.status(a.status)) · applied to your calendar")
+                    .font(Slyy.font(13))
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Slyy.sidebar)
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    var current: ParticipationStatus? {
+        answered ?? model.account.flatMap { invite.status(of: $0.email) }
+    }
+
+    var statusText: String {
+        switch current {
+        case .accepted?: return String(localized: "Accepted · reply sent, added to your calendar")
+        case .tentative?: return String(localized: "Maybe · reply sent")
+        case .declined?: return String(localized: "Declined · reply sent")
+        default: return String(localized: "No answer yet")
+        }
+    }
+
+    func rsvp(_ title: LocalizedStringKey, _ status: ParticipationStatus) -> some View {
+        Button(title) {
             answered = status
             Task { await model.respond(to: invite, status: status) }
-        } label: {
-            Label(title, systemImage: icon)
         }
-        .buttonStyle(.bordered)
-        .tint(answered == status ? .accentColor : nil)
+        .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: phone, height: phone ? 48 : 36, selected: current == status))
     }
 }
 
@@ -276,6 +404,13 @@ struct AttachmentFile: Transferable {
 }
 
 enum EventFormat {
+    /// "Fri 27 Nov · 10:00 – 10:30"
+    static func short(_ e: CalendarEvent) -> String {
+        let day = e.start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        if e.isAllDay { return day }
+        return "\(day) · \(e.start.formatted(date: .omitted, time: .shortened)) – \(e.end.formatted(date: .omitted, time: .shortened))"
+    }
+
     static func when(_ e: CalendarEvent) -> String {
         if e.isAllDay {
             let last = e.end.addingTimeInterval(-1)

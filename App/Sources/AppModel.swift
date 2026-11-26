@@ -47,6 +47,14 @@ struct ComposeDraft: Identifiable {
     var references: [String] = []
     var draftUID: UInt32?
     var showCcBcc = false
+    /// Video call link shown as a card while writing; added at the top of the text when sent.
+    var videoURL: URL?
+    var lastSaved: Date?
+
+    var fullBody: String {
+        guard let videoURL else { return body }
+        return JitsiRoom.descriptionBlock(videoURL) + "\n" + body
+    }
 
     var isEmpty: Bool { to.isEmpty && cc.isEmpty && subject.isEmpty && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty }
 
@@ -57,8 +65,8 @@ struct ComposeDraft: Identifiable {
             cc: EmailAddress.parseList(cc),
             bcc: EmailAddress.parseList(bcc),
             subject: subject,
-            text: body,
-            html: HTMLText.fromPlain(body),
+            text: fullBody,
+            html: HTMLText.fromPlain(fullBody),
             attachments: attachments,
             inReplyTo: inReplyTo,
             references: references
@@ -97,7 +105,7 @@ final class AppModel {
     var sidebarSelection: SidebarItem? = .folder("INBOX")
     private(set) var folders: [IMAPFolder] = []
     private(set) var messages: [MessageSummary] = []
-    private(set) var totalMessages = 0
+    var totalMessages = 0
     private var page = 0
     var selectedMessageIDs: Set<String> = []
     private(set) var openSummary: MessageSummary?
@@ -127,6 +135,9 @@ final class AppModel {
     private init() {
         Task { await bootstrap() }
     }
+
+    /// Model that never touches the Keychain or servers (tests, previews).
+    private init(sample: Bool) {}
 
     var currentFolder: String? {
         if case .folder(let f) = sidebarSelection { return f }
@@ -627,7 +638,7 @@ final class AppModel {
         var d = ComposeDraft()
         d.to = people.map(\.headerValue).joined(separator: ", ")
         d.subject = String(localized: "Video call now")
-        d.body = JitsiRoom.descriptionBlock(url)
+        d.videoURL = url
         composeDraft = d
         join(url)
     }
@@ -643,5 +654,85 @@ final class AppModel {
 
     func handle(url: URL) {
         if url.scheme?.lowercased() == "mailto" { compose(.mailto(url)) }
+    }
+}
+
+// MARK: - Sample data (tests, screenshots)
+
+extension AppModel {
+    /// A model filled with the wireframe's sample content; never connects to a server.
+    static func sample(calendar: Bool = false) -> AppModel {
+        let m = AppModel(sample: true)
+        let account = AccountSettings(
+            email: "anna@slyy.ai", displayName: "Anna Weber",
+            imap: ServerEndpoint(host: "mail.mc1.simplify-erp.de", port: 993, security: .tls),
+            smtp: ServerEndpoint(host: "mail.mc1.simplify-erp.de", port: 587, security: .startTLS),
+            caldavURL: "https://mail.mc1.simplify-erp.de/"
+        )
+        m.account = account
+        func folder(_ path: String, _ use: SpecialUse?, unseen: Int = 0, total: Int = 0) -> IMAPFolder {
+            IMAPFolder(path: path, serverPath: path, name: path.components(separatedBy: "/").last!, delimiter: "/", flags: [], specialUse: use, unseen: unseen, total: total)
+        }
+        m.folders = [
+            folder("INBOX", .inbox, unseen: 12, total: 240), folder("Drafts", .drafts, total: 2), folder("Sent", .sent),
+            folder("Archive", .archive), folder("Junk", .junk, unseen: 4), folder("Trash", .trash),
+            folder("Kunden", nil), folder("Kunden/Angebote", nil), folder("Lieferanten", nil),
+        ]
+        m.folders[0].name = "Inbox"
+        let now = Date()
+        func summary(_ uid: UInt32, _ name: String, _ addr: String, _ subject: String, _ ago: TimeInterval, seen: Bool, flags: Set<String> = [], attach: Bool = false, invite: Bool = false) -> MessageSummary {
+            MessageSummary(uid: uid, folder: "INBOX", flags: seen ? flags.union(["\\Seen"]) : flags, date: now.addingTimeInterval(-ago), size: 4000,
+                           from: [EmailAddress(name: name, address: addr)], to: [account.address], cc: [], subject: subject, messageID: "<\(uid)@slyy.ai>",
+                           hasAttachments: attach, isInvite: invite)
+        }
+        m.messages = [
+            summary(5, "Heiko Meier", "heiko@slyy.ai", "ERP Wochenfazit", 1200, seen: false, invite: true),
+            summary(4, "Brandt Logistik", "dispo@brandt-logistik.de", "Lieferavis KW 49", 5400, seen: false, attach: true),
+            summary(3, "Jürgen Schott", "j.schott@schott-haustechnik.de", "Re: Angebot Wärmepumpe", 86400, seen: true, flags: ["\\Answered", "\\Flagged"]),
+            summary(2, "Bob Krause", "bob@slyy.ai", "Accepted: Planung Q1", 2 * 86400, seen: true),
+            summary(1, "Finanzamt Bayreuth", "poststelle@finanzamt.bayern.de", "Bescheid über Umsatzsteuer", 3 * 86400, seen: true, attach: true),
+        ]
+        m.totalMessages = m.messages.count
+
+        // Week of today: a recurring video meeting on Friday 10:00, plus a few others.
+        var cal = Calendar.current
+        cal.firstWeekday = 2
+        let week = cal.dateInterval(of: .weekOfYear, for: now)!.start
+        func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date { cal.date(byAdding: DateComponents(day: day, hour: hour, minute: minute), to: week)! }
+        let room = URL(string: "https://vid.rocket.re-cloud.io/slyy-k7m2q9xwt4bh8nzr3fpe")!
+        var weekly = CalendarEvent(uid: "wochenfazit", summary: "ERP Wochenfazit", notes: "Status zu Angeboten, Lager und offenen Rechnungen.", start: at(4, 10), end: at(4, 10, 30),
+                                   recurrence: RecurrenceRule(frequency: .weekly), organizer: EmailAddress(name: "Heiko Meier", address: "heiko@slyy.ai"),
+                                   attendees: [Attendee(email: "heiko@slyy.ai", name: "Heiko Meier", status: .accepted), Attendee(email: "anna@slyy.ai", name: "Anna Weber", status: .accepted),
+                                               Attendee(email: "j.schott@schott-haustechnik.de", name: "Jürgen Schott", status: .tentative), Attendee(email: "bob@slyy.ai", name: "Bob Krause")],
+                                   videoURL: room)
+        weekly.calendarURL = "anna"
+        var e2 = CalendarEvent(uid: "jf", summary: "Jour fixe", start: at(0, 9), end: at(0, 10)); e2.calendarURL = "anna"
+        var e3 = CalendarEvent(uid: "schott", summary: "Kundentermin Schott", location: "Bayreuth", start: at(1, 14), end: at(1, 15, 30), videoURL: room); e3.calendarURL = "anna"
+        var e4 = CalendarEvent(uid: "inv", summary: "Lager-Inventur", start: at(2, 10), end: at(2, 12)); e4.calendarURL = "team"
+        var e5 = CalendarEvent(uid: "call", summary: "Call Lieferant", start: at(2, 10, 30), end: at(2, 11, 30)); e5.calendarURL = "anna"
+        var e6 = CalendarEvent(uid: "messe", summary: "Messe Nürnberg", start: cal.startOfDay(for: at(1, 0)), end: cal.startOfDay(for: at(3, 0)), isAllDay: true, timeZoneID: nil); e6.calendarURL = "team"
+        m.calendars = [
+            CalDAVCalendar(url: "anna", name: "Anna", color: "#2B3BFF", ctag: nil, isReadOnly: false),
+            CalDAVCalendar(url: "team", name: "Team Slyy", color: "#D9730D", ctag: nil, isReadOnly: false),
+        ]
+        m.events = [e6, e2, e3, e4, e5, weekly]
+        m.calendarDate = now
+        m.calendarMode = .week
+
+        // The open message: Heiko's invitation with the .ics part.
+        var invite = weekly
+        invite.attendees = weekly.attendees.map { var a = $0; if a.email == "anna@slyy.ai" { a.status = .needsAction }; return a }
+        var mail = OutgoingMessage(from: EmailAddress(name: "Heiko Meier", address: "heiko@slyy.ai"), to: [account.address, EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de")],
+                                   subject: "Invitation: ERP Wochenfazit", text: "Hallo zusammen,\n\nwie jede Woche: 20 Minuten Status zu Angeboten, Lager und offenen Rechnungen. Agenda im Anhang.",
+                                   attachments: [OutgoingAttachment(filename: "Agenda-KW48.pdf", mimeType: "application/pdf", data: Data(count: 86_000))])
+        mail.calendar = CalendarAttachment(method: "REQUEST", ics: ICalendarWriter.request(invite))
+        m.openMessage = ParsedMessage(data: mail.render())
+        m.openSummary = m.messages[0]
+        m.selectedMessageIDs = [m.messages[0].id]
+        if calendar {
+            m.sidebarSelection = .calendar
+            m.selectedEvent = ICalendarReader.expand([weekly], from: week, to: at(7, 0)).first
+        }
+        return m
     }
 }

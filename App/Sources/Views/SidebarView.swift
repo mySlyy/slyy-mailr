@@ -9,60 +9,90 @@ struct SidebarView: View {
     @State private var renameText = ""
     @State private var showSettings = false
 
+    var specialFolders: [IMAPFolder] {
+        model.folders.filter { $0.isSelectable && $0.specialUse != nil && $0.specialUse != .all && $0.specialUse != .flagged }
+    }
+
+    var customFolders: [IMAPFolder] {
+        model.folders.filter { $0.isSelectable && $0.specialUse == nil }
+    }
+
     var body: some View {
-        List(selection: Binding(get: { model.sidebarSelection }, set: { model.select($0) })) {
-            Section("Mail") {
-                ForEach(model.folders.filter(\.isSelectable)) { f in
-                    Label(f.name, systemImage: icon(for: f))
-                        .padding(.leading, CGFloat(f.specialUse == nil ? f.depth * 12 : 0))
-                        .badge(f.specialUse == .drafts || f.specialUse == .sent ? 0 : f.unseen)
-                        .tag(SidebarItem.folder(f.serverPath))
-                        .contextMenu {
-                            if f.specialUse == nil {
-                                Button("Rename…") { renaming = f; renameText = f.name }
-                                Button("Delete Folder", role: .destructive) { Task { await model.deleteFolder(f) } }
-                            }
-                            Button("New Folder…") { showNewFolder = true }
-                        }
-                        .dropDestination(for: String.self) { ids, _ in
-                            let list = model.messages.filter { ids.contains($0.id) }
-                            guard !list.isEmpty else { return false }
-                            Task { await model.move(list, to: f) }
-                            return true
-                        }
+        VStack(alignment: .leading, spacing: 14) {
+            SlyyLogo()
+                .padding(.horizontal, 6)
+                #if os(macOS)
+                .padding(.top, 22) // room for the window buttons (hidden title bar)
+                #endif
+            if model.sidebarSelection == .calendar {
+                Button { model.newEvent(at: nil) } label: {
+                    Label("New event", systemImage: "plus")
                 }
+                .buttonStyle(SlyyPrimaryButtonStyle(fullWidth: true))
+            } else {
+                Button { model.compose(.new) } label: {
+                    Label("New message", systemImage: SlyyIcon.compose)
+                }
+                .buttonStyle(SlyyPrimaryButtonStyle(fullWidth: true))
             }
-            Section("Calendar") {
-                Label("Calendar", systemImage: "calendar")
-                    .tag(SidebarItem.calendar)
-                if model.sidebarSelection == .calendar {
-                    ForEach(model.calendars) { c in
-                        Toggle(isOn: Binding(
-                            get: { !model.hiddenCalendars.contains(c.url) },
-                            set: { on in if on { model.hiddenCalendars.remove(c.url) } else { model.hiddenCalendars.insert(c.url) } }
-                        )) {
-                            HStack(spacing: 6) {
-                                Circle().fill(Color(hex: c.color) ?? .accentColor).frame(width: 9, height: 9)
-                                Text(c.name).lineLimit(1)
+            Button { model.meetNow() } label: {
+                Label("Meet now", systemImage: SlyyIcon.video)
+            }
+            .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 40))
+            .help("Start a video call now; the link is copied to the clipboard")
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    section("Mail") {
+                        ForEach(specialFolders) { folderRow($0) }
+                    }
+                    if !customFolders.isEmpty {
+                        section("Folders") {
+                            ForEach(customFolders) { folderRow($0) }
+                        }
+                    }
+                    section("Calendar") {
+                        Button { model.select(.calendar) } label: {
+                            HStack {
+                                Text("Calendar")
+                                Spacer()
+                                if let next = nextEvent {
+                                    Text("Next \(next.start.formatted(date: .omitted, time: .shortened))")
+                                        .font(Slyy.font(12))
+                                        .foregroundStyle(Slyy.muted)
+                                }
                             }
                         }
-                        .toggleStyle(.checkbox)
+                        .buttonStyle(SlyyRowButtonStyle(selected: model.sidebarSelection == .calendar))
+                        if model.sidebarSelection == .calendar {
+                            ForEach(model.calendars) { c in
+                                Toggle(isOn: Binding(
+                                    get: { !model.hiddenCalendars.contains(c.url) },
+                                    set: { on in if on { model.hiddenCalendars.remove(c.url) } else { model.hiddenCalendars.insert(c.url) } }
+                                )) {
+                                    HStack(spacing: 8) {
+                                        Rectangle().fill(Color(hex: c.color) ?? Slyy.accent).frame(width: 10, height: 10)
+                                        Text(c.name).lineLimit(1)
+                                    }
+                                }
+                                .toggleStyle(SlyyCheckboxStyle())
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                            }
+                        }
                     }
                 }
             }
+
+            Spacer(minLength: 0)
+            accountFooter
         }
-        .navigationTitle(model.account?.displayName.isEmpty == false ? model.account!.displayName : "Slyy Mailr")
-        .refreshable { await model.refresh() }
-        .toolbar {
-            ToolbarItemGroup {
-                Button { model.compose(.new) } label: { Label("New Message", systemImage: "square.and.pencil") }
-                Button { model.meetNow() } label: { Label("Meet Now", systemImage: "video") }
-                    .help("Start a video call now; the link is copied to the clipboard")
-                #if os(iOS)
-                Button { showSettings = true } label: { Label("Settings", systemImage: "gear") }
-                #endif
-            }
-        }
+        .font(Slyy.body)
+        .foregroundStyle(Slyy.ink)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 16)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(Slyy.sidebar)
         .alert("New Folder", isPresented: $showNewFolder) {
             TextField("Name", text: $newFolderName)
             Button("Create") { let n = newFolderName; newFolderName = ""; Task { await model.createFolder(n) } }
@@ -73,35 +103,86 @@ struct SidebarView: View {
             Button("Rename") { if let f = renaming { let n = renameText; Task { await model.renameFolder(f, to: n) } }; renaming = nil }
             Button("Cancel", role: .cancel) { renaming = nil }
         }
-        #if os(iOS)
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
                 .environment(model)
-        }
-        #endif
-    }
-
-    func icon(for f: IMAPFolder) -> String {
-        switch f.specialUse {
-        case .inbox: return "tray"
-        case .sent: return "paperplane"
-        case .drafts: return "doc"
-        case .trash: return "trash"
-        case .junk: return "xmark.bin"
-        case .archive: return "archivebox"
-        case .flagged: return "flag"
-        case .all: return "tray.full"
-        case nil: return "folder"
+                #if os(macOS)
+                .frame(width: 560, height: 640)
+                #endif
         }
     }
-}
 
-#if os(iOS)
-extension ToggleStyle where Self == SwitchToggleStyle {
-    /// iOS has no checkbox style; use a switch.
-    static var checkbox: SwitchToggleStyle { .switch }
+    var nextEvent: CalendarEvent? {
+        model.visibleEvents.first { $0.start > Date() && !$0.isAllDay }
+    }
+
+    @ViewBuilder
+    func section<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            SectionLabel(title).padding(.horizontal, 8).padding(.vertical, 4)
+            content()
+        }
+    }
+
+    func folderRow(_ f: IMAPFolder) -> some View {
+        let selected = model.sidebarSelection == .folder(f.serverPath)
+        let count = f.specialUse == .drafts ? f.total : (f.specialUse == .sent || f.specialUse == .trash || f.specialUse == .archive ? 0 : f.unseen)
+        return Button { model.select(.folder(f.serverPath)) } label: {
+            HStack {
+                Text(f.name)
+                    .fontWeight(selected ? .semibold : .regular)
+                    .lineLimit(1)
+                    .padding(.leading, CGFloat(f.specialUse == nil ? f.depth * 12 : 0))
+                Spacer()
+                if count > 0 {
+                    Text("\(count)")
+                        .font(Slyy.mono(11))
+                        .foregroundStyle(f.specialUse == .inbox ? Slyy.accent : Slyy.muted)
+                }
+            }
+        }
+        .buttonStyle(SlyyRowButtonStyle(selected: selected))
+        .contextMenu {
+            if f.specialUse == nil {
+                Button("Rename…") { renaming = f; renameText = f.name }
+                Button("Delete Folder", role: .destructive) { Task { await model.deleteFolder(f) } }
+            }
+            Button("New Folder…") { showNewFolder = true }
+        }
+        .dropDestination(for: String.self) { ids, _ in
+            let list = model.messages.filter { ids.contains($0.id) }
+            guard !list.isEmpty else { return false }
+            Task { await model.move(list, to: f) }
+            return true
+        }
+    }
+
+    var accountFooter: some View {
+        Button { showSettings = true } label: {
+            HStack(spacing: 10) {
+                InitialsAvatar(name: model.account?.displayName.isEmpty == false ? model.account!.displayName : (model.account?.email ?? ""))
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(model.account?.displayName.isEmpty == false ? model.account!.displayName : (model.account?.email ?? ""))
+                        .font(Slyy.font(13, .semibold))
+                        .lineLimit(1)
+                    Text("\(model.account?.email ?? "") · \(model.isRefreshing ? String(localized: "syncing") : String(localized: "synced"))")
+                        .font(Slyy.font(12))
+                        .foregroundStyle(Slyy.muted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "gearshape").foregroundStyle(Slyy.muted)
+            }
+            .padding(.top, 10)
+            .padding(.horizontal, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
+        .help("Account settings")
+    }
 }
-#endif
 
 extension Color {
     /// "#RRGGBB" or "#RRGGBBAA" (as CalDAV servers store calendar colours).

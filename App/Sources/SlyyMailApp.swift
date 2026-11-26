@@ -9,7 +9,12 @@ struct SlyyMailApp: App {
     #else
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
-    @State private var model = AppModel.shared
+    @State private var model: AppModel
+
+    init() {
+        Slyy.registerFonts()
+        _model = State(initialValue: AppModel.shared)
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +22,10 @@ struct SlyyMailApp: App {
                 .environment(model)
                 .onOpenURL { model.handle(url: $0) }
         }
+        #if os(macOS)
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1280, height: 800)
+        #endif
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Message") { model.compose(.new) }
@@ -45,7 +54,7 @@ struct SlyyMailApp: App {
         Settings {
             SettingsView()
                 .environment(model)
-                .frame(width: 520)
+                .frame(width: 560, height: 680)
         }
         #endif
     }

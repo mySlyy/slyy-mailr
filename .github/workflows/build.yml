@@ -69,6 +69,25 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-ios.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build-ios.log
 
+      - name: App tests and screenshots (macOS)
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p screens
+          # Tests run without the sandbox so the screenshots can be written outside the app container.
+          TEST_RUNNER_SLYY_SNAPSHOT_DIR="$PWD" xcodebuild test -project SlyyMail.xcodeproj -scheme SlyyMail-macOS \
+            -destination 'platform=macOS' -derivedDataPath build-test \
+            CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" CODE_SIGN_ENTITLEMENTS="" ENABLE_HARDENED_RUNTIME=NO \
+            2>&1 | tee test-app.log | grep -E "error:|Test Case .*(passed|failed)|TEST (SUCCEEDED|FAILED)|Executed" || true
+          grep -q "TEST SUCCEEDED" test-app.log
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: screens
+          path: screens/*.png
+          if-no-files-found: warn
+
       - name: Sign app with Developer ID (when MACOS_CERT_P12 is set)
         if: ${{ env.MACOS_CERT_P12 != '' }}
         shell: bash
