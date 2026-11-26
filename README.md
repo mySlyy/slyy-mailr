@@ -30,10 +30,23 @@ Core tests: `swift test --package-path Packages/SlyyMailKit` (add `SLYY_IT=1` wi
 
 ## Release
 
-Push a tag `vX.Y.Z`. CI builds the universal DMG, creates a GitHub release here and — when the
-`RELEASES_TOKEN` secret (contents:write on mySlyy/releases) is set — publishes it to
-<https://github.com/mySlyy/releases>. Developer ID signing and notarization run when the
-`MACOS_CERT_P12`, `MACOS_CERT_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD` secrets are set.
+Every push to `main` builds and tests. When `MARKETING_VERSION` in `project.yml` has no release yet,
+CI creates `v<version>` with the DMG, and publishes `mailr-v<version>` to
+<https://github.com/mySlyy/releases> when `RELEASES_TOKEN` is set.
+
+Repository secrets:
+
+| Secret | What |
+| --- | --- |
+| `MACOS_CERT_P12` | base64 of the Developer ID Application `.p12` (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERT_PASSWORD` | its password |
+| `ASC_KEY_P8` | App Store Connect API key: the `.p8` text (or its base64) |
+| `ASC_KEY_ID` | the key id (the `XXXX` in `AuthKey_XXXX.p8`) |
+| `ASC_ISSUER_ID` | the issuer id from App Store Connect → Users and Access → Integrations |
+| `RELEASES_TOKEN` | fine-grained token with contents:write on mySlyy/releases |
+
+With the first four set, CI signs the app with the hardened runtime, notarizes and staples the DMG.
+To notarize a DMG by hand on a Mac: `Tools/release/notarize-local.sh <dmg> <p12> <p8> <key id> <issuer id>`.
 
 iOS builds need an Apple Developer team for TestFlight; CI only compile-checks iOS.
 
