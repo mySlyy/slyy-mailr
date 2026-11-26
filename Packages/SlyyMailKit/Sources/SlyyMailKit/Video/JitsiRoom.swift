@@ -9,8 +9,10 @@ public enum JitsiRoom {
     public static func newURL(server: String = defaultServer, prefix: String = "slyy") -> URL {
         var rng = SystemRandomNumberGenerator()
         let slug = String((0..<20).map { _ in alphabet[Int(rng.next(upperBound: UInt32(alphabet.count)))] })
-        let base = server.hasSuffix("/") ? String(server.dropLast()) : server
-        return URL(string: "\(base)/\(prefix)-\(slug)")!
+        var base = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        while base.hasSuffix("/") { base.removeLast() }
+        if !base.lowercased().hasPrefix("http") { base = "https://" + base }
+        return URL(string: "\(base)/\(prefix)-\(slug)") ?? URL(string: "\(defaultServer)/\(prefix)-\(slug)")!
     }
 
     /// URL with display name/email pre-filled for the Jitsi web app (hash config, ignored by other servers).

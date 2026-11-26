@@ -39,7 +39,9 @@ jobs:
 
       - name: Core library tests
         shell: bash
-        run: swift test --package-path Packages/SlyyMailKit 2>&1 | tail -n 60
+        env:
+          SLYY_NET: "1"
+        run: swift test --package-path Packages/SlyyMailKit 2>&1 | tail -n 80
 
       - name: Generate Xcode project
         shell: bash

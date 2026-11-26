@@ -11,6 +11,7 @@ final class POSIXByteStream: ByteStream, @unchecked Sendable {
     private let fd: Int32
     private let queue = DispatchQueue(label: "slyy.posix.stream")
     private var closed = false
+    var readTimeout: TimeInterval = 60
 
     private init(fd: Int32) {
         self.fd = fd
@@ -47,7 +48,13 @@ final class POSIXByteStream: ByteStream, @unchecked Sendable {
 
     func read(maxLength: Int) async throws -> Data {
         try await withCheckedThrowingContinuation { cont in
+            let timeoutMs = Int32(min(readTimeout * 1000, Double(Int32.max)))
             DispatchQueue.global().async { [fd] in
+                var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+                if poll(&pfd, 1, timeoutMs) == 0 {
+                    cont.resume(throwing: TransportError.timeout)
+                    return
+                }
                 var buf = [UInt8](repeating: 0, count: maxLength)
                 let n = Glibc.read(fd, &buf, maxLength)
                 if n > 0 {

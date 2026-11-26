@@ -32,14 +32,18 @@ public actor MailService {
         return c
     }
 
-    /// Runs an IMAP operation, reconnecting once if the connection dropped.
+    /// One IMAP operation at a time: an operation is several commands (SELECT + FETCH) that must not interleave.
+    private let lock = AsyncLock()
+
+    /// Runs an IMAP operation exclusively, reconnecting once if the connection dropped.
     func withIMAP<T>(_ op: (IMAPClient) async throws -> T) async throws -> T {
-        do {
-            return try await op(try await imap())
-        } catch let e as TransportError {
-            _ = e
-            client = nil
-            return try await op(try await imap())
+        try await lock.run {
+            do {
+                return try await op(try await imap())
+            } catch is TransportError {
+                client = nil
+                return try await op(try await imap())
+            }
         }
     }
 

@@ -36,36 +36,90 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
     public var domain: String { address.domain }
 }
 
-/// Finds server settings for an email address: Thunderbird-style autoconfig, then common host names.
+/// Finds server settings for an email address, like Thunderbird does:
+/// 1. autoconfig at the mail domain, 2. autoconfig at the domain's MX host, 3. a guess based on the MX host,
+/// 4. a guess based on the domain. The CalDAV address is probed, never assumed.
 public enum AutoConfig {
+    /// MX hosts for a domain, best first. Replaceable for tests.
+    nonisolated(unsafe) public static var mxLookup: (String) async -> [String] = { await DNS.mxHosts(for: $0) }
+    /// Whether a URL answers like a CalDAV endpoint. Replaceable for tests.
+    nonisolated(unsafe) public static var davProbe: (URL, URLSession) async -> Bool = { await AutoConfig.probeDAV($0, session: $1) }
+
     public static func discover(email: String, session: URLSession = .shared) async -> AccountSettings {
         let domain = EmailAddress(address: email).domain
-        let encoded = email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email
-        let candidates = [
+        let encoded = email.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? email
+        var settings = await fetchFirst([
             "https://autoconfig.\(domain)/mail/config-v1.1.xml?emailaddress=\(encoded)",
             "https://\(domain)/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress=\(encoded)",
-        ]
-        for c in candidates {
+        ], email: email, session: session)
+        var mxHost: String?
+        if settings == nil {
+            mxHost = await mxLookup(domain).first
+            if let mx = mxHost {
+                settings = await fetchFirst([
+                    "https://\(mx)/mail/config-v1.1.xml?emailaddress=\(encoded)",
+                    "https://autoconfig.\(parentDomain(of: mx))/mail/config-v1.1.xml?emailaddress=\(encoded)",
+                ], email: email, session: session)
+            }
+        }
+        var result = settings ?? guess(email: email, mailHost: mxHost)
+        if result.caldavURL.isEmpty {
+            result.caldavURL = await findCalDAV(domain: domain, mailHost: result.imap.host, session: session) ?? ""
+        }
+        return result
+    }
+
+    static func fetchFirst(_ urls: [String], email: String, session: URLSession) async -> AccountSettings? {
+        for c in urls {
             guard let url = URL(string: c) else { continue }
             var req = URLRequest(url: url)
             req.timeoutInterval = 8
             if let (data, resp) = try? await session.data(for: req), (resp as? HTTPURLResponse)?.statusCode == 200,
-               var settings = parse(data, email: email) {
-                if settings.caldavURL.isEmpty { settings.caldavURL = "https://\(domain)/.well-known/caldav" }
+               let settings = parse(data, email: email) {
                 return settings
             }
         }
-        return guess(email: email)
+        return nil
     }
 
-    public static func guess(email: String) -> AccountSettings {
+    /// Fallback when no autoconfig exists: the MX host if known, else imap./smtp. + domain.
+    public static func guess(email: String, mailHost: String? = nil) -> AccountSettings {
         let domain = EmailAddress(address: email).domain
         return AccountSettings(
             email: email,
-            imap: ServerEndpoint(host: "imap.\(domain)", port: 993, security: .tls),
-            smtp: ServerEndpoint(host: "smtp.\(domain)", port: 587, security: .startTLS),
-            caldavURL: "https://\(domain)/.well-known/caldav"
+            imap: ServerEndpoint(host: mailHost ?? "imap.\(domain)", port: 993, security: .tls),
+            smtp: ServerEndpoint(host: mailHost ?? "smtp.\(domain)", port: 587, security: .startTLS),
+            caldavURL: ""
         )
+    }
+
+    /// First URL that behaves like CalDAV: the domain's well-known URL, the mail host's, then SOGo's path.
+    public static func findCalDAV(domain: String, mailHost: String, session: URLSession = .shared) async -> String? {
+        var hosts = [domain]
+        if mailHost.lowercased() != domain { hosts.append(mailHost) }
+        for host in hosts {
+            if let u = URL(string: "https://\(host)/.well-known/caldav"), await davProbe(u, session) { return "https://\(host)/" }
+        }
+        for host in hosts {
+            if let u = URL(string: "https://\(host)/SOGo/dav/"), await davProbe(u, session) { return u.absoluteString }
+        }
+        return nil
+    }
+
+    /// Unauthenticated PROPFIND: a DAV server answers 207 or asks for credentials (401); a web site gives 404/405/200.
+    static func probeDAV(_ url: URL, session: URLSession) async -> Bool {
+        var req = URLRequest(url: url)
+        req.httpMethod = "PROPFIND"
+        req.setValue("0", forHTTPHeaderField: "Depth")
+        req.timeoutInterval = 8
+        guard let (_, resp) = try? await session.data(for: req), let http = resp as? HTTPURLResponse else { return false }
+        return http.statusCode == 207 || http.statusCode == 401
+    }
+
+    /// "mail.mc1.example.de" → "example.de" (good enough for autoconfig.<domain> lookups).
+    static func parentDomain(of host: String) -> String {
+        let parts = host.split(separator: ".")
+        return parts.suffix(2).joined(separator: ".")
     }
 
     /// Parses a Thunderbird autoconfig document.

@@ -40,6 +40,8 @@ public enum TransportError: Error, LocalizedError, Equatable {
 
 /// A bidirectional byte stream to a server.
 public protocol ByteStream: AnyObject, Sendable {
+    /// Seconds a read may wait for data before throwing `TransportError.timeout`.
+    var readTimeout: TimeInterval { get set }
     /// Returns at least one byte, or throws `TransportError.closed` at end of stream.
     func read(maxLength: Int) async throws -> Data
     func write(_ data: Data) async throws
@@ -57,11 +59,12 @@ public enum Transport {
         #if canImport(Darwin)
         let s = StreamTaskByteStream(host: endpoint.host, port: endpoint.port, timeout: timeout)
         if endpoint.security == .tls { try await s.startTLS() }
-        return s
         #else
         if endpoint.security == .tls { throw TransportError.tlsUnavailable }
-        return try await POSIXByteStream.connect(host: endpoint.host, port: endpoint.port)
+        let s = try await POSIXByteStream.connect(host: endpoint.host, port: endpoint.port)
         #endif
+        s.readTimeout = timeout
+        return s
     }
 }
 
@@ -109,6 +112,11 @@ public final class BufferedStream: @unchecked Sendable {
     public func startTLS() async throws {
         guard buffer.isEmpty else { throw TransportError.connectionFailed("unexpected data before TLS upgrade") }
         try await stream.startTLS()
+    }
+
+    public var readTimeout: TimeInterval {
+        get { stream.readTimeout }
+        set { stream.readTimeout = newValue }
     }
 
     public func close() {

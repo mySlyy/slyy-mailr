@@ -114,6 +114,7 @@ public actor IMAPClient {
     public private(set) var selected: SelectedMailbox?
     /// Set while an IDLE is running; other commands must wait (use a separate client for IDLE).
     private var idleDone: DoneSender?
+    private var commandInFlight = false
 
     public init(endpoint: ServerEndpoint) {
         self.endpoint = endpoint
@@ -149,6 +150,28 @@ public actor IMAPClient {
             disconnect()
             throw error
         }
+    }
+
+    /// Connects, reads the greeting and capabilities and upgrades with STARTTLS if configured, without logging in.
+    /// Used to check that a server is reachable and speaks IMAP securely.
+    public func probe() async throws -> Set<String> {
+        let stream = try await Transport.connect(endpoint)
+        let io = BufferedStream(stream)
+        self.io = io
+        defer { disconnect() }
+        let greeting = try await readResponse()
+        guard case .untagged(let g) = greeting, let status = g.first?.text?.uppercased(), status == "OK" || status == "PREAUTH" else {
+            throw IMAPError.greeting("\(greeting)")
+        }
+        try await refreshCapabilities()
+        if endpoint.security == .startTLS {
+            guard capabilities.contains("STARTTLS") else { throw IMAPError.startTLSRequired }
+            _ = try await command("STARTTLS")
+            try await io.startTLS()
+            try await refreshCapabilities()
+        }
+        _ = try? await command("LOGOUT")
+        return capabilities
     }
 
     public func disconnect() {
@@ -195,6 +218,10 @@ public actor IMAPClient {
     public func command(_ parts: [Part], name: String) async throws -> Result {
         guard let io else { throw TransportError.closed }
         guard idleDone == nil else { throw IMAPError.protocolError("connection is in IDLE; use a separate client") }
+        // A second command while one is waiting for its reply would steal that reply.
+        guard !commandInFlight else { throw IMAPError.protocolError("concurrent IMAP commands on one connection") }
+        commandInFlight = true
+        defer { commandInFlight = false }
         tagCounter += 1
         let tag = "S\(tagCounter)"
         var pending = Data("\(tag) ".utf8)
@@ -409,7 +436,7 @@ public actor IMAPClient {
         return sel
     }
 
-    static let summaryItems = "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE)])"
+    static let summaryItems = "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE CONTENT-CLASS)])"
 
     /// Newest-first page of summaries. Page 0 = most recent `pageSize` messages.
     public func summaries(folder serverPath: String, page: Int, pageSize: Int = 50) async throws -> (messages: [MessageSummary], total: Int) {
@@ -525,6 +552,10 @@ public actor IMAPClient {
         }
         tagCounter += 1
         let tag = "S\(tagCounter)"
+        // IDLE waits for the server for up to `timeout`; normal commands keep the short read timeout.
+        let normalTimeout = io.readTimeout
+        io.readTimeout = timeout + 60
+        defer { io.readTimeout = normalTimeout }
         try await io.write("\(tag) IDLE\r\n")
         let done = DoneSender(io: io)
         idleDone = done
@@ -602,6 +633,15 @@ public actor IMAPClient {
         return f
     }()
 
+    /// Invitations are usually multipart, so the top-level type alone misses most of them.
+    static func looksLikeInvite(contentType: HeaderValue, contentClass: String?, subject: String) -> Bool {
+        if contentType.value == "text/calendar" || contentType.params["method"] != nil { return true }
+        if contentClass?.lowercased().contains("calendarmessage") == true { return true }
+        let prefixes = ["invitation:", "updated invitation:", "einladung:", "aktualisierte einladung:", "invitation updated:"]
+        let lower = subject.lowercased()
+        return prefixes.contains { lower.hasPrefix($0) }
+    }
+
     static func summary(from line: [IMAPValue], folder: String) -> MessageSummary? {
         guard line.count >= 3, line[1].text?.uppercased() == "FETCH", let items = line[2].list else { return nil }
         let map = fetchMap(items)
@@ -622,7 +662,7 @@ public actor IMAPClient {
             subject: EncodedWord.decode(headers["Subject"] ?? ""),
             messageID: headers["Message-ID"],
             hasAttachments: ct.value == "multipart/mixed",
-            isInvite: ct.value == "text/calendar" || (ct.params["method"] != nil)
+            isInvite: IMAPClient.looksLikeInvite(contentType: ct, contentClass: headers["Content-Class"], subject: EncodedWord.decode(headers["Subject"] ?? ""))
         )
     }
 }

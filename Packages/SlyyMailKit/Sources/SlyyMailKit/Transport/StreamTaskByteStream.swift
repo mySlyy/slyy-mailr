@@ -6,10 +6,11 @@ final class StreamTaskByteStream: ByteStream, @unchecked Sendable {
     private let session: URLSession
     private let task: URLSessionStreamTask
     private let timeout: TimeInterval
+    var readTimeout: TimeInterval = 60
 
     init(host: String, port: Int, timeout: TimeInterval) {
         let cfg = URLSessionConfiguration.ephemeral
-        cfg.timeoutIntervalForRequest = timeout
+        cfg.timeoutIntervalForRequest = 3600 // per-read timeouts handle stalls; IDLE must not be cut
         cfg.timeoutIntervalForResource = 7 * 24 * 3600
         session = URLSession(configuration: cfg)
         task = session.streamTask(withHostName: host, port: port)
@@ -18,8 +19,7 @@ final class StreamTaskByteStream: ByteStream, @unchecked Sendable {
     }
 
     func read(maxLength: Int) async throws -> Data {
-        // IDLE can wait up to 29 minutes for the next line.
-        let (data, eof) = try await task.readData(ofMinLength: 1, maxLength: maxLength, timeout: 30 * 60)
+        let (data, eof) = try await task.readData(ofMinLength: 1, maxLength: maxLength, timeout: readTimeout)
         if let data, !data.isEmpty { return data }
         if eof { throw TransportError.closed }
         throw TransportError.timeout
