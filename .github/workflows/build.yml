@@ -161,7 +161,13 @@ jobs:
           if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "v$VERSION already released; bump MARKETING_VERSION in project.yml to release again."
           else
-            gh release create "v$VERSION" dist/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            # Stable, version-free copy next to the versioned DMG, so
+            # https://github.com/mySlyy/slyy-mailr/releases/latest/download/SlyyMailr.dmg
+            # always serves the newest release (download button on slyy.ai/tools/mailr).
+            mkdir -p stable
+            cp "dist/slyy-mailr-$VERSION-mac-universal.dmg" stable/SlyyMailr.dmg
+            (cd stable && shasum -a 256 SlyyMailr.dmg > SlyyMailr.dmg.sha256)
+            gh release create "v$VERSION" dist/* stable/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md
           fi
 
