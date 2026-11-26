@@ -9,10 +9,16 @@ options:
 packages:
   SlyyMailKit:
     path: Packages/SlyyMailKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.4"
 settings:
   base:
-    MARKETING_VERSION: "0.2.0"
+    MARKETING_VERSION: "0.2.1"
+    # CI sets this to the run number so every release has a higher CFBundleVersion (Sparkle compares it).
     CURRENT_PROJECT_VERSION: "1"
+    # Filled by CI from the SPARKLE_PRIVATE_KEY secret; empty = updater off.
+    SPARKLE_PUBLIC_KEY: ""
     SWIFT_VERSION: "5.0"
     LOCALIZATION_PREFERS_STRING_CATALOGS: NO
     SWIFT_EMIT_LOC_STRINGS: YES
@@ -29,9 +35,18 @@ targets:
       - path: App/Resources
     dependencies:
       - package: SlyyMailKit
+      - package: Sparkle
     info:
       path: App/Generated/Info-macOS.plist
       properties:
+        SUFeedURL: https://github.com/mySlyy/slyy-mailr/releases/latest/download/appcast.xml
+        SUPublicEDKey: $(SPARKLE_PUBLIC_KEY)
+        SUEnableInstallerLauncherService: true
+        SUEnableAutomaticChecks: true
+        SUAutomaticallyUpdate: true
+        SUAllowsAutomaticUpdates: true
+        SUScheduledCheckInterval: 21600
+        SUVerifyUpdateBeforeExtraction: true
         CFBundleDisplayName: Slyy Mailr
         CFBundleName: Slyy Mailr
         CFBundleDevelopmentRegion: en
@@ -57,6 +72,10 @@ targets:
         com.apple.security.device.audio-input: true
         com.apple.security.files.user-selected.read-write: true
         com.apple.security.files.downloads.read-write: true
+        # Sparkle's installer runs outside the sandbox and is reached over these XPC names.
+        com.apple.security.temporary-exception.mach-lookup.global-name:
+          - ai.slyy.mailr-spks
+          - ai.slyy.mailr-spki
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr

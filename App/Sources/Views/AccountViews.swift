@@ -344,11 +344,7 @@ struct SettingsView: View {
                 } else {
                     Text("No account configured.").foregroundStyle(Slyy.muted)
                 }
-                HStack {
-                    SectionLabel("Version")
-                    Spacer()
-                    Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–").font(Slyy.mono(12))
-                }
+                UpdatesSection()
             }
             .padding(24)
             .frame(maxWidth: 640, alignment: .leading)
@@ -384,6 +380,53 @@ struct SettingsView: View {
             saved = true
         } catch {
             self.error = SignInError.explain(error, settings: s)
+        }
+    }
+}
+
+/// Version and automatic updates (Mac).
+struct UpdatesSection: View {
+    @State private var auto = AppUpdater.shared.installsAutomatically
+    @State private var checks = AppUpdater.shared.checksAutomatically
+
+    var version: String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
+        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        return b.isEmpty ? v : "\(v) (\(b))"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                SectionLabel("Updates")
+                Spacer()
+                Text(version).font(Slyy.mono(12))
+            }
+            if AppUpdater.shared.isAvailable {
+                Toggle("Check for updates automatically", isOn: $checks)
+                    .toggleStyle(SlyyCheckboxStyle())
+                    .onChange(of: checks) { _, v in AppUpdater.shared.checksAutomatically = v }
+                Toggle("Download and install updates automatically", isOn: $auto)
+                    .toggleStyle(SlyyCheckboxStyle())
+                    .disabled(!checks)
+                    .onChange(of: auto) { _, v in AppUpdater.shared.installsAutomatically = v }
+                HStack {
+                    Button("Check now") { AppUpdater.shared.checkForUpdates() }
+                        .buttonStyle(SlyyOutlineButtonStyle(strong: true))
+                    if let last = AppUpdater.shared.lastCheck {
+                        Text("Last checked \(last.formatted(date: .abbreviated, time: .shortened))")
+                            .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                    }
+                }
+                Text("Updates are signed by Slyy and notarized by Apple; they install when you quit the app.")
+                    .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            } else {
+                #if os(macOS)
+                Text("Automatic updates are off in this build.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                #else
+                Text("Updates arrive through TestFlight or the App Store.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                #endif
+            }
         }
     }
 }

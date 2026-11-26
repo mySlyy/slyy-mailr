@@ -69,8 +69,10 @@ struct CalendarView: View {
             (Text(model.calendarDate.formatted(.dateTime.month(.wide).year())).font(Slyy.font(20, .semibold))
              + Text(model.calendarMode == .month ? "" : "  · " + String(localized: "week \(weekNumber)")).font(Slyy.font(20)).foregroundStyle(Slyy.muted))
                 .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
                 .padding(.leading, 8)
-            Spacer()
+            Spacer(minLength: 8)
             HStack(spacing: 0) {
                 ForEach(CalendarMode.allCases) { m in
                     Button { model.calendarMode = m; Task { await model.loadEvents(force: false) } } label: {

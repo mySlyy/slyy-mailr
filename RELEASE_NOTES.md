@@ -1,17 +1,14 @@
-Slyy Mailr 0.2.0 — Slyy design and bug fixes
+Slyy Mailr 0.2.1 — automatic updates
 
-**New look**: the app now follows the Slyy wireframes — Hanken Grotesk and Martian Mono, square
-controls, the blue accent, hairline borders. New layouts for mail, compose, calendar, the meeting
-editor, sign-in and the video call window; iPhone gets the Mail / Calendar / Settings tab bar.
+**Automatic updates (Mac)**: Slyy Mailr checks for new versions every 6 hours, downloads them in the
+background and installs them when you quit. "Slyy Mailr → Check for Updates…" checks right away;
+Settings → Updates turns it off. Every update is signed by Slyy (EdDSA) and notarized by Apple, and
+is rejected otherwise.
 
-**Fixed**
-- Sign-in for slyy.ai: server settings are found via the domain's MX host (autoconfig.slyy.ai has a
-  wrong certificate, and imap.slyy.ai is the web server). The calendar is found on the mail server.
-- Hangs and missing or mixed-up mail when several things loaded at once (list refresh, opening a
-  message, new-mail push).
-- Sign-in no longer waits 30 minutes on an unresponsive server; errors say what to check.
-- New-mail push (IDLE) is no longer cut after 30 seconds on Mac/iPhone.
-- Invitations are marked in the message list; video links are a card in compose.
+Coming from 0.2.0 or older? Install this version once by hand; later versions arrive by themselves.
+
+**Also**: shorter invite times ("Friday 27 Nov · 10:00 – 10:30 · every week"), the calendar header no
+longer cuts off the week number, a sync dot instead of a truncated address in the sidebar.
 
 **Install (macOS)**: open the DMG and drag Slyy Mailr to Applications. Signed with Developer ID and
 notarized by Apple.

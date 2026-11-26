@@ -14,6 +14,9 @@ struct SlyyMailApp: App {
     init() {
         Slyy.registerFonts()
         _model = State(initialValue: AppModel.shared)
+        #if os(macOS)
+        _ = AppUpdater.shared // starts background update checks
+        #endif
     }
 
     var body: some Scene {
@@ -27,6 +30,12 @@ struct SlyyMailApp: App {
         .defaultSize(width: 1280, height: 800)
         #endif
         .commands {
+            #if os(macOS)
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { AppUpdater.shared.checkForUpdates() }
+                    .disabled(!AppUpdater.shared.isAvailable)
+            }
+            #endif
             CommandGroup(replacing: .newItem) {
                 Button("New Message") { model.compose(.new) }
                     .keyboardShortcut("n")

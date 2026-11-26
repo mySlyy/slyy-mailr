@@ -69,6 +69,7 @@ final class ScreenshotTests: XCTestCase {
         return dir
     }
 
+    /// Renders in a real (off-screen) window so scroll views, lists and text fields draw like in the app.
     func render<V: View>(_ view: V, _ name: String, width: CGFloat = 1280, height: CGFloat = 800) throws {
         Slyy.registerFonts()
         let content = view
@@ -77,11 +78,19 @@ final class ScreenshotTests: XCTestCase {
             .foregroundStyle(Slyy.ink)
             .background(Color.white)
             .environment(\.colorScheme, .light)
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = 1
-        let image = try XCTUnwrap(renderer.nsImage, "\(name) did not render")
-        let tiff = try XCTUnwrap(image.tiffRepresentation)
-        let png = try XCTUnwrap(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+        let host = NSHostingView(rootView: content)
+        host.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = host
+        window.orderFrontRegardless()
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(1.0)) // lazy stacks, async layout, fonts
+        host.layoutSubtreeIfNeeded()
+        let rep = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds), "\(name) did not render")
+        host.cacheDisplay(in: host.bounds, to: rep)
+        window.orderOut(nil)
+        let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
         try png.write(to: outDir.appendingPathComponent("\(name).png"))
         XCTAssertGreaterThan(png.count, 5_000, "\(name) looks empty")
     }

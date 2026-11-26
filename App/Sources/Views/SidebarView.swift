@@ -165,11 +165,14 @@ struct SidebarView: View {
                     Text(model.account?.displayName.isEmpty == false ? model.account!.displayName : (model.account?.email ?? ""))
                         .font(Slyy.font(13, .semibold))
                         .lineLimit(1)
-                    Text("\(model.account?.email ?? "") · \(model.isRefreshing ? String(localized: "syncing") : String(localized: "synced"))")
-                        .font(Slyy.font(12))
-                        .foregroundStyle(Slyy.muted)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    HStack(spacing: 5) {
+                        Circle().fill(model.isRefreshing ? Slyy.orange : Color(rgb: 0x1F9D55)).frame(width: 6, height: 6)
+                        Text(model.account?.email ?? "")
+                            .font(Slyy.font(12))
+                            .foregroundStyle(Slyy.muted)
+                            .lineLimit(1)
+                    }
+                    .help(model.isRefreshing ? String(localized: "Syncing") : String(localized: "Synced"))
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "gearshape").foregroundStyle(Slyy.muted)

@@ -25,7 +25,7 @@ struct EventDetailView: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel("Close")
                 }
-                Text(EventFormat.when(event) + (event.isRecurring ? "\n" + repeatText : ""))
+                Text(EventFormat.medium(event) + (event.isRecurring ? "\n" + repeatText : ""))
                     .foregroundStyle(Slyy.ink2)
                 if let v = event.videoURL {
                     Button { model.join(v) } label: { Label("Join video call", systemImage: SlyyIcon.video) }

@@ -265,7 +265,7 @@ struct InviteCard: View {
                     dateBadge
                     VStack(alignment: .leading, spacing: 2) {
                         Text(invite.summary).font(Slyy.font(16, .semibold))
-                        Text(EventFormat.when(invite) + (invite.isRecurring ? " · " + String(localized: "repeats") : ""))
+                        Text(EventFormat.medium(invite) + (invite.recurrence.map { " · " + RepeatOption($0.frequency).label.lowercased() } ?? ""))
                             .foregroundStyle(Slyy.ink2)
                         Text(subtitle).font(Slyy.font(13)).foregroundStyle(Slyy.muted)
                     }
@@ -404,6 +404,13 @@ struct AttachmentFile: Transferable {
 }
 
 enum EventFormat {
+    /// "Friday 27 Nov · 10:00 – 10:30"
+    static func medium(_ e: CalendarEvent) -> String {
+        let day = e.start.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
+        if e.isAllDay { return day }
+        return "\(day) · \(e.start.formatted(date: .omitted, time: .shortened)) – \(e.end.formatted(date: .omitted, time: .shortened))"
+    }
+
     /// "Fri 27 Nov · 10:00 – 10:30"
     static func short(_ e: CalendarEvent) -> String {
         let day = e.start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))

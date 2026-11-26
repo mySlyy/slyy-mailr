@@ -23,6 +23,7 @@ jobs:
       MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
       RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v5
 
@@ -49,6 +50,19 @@ jobs:
           brew install xcodegen >/dev/null
           xcodegen generate
 
+      - name: Update signing key (Sparkle EdDSA)
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet cryptography
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::warning::SPARKLE_PRIVATE_KEY not set: automatic updates are off in this build and it will not be released."
+            exit 0
+          fi
+          PUB=$("$RUNNER_TEMP/venv/bin/python" Tools/release/sparkle_sign.py public)
+          echo "SPARKLE_PUBLIC_KEY=$PUB" >> "$GITHUB_ENV"
+          echo "Update public key: $PUB"
+
       - name: Build macOS app (universal)
         shell: bash
         run: |
@@ -56,6 +70,7 @@ jobs:
           xcodebuild -project SlyyMail.xcodeproj -scheme SlyyMail-macOS -configuration Release \
             -derivedDataPath build -destination 'generic/platform=macOS' \
             ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" SPARKLE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY" \
             CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
             build 2>&1 | tee build-macos.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build-macos.log
@@ -109,9 +124,22 @@ jobs:
           test -n "$IDENTITY" || { echo "::error::No Developer ID Application identity in MACOS_CERT_P12"; exit 1; }
           echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
           echo "SIGN_KEYCHAIN=$KC" >> "$GITHUB_ENV"
-          codesign --force --deep --options runtime --timestamp \
+          # Inside-out: Sparkle's helpers keep their own (unsandboxed) setup, then other frameworks, then the app.
+          FW="$APP/Contents/Frameworks/Sparkle.framework"
+          if [ -d "$FW" ]; then
+            V="$FW/Versions/Current"
+            [ -e "$V/XPCServices/Installer.xpc" ] && codesign --force --options runtime --timestamp -s "$IDENTITY" "$V/XPCServices/Installer.xpc"
+            [ -e "$V/XPCServices/Downloader.xpc" ] && codesign --force --options runtime --timestamp --preserve-metadata=entitlements -s "$IDENTITY" "$V/XPCServices/Downloader.xpc"
+            [ -e "$V/Autoupdate" ] && codesign --force --options runtime --timestamp -s "$IDENTITY" "$V/Autoupdate"
+            [ -e "$V/Updater.app" ] && codesign --force --options runtime --timestamp -s "$IDENTITY" "$V/Updater.app"
+            codesign --force --options runtime --timestamp -s "$IDENTITY" "$FW"
+          fi
+          find "$APP/Contents/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) ! -name "Sparkle.framework" -print0 2>/dev/null \
+            | xargs -0 -I{} codesign --force --options runtime --timestamp -s "$IDENTITY" {}
+          codesign --force --options runtime --timestamp \
             --entitlements App/Generated/SlyyMail-macOS.entitlements -s "$IDENTITY" "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -d --entitlements - "$APP" | grep -q mach-lookup || { echo "::error::app entitlements missing"; exit 1; }
 
       - name: Note when the build is not notarized
         if: ${{ env.MACOS_CERT_P12 == '' || env.ASC_KEY_P8 == '' }}
@@ -156,6 +184,22 @@ jobs:
           spctl --assess --type open --context context:primary-signature -v "$DMG"
           (cd dist && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 
+      - name: Sign update and write appcast (Sparkle)
+        if: ${{ env.MACOS_CERT_P12 != '' && env.ASC_KEY_P8 != '' && env.SPARKLE_PRIVATE_KEY != '' }}
+        shell: bash
+        run: |
+          APP="build/Build/Products/Release/Slyy Mailr.app"
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Contents/Info.plist")
+          DMG="dist/slyy-mailr-$VERSION-mac-universal.dmg"
+          "$RUNNER_TEMP/venv/bin/python" Tools/release/sparkle_sign.py appcast \
+            --dmg "$DMG" --version "$VERSION" --build "$BUILD" \
+            --url "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/$(basename "$DMG")" \
+            --notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VERSION" \
+            --min-os 14.0 > dist/appcast.xml
+          cat dist/appcast.xml
+          "$RUNNER_TEMP/venv/bin/python" Tools/release/sparkle_sign.py verify dist/appcast.xml "$DMG"
+          echo "APPCAST_READY=1" >> "$GITHUB_ENV"
+
       - name: Clean up signing keychain
         if: ${{ always() && env.SIGN_KEYCHAIN != '' }}
         shell: bash
@@ -173,8 +217,8 @@ jobs:
           name: build-logs
           path: "*.log"
 
-      - name: Release new version (main, once per version, notarized builds only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.MACOS_CERT_P12 != '' && env.ASC_KEY_P8 != ''
+      - name: Release new version (main, once per version, notarized and update-signed builds only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.APPCAST_READY == '1'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -193,7 +237,7 @@ jobs:
           fi
 
       - name: Publish to mySlyy/releases (needs RELEASES_TOKEN secret)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.RELEASES_TOKEN != '' && env.MACOS_CERT_P12 != '' && env.ASC_KEY_P8 != ''
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.RELEASES_TOKEN != '' && env.APPCAST_READY == '1'
         shell: bash
         run: |
           export GH_TOKEN="$RELEASES_TOKEN"

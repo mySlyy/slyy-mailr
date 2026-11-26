@@ -51,8 +51,13 @@ Repository secrets:
 | `ASC_KEY_ID` | the key id (the `XXXX` in `AuthKey_XXXX.p8`) |
 | `ASC_ISSUER_ID` | issuer id (App Store Connect → Users and Access → Integrations); only for Team API keys, leave unset for Individual keys |
 | `RELEASES_TOKEN` | fine-grained token with contents:write on mySlyy/releases |
+| `SPARKLE_PRIVATE_KEY` | update-signing key: base64 of 32 random bytes (`head -c 32 /dev/urandom \| base64`). Keep a copy: losing it stops automatic updates for installed apps |
 
 With the first four set, CI signs the app with the hardened runtime, notarizes and staples the DMG.
+With `SPARKLE_PRIVATE_KEY` it also signs the update and publishes `appcast.xml` with the release; installed apps
+read it from `https://github.com/mySlyy/slyy-mailr/releases/latest/download/appcast.xml` (Sparkle 2).
+Releases happen only when all of this succeeded. Keep this repository public, or move the feed: the app
+downloads the appcast and DMG without logging in.
 To notarize a DMG by hand on a Mac: `Tools/release/notarize-local.sh <dmg> <p12> <p8> <key id> <issuer id>`.
 
 iOS builds need an Apple Developer team for TestFlight; CI only compile-checks iOS.
