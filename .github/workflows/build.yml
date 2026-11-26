@@ -22,7 +22,6 @@ jobs:
       # Optional secrets; steps that need them are skipped when empty.
       MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v5
@@ -235,25 +234,3 @@ jobs:
             gh release create "v$VERSION" dist/* stable/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md
           fi
-
-      - name: Publish to mySlyy/releases (needs RELEASES_TOKEN secret)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.RELEASES_TOKEN != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Publish the exact files of this repo's release (same DMG, checksum and appcast), never a rebuild.
-          if ! gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "v$VERSION is not released here yet; nothing to publish."
-            exit 0
-          fi
-          if GH_TOKEN="$RELEASES_TOKEN" gh release view "mailr-v$VERSION" -R mySlyy/releases >/dev/null 2>&1; then
-            echo "mailr-v$VERSION already on mySlyy/releases"
-            exit 0
-          fi
-          rm -rf published && mkdir published
-          gh release download "v$VERSION" -R "$GITHUB_REPOSITORY" -D published -p "slyy-mailr-*" -p "appcast.xml"
-          (cd published && shasum -a 256 -c "slyy-mailr-$VERSION-mac-universal.dmg.sha256")
-          GH_TOKEN="$RELEASES_TOKEN" gh release create "mailr-v$VERSION" published/* -R mySlyy/releases \
-            --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md --latest=false
-          echo "Published https://github.com/mySlyy/releases/releases/tag/mailr-v$VERSION"

@@ -30,9 +30,11 @@ Core tests: `swift test --package-path Packages/SlyyMailKit` (add `SLYY_IT=1` wi
 
 ## Release
 
+Downloads: <https://github.com/mySlyy/slyy-mailr/releases/latest> — direct link to the newest DMG:
+<https://github.com/mySlyy/slyy-mailr/releases/latest/download/SlyyMailr.dmg>
+
 Every push to `main` builds and tests. When `MARKETING_VERSION` in `project.yml` has no release yet,
-CI creates `v<version>` with the DMG, and publishes `mailr-v<version>` to
-<https://github.com/mySlyy/releases> when `RELEASES_TOKEN` is set.
+CI creates `v<version>` with the DMG on this repository's Releases page.
 
 Each `v<version>` release also carries `SlyyMailr.dmg` (+ `.sha256`), a byte-identical copy of the
 versioned DMG under a fixed name. The slyy.ai download button links to
@@ -50,7 +52,6 @@ Repository secrets:
 | `ASC_KEY_P8` | App Store Connect API key: the `.p8` text (or its base64) |
 | `ASC_KEY_ID` | the key id (the `XXXX` in `AuthKey_XXXX.p8`) |
 | `ASC_ISSUER_ID` | issuer id (App Store Connect → Users and Access → Integrations); only for Team API keys, leave unset for Individual keys |
-| `RELEASES_TOKEN` | fine-grained token with contents:write on mySlyy/releases |
 | `SPARKLE_PRIVATE_KEY` | update-signing key: base64 of 32 random bytes (`head -c 32 /dev/urandom \| base64`). Keep a copy: losing it stops automatic updates for installed apps |
 
 With the first four set, CI signs the app with the hardened runtime, notarizes and staples the DMG.
