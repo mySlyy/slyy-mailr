@@ -77,6 +77,8 @@ struct CalendarView: View {
                 ForEach(CalendarMode.allCases) { m in
                     Button { model.calendarMode = m; Task { await model.loadEvents(force: false) } } label: {
                         Text(m.title)
+                            .lineLimit(1)
+                            .fixedSize()
                             .font(Slyy.font(14, model.calendarMode == m ? .semibold : .regular))
                             .foregroundStyle(model.calendarMode == m ? Color.white : Slyy.ink)
                             .padding(.horizontal, 12)
@@ -230,12 +232,13 @@ struct TimeGridView: View {
     var hourLabels: some View {
         VStack(spacing: 0) {
             ForEach(0..<24, id: \.self) { h in
+                // Label sits just below its hour line; padding stays inside the fixed row height so rows never drift.
                 Text(String(format: "%02d:00", h))
                     .font(Slyy.font(11))
                     .foregroundStyle(Slyy.muted)
-                    .frame(width: gutter - 6, height: hourHeight, alignment: .topTrailing)
-                    .padding(.trailing, 6)
                     .padding(.top, 2)
+                    .padding(.trailing, 6)
+                    .frame(width: gutter, height: hourHeight, alignment: .topTrailing)
                     .id(h)
             }
         }
@@ -256,7 +259,7 @@ struct TimeGridView: View {
                 ForEach(0..<24, id: \.self) { _ in
                     Rectangle().fill(columnBackground(day))
                         .frame(height: hourHeight)
-                        .overlay(alignment: .bottom) { Rectangle().fill(Slyy.line).frame(height: 1) }
+                        .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
                 }
             }
             .contentShape(Rectangle())
