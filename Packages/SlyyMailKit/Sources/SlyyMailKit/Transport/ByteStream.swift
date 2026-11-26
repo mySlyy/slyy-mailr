@@ -1,0 +1,117 @@
+import Foundation
+
+/// How a connection to a mail server is secured.
+public enum ConnectionSecurity: String, Codable, Sendable, CaseIterable {
+    /// TLS from the first byte (IMAP 993, SMTP 465).
+    case tls
+    /// Plain connect, then upgrade with STARTTLS before login (IMAP 143, SMTP 587). Login is refused if the upgrade fails.
+    case startTLS
+    /// No encryption. Only for local development servers.
+    case plain
+}
+
+public struct ServerEndpoint: Codable, Hashable, Sendable {
+    public var host: String
+    public var port: Int
+    public var security: ConnectionSecurity
+
+    public init(host: String, port: Int, security: ConnectionSecurity) {
+        self.host = host
+        self.port = port
+        self.security = security
+    }
+}
+
+public enum TransportError: Error, LocalizedError, Equatable {
+    case connectionFailed(String)
+    case closed
+    case timeout
+    case tlsUnavailable
+
+    public var errorDescription: String? {
+        switch self {
+        case .connectionFailed(let m): return "Connection failed: \(m)"
+        case .closed: return "The server closed the connection."
+        case .timeout: return "The server did not answer in time."
+        case .tlsUnavailable: return "TLS is not available on this platform."
+        }
+    }
+}
+
+/// A bidirectional byte stream to a server.
+public protocol ByteStream: AnyObject, Sendable {
+    /// Returns at least one byte, or throws `TransportError.closed` at end of stream.
+    func read(maxLength: Int) async throws -> Data
+    func write(_ data: Data) async throws
+    /// Upgrades the open connection to TLS (STARTTLS).
+    func startTLS() async throws
+    func close()
+}
+
+public enum Transport {
+    /// Override for tests (e.g. an in-memory stream).
+    nonisolated(unsafe) public static var factory: ((ServerEndpoint) async throws -> ByteStream)?
+
+    public static func connect(_ endpoint: ServerEndpoint, timeout: TimeInterval = 30) async throws -> ByteStream {
+        if let factory { return try await factory(endpoint) }
+        #if canImport(Darwin)
+        let s = StreamTaskByteStream(host: endpoint.host, port: endpoint.port, timeout: timeout)
+        if endpoint.security == .tls { try await s.startTLS() }
+        return s
+        #else
+        if endpoint.security == .tls { throw TransportError.tlsUnavailable }
+        return try await POSIXByteStream.connect(host: endpoint.host, port: endpoint.port)
+        #endif
+    }
+}
+
+/// Buffered reading of CRLF lines and fixed-size chunks (IMAP literals, SMTP replies).
+public final class BufferedStream: @unchecked Sendable {
+    public let stream: ByteStream
+    private var buffer = Data()
+
+    public init(_ stream: ByteStream) {
+        self.stream = stream
+    }
+
+    /// Reads one line, without the trailing CRLF (or LF).
+    public func readLine(limit: Int = 10 * 1024 * 1024) async throws -> Data {
+        while true {
+            if let i = buffer.firstIndex(of: 0x0A) {
+                var line = buffer[buffer.startIndex..<i]
+                if line.last == 0x0D { line = line.dropLast() }
+                buffer = Data(buffer[(i + 1)...])
+                return Data(line)
+            }
+            if buffer.count > limit { throw TransportError.connectionFailed("line too long") }
+            buffer.append(try await stream.read(maxLength: 64 * 1024))
+        }
+    }
+
+    public func readExactly(_ count: Int) async throws -> Data {
+        while buffer.count < count {
+            buffer.append(try await stream.read(maxLength: max(64 * 1024, count - buffer.count)))
+        }
+        let out = Data(buffer.prefix(count))
+        buffer = Data(buffer.dropFirst(count))
+        return out
+    }
+
+    public func write(_ data: Data) async throws {
+        try await stream.write(data)
+    }
+
+    public func write(_ string: String) async throws {
+        try await stream.write(Data(string.utf8))
+    }
+
+    /// STARTTLS must only happen with an empty read buffer (no injected plaintext after the upgrade).
+    public func startTLS() async throws {
+        guard buffer.isEmpty else { throw TransportError.connectionFailed("unexpected data before TLS upgrade") }
+        try await stream.startTLS()
+    }
+
+    public func close() {
+        stream.close()
+    }
+}
