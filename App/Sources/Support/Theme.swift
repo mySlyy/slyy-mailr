@@ -69,6 +69,8 @@ struct SlyyPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .font(Slyy.font(14, .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
@@ -85,6 +87,8 @@ struct SlyyAccentButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .font(Slyy.font(14, .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
@@ -103,6 +107,8 @@ struct SlyyOutlineButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .font(Slyy.font(14, selected ? .semibold : .regular))
             .foregroundStyle(selected ? Color.white : Slyy.ink)
             .padding(.horizontal, 12)
