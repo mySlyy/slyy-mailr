@@ -317,7 +317,16 @@ struct SettingsView: View {
                 Text("Settings").font(Slyy.font(24, .semibold))
                 Spacer()
                 #if os(macOS)
-                Button("Done") { dismiss() }.buttonStyle(.slyyOutline)
+                Button("Done") { dismiss() }
+                    .buttonStyle(.slyyOutline)
+                    .keyboardShortcut(.cancelAction) // Esc
+                #else
+                // iPad with a keyboard: Esc closes Settings when it is shown as a sheet.
+                Button("") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .accessibilityHidden(true)
                 #endif
             }
             .padding(.horizontal, 24)
@@ -411,7 +420,8 @@ struct SettingsView: View {
                     .hairlineBorder(Slyy.lineStrong)
             }
         }
-        AliasesEditor(aliases: Binding(get: { settings!.aliases ?? [] }, set: { settings!.aliases = $0 }), primary: settings!.email)
+        AliasesEditor(aliases: Binding(get: { settings!.aliases ?? [] }, set: { settings!.aliases = $0 }), primary: settings!.email,
+                      defaultSender: Binding(get: { settings!.defaultSender }, set: { settings!.defaultSender = $0 }))
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("Reading and writing")
             Toggle("Group messages by conversation", isOn: Binding(get: { model.threaded }, set: { model.threaded = $0 }))
@@ -522,6 +532,9 @@ struct SettingsView: View {
         s.aliases = (s.aliases ?? []).filter { a in
             EmailAddress(address: a.email.trimmingCharacters(in: .whitespaces)).isValid && seen.insert(a.email.lowercased()).inserted
         }
+        if let d = s.defaultSender, !s.identities.contains(where: { $0.email.caseInsensitiveCompare(d) == .orderedSame }) || d.caseInsensitiveCompare(s.email) == .orderedSame {
+            s.defaultSender = nil
+        }
         settings = s
         saving = true
         error = nil
@@ -620,12 +633,46 @@ struct CleanupRow: View {
 struct AliasesEditor: View {
     @Binding var aliases: [SenderIdentity]
     let primary: String
+    /// Address new mails start from; nil = the account address.
+    @Binding var defaultSender: String?
+
+    func isDefault(_ email: String) -> Bool {
+        guard let d = defaultSender, !d.isEmpty else { return email.caseInsensitiveCompare(primary) == .orderedSame }
+        return d.caseInsensitiveCompare(email) == .orderedSame
+    }
+
+    /// "Default" radio: one address is the sender of new mails.
+    func defaultToggle(_ email: String) -> some View {
+        let on = isDefault(email)
+        return Button {
+            defaultSender = email.caseInsensitiveCompare(primary) == .orderedSame ? nil : email.lowercased()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: on ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(on ? Slyy.accent : Slyy.lineStrong)
+                Text("Default").font(Slyy.font(12)).foregroundStyle(on ? Slyy.ink : Slyy.muted)
+            }
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .disabled(!EmailAddress(address: email).isValid)
+        .accessibilityLabel("Default sender")
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Sender addresses")
-            Text("Send as other addresses of this mailbox (e.g. info@ or rechnung@). Replies go out from the address a mail was sent to. The mail server must allow sending as these addresses.")
+            Text("Send as other addresses of this mailbox (e.g. info@ or rechnung@). New mails start from the default address; replies go out from the address a mail was sent to. The mail server must allow sending as these addresses.")
                 .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            HStack(spacing: 8) {
+                Text(primary).font(Slyy.font(14))
+                MonoTag(text: "ACCOUNT", background: Slyy.ink2)
+                Spacer()
+                defaultToggle(primary)
+            }
+            .padding(10)
+            .hairlineBorder()
             ForEach($aliases) { $a in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -634,7 +681,11 @@ struct AliasesEditor: View {
                             .serverField()
                         TextField("Name (optional)", text: $a.name)
                             .textFieldStyle(SlyyFieldStyle(padding: 8))
-                        Button { aliases.removeAll { $0.id == a.id } } label: { Image(systemName: "trash") }
+                        defaultToggle(a.email)
+                        Button {
+                            if isDefault(a.email) { defaultSender = nil }
+                            aliases.removeAll { $0.id == a.id }
+                        } label: { Image(systemName: "trash") }
                             .buttonStyle(.plain)
                             .foregroundStyle(Slyy.danger)
                             .accessibilityLabel("Remove \(a.email)")

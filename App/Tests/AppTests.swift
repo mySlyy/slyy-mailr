@@ -75,6 +75,21 @@ final class AppLogicTests: XCTestCase {
         XCTAssertTrue(m.isMine("INFO@slyy.ai"))
     }
 
+    func testNewMailStartsFromTheDefaultSender() throws {
+        let m = AppModel.sample()
+        m.compose(.new)
+        XCTAssertEqual(m.composeDraft?.from?.email, "anna@slyy.ai")
+        var a = try XCTUnwrap(m.account)
+        a.defaultSender = "info@slyy.ai"
+        m.setSampleAccount(a)
+        m.compose(.new)
+        XCTAssertEqual(m.composeDraft?.from?.email, "info@slyy.ai")
+        XCTAssertTrue(m.composeDraft?.body.contains("Slyy · info@slyy.ai") == true, "the default's signature")
+        m.compose(.mailto(URL(string: "mailto:k@x.de?body=Hallo")!))
+        XCTAssertEqual(m.composeDraft?.from?.email, "info@slyy.ai")
+        XCTAssertTrue(m.composeDraft?.body.hasPrefix("Hallo") == true)
+    }
+
     func testRepliesAreBlueAndQuoteIsNot() throws {
         let m = AppModel.sample()
         m.blueReplies = true

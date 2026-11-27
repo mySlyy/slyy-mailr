@@ -21,6 +21,8 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
     public var signature: String
     /// Extra From addresses (aliases) on this mailbox. Optional so settings saved by older versions still load.
     public var aliases: [SenderIdentity]?
+    /// Address new mails start from (the account address or an alias). nil = the account address.
+    public var defaultSender: String?
 
     public init(id: UUID = UUID(), email: String, displayName: String = "", username: String? = nil, imap: ServerEndpoint, smtp: ServerEndpoint, caldavURL: String = "", jitsiURL: String = JitsiRoom.defaultServer, signature: String = "") {
         self.id = id
@@ -46,16 +48,28 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
 
     public func isMine(_ address: String) -> Bool { myAddresses.contains(address.lowercased()) }
 
-    /// The identity a reply should come from: the address the original was sent to, else the primary.
+    /// The identity new mails are written from.
+    public var defaultIdentity: SenderIdentity {
+        guard let d = defaultSender?.lowercased() else { return identities[0] }
+        return identities.first { $0.email.lowercased() == d } ?? identities[0]
+    }
+
+    /// The identity a reply should come from: the address the original was sent to; for mail that names
+    /// none of my addresses (lists, Bcc), the default sender.
     public func identity(forReplyTo m: ParsedMessage) -> SenderIdentity {
-        var candidates: [String] = []
-        for h in ["Delivered-To", "X-Original-To", "Envelope-To"] { candidates += m.headers.all(h).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "<> ")) } }
-        candidates += (m.to + m.cc).map(\.address)
-        for c in candidates {
-            // Prefer aliases: the primary is always a delivery target, so it is the fallback.
-            if let alias = identities.dropFirst().first(where: { $0.email.caseInsensitiveCompare(c) == .orderedSame }) { return alias }
+        var delivered: [String] = []
+        for h in ["Delivered-To", "X-Original-To", "Envelope-To"] { delivered += m.headers.all(h).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "<> ")) } }
+        let visible = (m.to + m.cc).map(\.address)
+        func match(_ list: [SenderIdentity], in candidates: [String]) -> SenderIdentity? {
+            for c in candidates {
+                if let id = list.first(where: { $0.email.caseInsensitiveCompare(c) == .orderedSame }) { return id }
+            }
+            return nil
         }
-        return identities[0]
+        // Aliases first: the account address is a delivery target of every mail, so it only counts when the sender wrote to it.
+        if let alias = match(Array(identities.dropFirst()), in: delivered + visible) { return alias }
+        if let primary = match([identities[0]], in: visible) { return primary }
+        return defaultIdentity
     }
     public var domain: String { address.domain }
 }

@@ -659,13 +659,10 @@ final class AppModel {
         guard let a = account else { return }
         switch kind {
         case .new:
-            var d = ComposeDraft()
-            if !a.signature.isEmpty { d.body = "\n\n-- \n" + a.signature }
-            composeDraft = d
+            composeDraft = newDraft(a)
         case .to(let addr):
-            var d = ComposeDraft()
+            var d = newDraft(a)
             d.to = addr.headerValue
-            if !a.signature.isEmpty { d.body = "\n\n-- \n" + a.signature }
             composeDraft = d
         case .reply(let m), .replyAll(let m), .forward(let m):
             // Answer from the address the mail was sent to (alias), and keep all my addresses out of Reply All.
@@ -677,13 +674,13 @@ final class AppModel {
             d.blueReply = kindOf != .forward && blueReplies
             composeDraft = d
         case .mailto(let url):
-            var d = ComposeDraft()
+            var d = newDraft(a)
             let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
             d.to = comps?.path.removingPercentEncoding ?? ""
             for item in comps?.queryItems ?? [] {
                 switch item.name.lowercased() {
                 case "subject": d.subject = item.value ?? ""
-                case "body": d.body = item.value ?? ""
+                case "body": d.body = (item.value ?? "") + d.body
                 case "cc": d.cc = item.value ?? ""; d.showCcBcc = true
                 case "bcc": d.bcc = item.value ?? ""; d.showCcBcc = true
                 default: break
@@ -712,6 +709,16 @@ final class AppModel {
     }
 
     /// The signature for an identity (its own, else the account's).
+    /// A new mail from the default sender, with that address's signature.
+    private func newDraft(_ a: AccountSettings) -> ComposeDraft {
+        var d = ComposeDraft()
+        let id = a.defaultIdentity
+        d.from = id
+        let sig = signature(for: id)
+        if !sig.isEmpty { d.body = "\n\n-- \n" + sig }
+        return d
+    }
+
     func signature(for id: SenderIdentity) -> String {
         id.signature.isEmpty ? (account?.signature ?? "") : id.signature
     }
@@ -906,6 +913,9 @@ final class AppModel {
 
 extension AppModel {
     /// A model filled with the wireframe's sample content; never connects to a server.
+    /// Tests: change the sample account (the live account changes only through updateAccount).
+    func setSampleAccount(_ a: AccountSettings) { account = a }
+
     static func sample(calendar: Bool = false, conversation: Bool = false) -> AppModel {
         let m = AppModel(sample: true)
         let account = AccountSettings(

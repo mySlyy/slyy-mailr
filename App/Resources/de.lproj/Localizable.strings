@@ -206,3 +206,8 @@
 "Insert" = "Einfügen";
 "Close" = "Schließen";
 "Stop" = "Stopp";
+
+/* 0.3.1 */
+"Default sender" = "Standardabsender";
+"Send as other addresses of this mailbox (e.g. info@ or rechnung@). New mails start from the default address; replies go out from the address a mail was sent to. The mail server must allow sending as these addresses." = "Mit weiteren Adressen dieses Postfachs senden (z. B. info@ oder rechnung@). Neue E-Mails beginnen mit der Standardadresse; Antworten gehen von der Adresse aus, an die eine E-Mail ging. Der Mailserver muss das Senden mit diesen Adressen erlauben.";
+"Default" = "Standard";

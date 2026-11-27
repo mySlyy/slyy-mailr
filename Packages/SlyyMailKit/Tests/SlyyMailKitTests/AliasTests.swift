@@ -9,6 +9,28 @@ final class AliasTests: XCTestCase {
         return a
     }
 
+    func testDefaultSender() {
+        var a = account
+        XCTAssertEqual(a.defaultIdentity.email, "anna@slyy.ai", "no default: the account address")
+        a.defaultSender = "INFO@slyy.ai"
+        XCTAssertEqual(a.defaultIdentity.email, "info@slyy.ai")
+        XCTAssertEqual(a.defaultIdentity.signature, "Slyy Team")
+        a.defaultSender = "gone@slyy.ai"
+        XCTAssertEqual(a.defaultIdentity.email, "anna@slyy.ai", "a removed alias falls back to the account address")
+
+        a.defaultSender = "info@slyy.ai"
+        let direct = ParsedMessage(data: Data("From: k@x.de\r\nTo: anna@slyy.ai\r\nSubject: R\r\n\r\nx\r\n".utf8))
+        XCTAssertEqual(a.identity(forReplyTo: direct).email, "anna@slyy.ai", "mail to the account address is answered from it")
+        let toRechnung = ParsedMessage(data: Data("From: k@x.de\r\nTo: rechnung@slyy.ai\r\nSubject: R\r\n\r\nx\r\n".utf8))
+        XCTAssertEqual(a.identity(forReplyTo: toRechnung).email, "rechnung@slyy.ai", "the addressed alias beats the default")
+        let list = ParsedMessage(data: Data("From: k@x.de\r\nTo: team@lists.x.de\r\nDelivered-To: anna@slyy.ai\r\nSubject: R\r\n\r\nx\r\n".utf8))
+        XCTAssertEqual(a.identity(forReplyTo: list).email, "info@slyy.ai", "list mail that names none of my addresses: the default")
+
+        // Settings saved before 0.3.1 have no defaultSender.
+        let old = try! JSONDecoder().decode(AccountSettings.self, from: JSONEncoder().encode(account))
+        XCTAssertNil(old.defaultSender)
+    }
+
     func testIdentitiesAndMine() {
         XCTAssertEqual(account.identities.map(\.email), ["anna@slyy.ai", "info@slyy.ai", "rechnung@slyy.ai"], "blank aliases are ignored")
         XCTAssertTrue(account.isMine("INFO@slyy.ai"))

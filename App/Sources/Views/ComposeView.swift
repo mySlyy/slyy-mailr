@@ -208,7 +208,7 @@ struct ComposeView: View {
     }
 
     var currentIdentity: SenderIdentity? {
-        draft.from ?? model.identities.first
+        draft.from ?? model.account?.defaultIdentity ?? model.identities.first
     }
 
     /// "From" with the account address and its aliases.
