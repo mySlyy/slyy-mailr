@@ -1,8 +1,6 @@
-Slyy Mailr 0.4.0 — for Apple Silicon
+Slyy Mailr 0.4.1 — roomier Settings
 
-**Half the size**: Slyy Mailr now runs on Macs with Apple Silicon (M1 and newer) only. Without the Intel code the app and
-its download are about half as big.
+The Settings window is wider: the section list, the form and their margins have room, and the form keeps the same distance
+to both sides. Labels, tabs and the section list line up on one edge.
 
-**Intel Macs** keep 0.3.4: it goes on working, and they are not offered this update.
-
-New in 0.3.4: the update window in the Slyy look, with these notes instead of the GitHub page.
+New in 0.4.0: Slyy Mailr runs on Apple Silicon only and is half the size. Intel Macs keep 0.3.4.

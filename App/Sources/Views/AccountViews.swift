@@ -390,7 +390,7 @@ struct SettingsView: View {
                     .accessibilityHidden(true)
                 #endif
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 32)
             .padding(.top, 24)
             .padding(.bottom, 14)
             tabBar
@@ -403,10 +403,12 @@ struct SettingsView: View {
                 HStack(spacing: 0) {
                     sidebar
                     ScrollView {
+                        // Same margin left and right of the form; centred when the window is wider.
                         SettingsSectionView(section: section)
-                            .padding(24)
                             .frame(maxWidth: 600, alignment: .leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 40)
+                            .padding(.vertical, 28)
+                            .frame(maxWidth: .infinity)
                     }
                     .id(section) // each form starts from the saved settings
                 }
@@ -444,7 +446,7 @@ struct SettingsView: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 32)
         .bottomHairline()
     }
 
@@ -472,8 +474,8 @@ struct SettingsView: View {
             }
             Spacer()
         }
-        .padding(.vertical, 16)
-        .padding(.leading, 12)
+        .padding(.vertical, 20)
+        .padding(.leading, 18) // row text lines up with "Settings" and the tabs above
         .frame(width: 200, alignment: .topLeading)
         .frame(maxHeight: .infinity, alignment: .top)
         .trailingHairline()

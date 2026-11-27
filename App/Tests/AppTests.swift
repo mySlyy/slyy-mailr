@@ -458,7 +458,7 @@ final class ScreenshotTests: XCTestCase {
         for (tab, section, name) in [(SettingsTab.mail, SettingsSection.account, "7-settings-mail"), (.mail, .senders, "7b-settings-senders"),
                                      (.calendar, .calendarServer, "8-settings-calendar"), (.video, .videoServer, "9-settings-video")] {
             let m = AppModel.sample(calendar: true)
-            try render(SettingsView(tab: tab, section: section).environment(m), name, width: 860, height: 760)
+            try render(SettingsView(tab: tab, section: section).environment(m), name, width: 880, height: 680)
         }
     }
 

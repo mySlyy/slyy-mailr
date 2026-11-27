@@ -72,7 +72,7 @@ struct SlyyMailApp: App {
         Settings {
             SettingsView()
                 .environment(model)
-                .frame(width: 560, height: 680)
+                .frame(width: 880, height: 680) // tabs, a 200 pt section pane and the form with even margins
         }
         #endif
     }
