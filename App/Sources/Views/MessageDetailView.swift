@@ -17,6 +17,7 @@ struct MessageDetailView: View {
                     if !phone { actionBar(m, s) }
                     VStack(alignment: .leading, spacing: 0) {
                         VStack(alignment: .leading, spacing: 16) {
+                            if model.openConversation.count > 1 { ConversationStrip(current: s) }
                             header(m, s)
                             if let invite = invite(in: m) {
                                 InviteCard(invite: invite.event, method: invite.method, phone: phone)
@@ -438,5 +439,50 @@ enum EventFormat {
         case .delegated: return String(localized: "Delegated")
         case .needsAction: return String(localized: "No answer yet")
         }
+    }
+}
+
+/// Every message of the open conversation, oldest first; your replies come from Sent. Click to read one.
+struct ConversationStrip: View {
+    @Environment(AppModel.self) private var model
+    let current: MessageSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                SectionLabel("Conversation")
+                Spacer()
+                Text("\(model.openConversation.count) messages").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .bottomHairline()
+            ForEach(model.openConversation) { m in
+                let isCurrent = m.id == current.id
+                let mine = m.from.first?.address.caseInsensitiveCompare(model.account?.email ?? "") == .orderedSame
+                Button {
+                    Task { await model.open(m) }
+                } label: {
+                    HStack(spacing: 10) {
+                        Circle().fill(m.isSeen ? Color.clear : Slyy.accent).frame(width: 6, height: 6)
+                        Text(mine ? String(localized: "Me") : (m.from.first?.display ?? "?"))
+                            .font(Slyy.font(13, isCurrent ? .semibold : .regular))
+                            .lineLimit(1)
+                            .frame(width: 150, alignment: .leading)
+                        if mine { MonoTag(text: "SENT", background: Slyy.ink2) }
+                        Text(m.subject).font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(m.date.formatted(date: .abbreviated, time: .shortened)).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(isCurrent ? Slyy.tint : Color.white)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isCurrent)
+            }
+        }
+        .hairlineBorder()
     }
 }

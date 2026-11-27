@@ -113,6 +113,31 @@ public actor MailService {
         return try await withIMAP { try await $0.fetchMessage(folder: s.folder, uid: s.uid) }
     }
 
+    /// The whole conversation of a message: from its folder and from Sent (your replies), oldest first.
+    public func conversation(of s: MessageSummary) async throws -> [MessageSummary] {
+        var ids = [s.messageID].compactMap { $0 } + (s.references ?? []) + [s.inReplyTo].compactMap { $0 }
+        if let root = s.references?.first { ids.insert(root, at: 0) }
+        guard !ids.isEmpty else { return [s] }
+        var folders = [s.folder]
+        if let sent = try? await folderPath(.sent), sent != s.folder { folders.append(sent) }
+        var all: [MessageSummary] = []
+        for f in folders {
+            all += (try? await withIMAP { try await $0.conversation(folder: f, messageIDs: ids) }) ?? []
+        }
+        // Second round: replies to replies that only reference intermediate messages.
+        let known = Set(all.compactMap(\.messageID))
+        let more = known.subtracting(ids)
+        if !more.isEmpty {
+            for f in folders {
+                all += (try? await withIMAP { try await $0.conversation(folder: f, messageIDs: Array(more)) }) ?? []
+            }
+        }
+        var seen = Set<String>()
+        let unique = all.filter { m in seen.insert(m.messageID ?? m.id).inserted }
+        let thread = MessageThreads.group(unique).first { t in t.messages.contains { $0.id == s.id || ($0.messageID != nil && $0.messageID == s.messageID) } }
+        return thread?.messages ?? [s]
+    }
+
     public func setFlag(_ flag: String, on: Bool, for messages: [MessageSummary]) async throws {
         for (folder, group) in Dictionary(grouping: messages, by: \.folder) {
             let uids = group.map(\.uid)

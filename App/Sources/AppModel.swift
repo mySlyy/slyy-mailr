@@ -116,6 +116,23 @@ final class AppModel {
     private(set) var isRefreshing = false
     var composeDraft: ComposeDraft?
 
+    // Conversations
+    /// Group the list by conversation (saved per device).
+    var threaded: Bool = UserDefaults.standard.object(forKey: "threaded") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(threaded, forKey: "threaded") }
+    }
+    /// The open message's whole conversation (this folder + Sent), oldest first.
+    private(set) var openConversation: [MessageSummary] = []
+    private var sampleSentReply: MessageSummary?
+
+    var threads: [MessageThread] { MessageThreads.group(messages) }
+
+    /// Messages of the thread a list row stands for (only those in the current folder).
+    func thread(containing m: MessageSummary) -> [MessageSummary] {
+        guard threaded else { return [m] }
+        return threads.first { t in t.messages.contains { $0.id == m.id } }?.messages ?? [m]
+    }
+
     // Calendar
     private(set) var calendars: [CalDAVCalendar] = []
     var hiddenCalendars: Set<String> = []
@@ -319,8 +336,10 @@ final class AppModel {
             compose(.draft(s))
             return
         }
+        let sameConversation = openConversation.contains { $0.id == s.id }
         openSummary = s
         openMessage = nil
+        if !sameConversation { openConversation = [] }
         isLoadingMessage = true
         defer { isLoadingMessage = false }
         do {
@@ -328,6 +347,12 @@ final class AppModel {
             guard openSummary?.id == s.id else { return }
             openMessage = m
             if !s.isSeen { setLocalFlag("\\Seen", on: true, ids: [s.id]) }
+            if threaded && !sameConversation {
+                Task {
+                    let convo = (try? await mail.conversation(of: s)) ?? [s]
+                    if openSummary?.id == s.id { openConversation = convo }
+                }
+            }
             contacts.add(m.from + m.to + m.cc)
             // Apply incoming replies/cancellations to my calendar automatically.
             for part in m.calendarParts {
@@ -661,7 +686,7 @@ final class AppModel {
 
 extension AppModel {
     /// A model filled with the wireframe's sample content; never connects to a server.
-    static func sample(calendar: Bool = false) -> AppModel {
+    static func sample(calendar: Bool = false, conversation: Bool = false) -> AppModel {
         let m = AppModel(sample: true)
         let account = AccountSettings(
             email: "anna@slyy.ai", displayName: "Anna Weber",
@@ -680,18 +705,20 @@ extension AppModel {
         ]
         m.folders[0].name = "Inbox"
         let now = Date()
-        func summary(_ uid: UInt32, _ name: String, _ addr: String, _ subject: String, _ ago: TimeInterval, seen: Bool, flags: Set<String> = [], attach: Bool = false, invite: Bool = false) -> MessageSummary {
-            MessageSummary(uid: uid, folder: "INBOX", flags: seen ? flags.union(["\\Seen"]) : flags, date: now.addingTimeInterval(-ago), size: 4000,
+        func summary(_ uid: UInt32, _ name: String, _ addr: String, _ subject: String, _ ago: TimeInterval, seen: Bool, flags: Set<String> = [], attach: Bool = false, invite: Bool = false, folder: String = "INBOX", refs: [String]? = nil) -> MessageSummary {
+            MessageSummary(uid: uid, folder: folder, flags: seen ? flags.union(["\\Seen"]) : flags, date: now.addingTimeInterval(-ago), size: 4000,
                            from: [EmailAddress(name: name, address: addr)], to: [account.address], cc: [], subject: subject, messageID: "<\(uid)@slyy.ai>",
-                           hasAttachments: attach, isInvite: invite)
+                           hasAttachments: attach, isInvite: invite, inReplyTo: refs?.last, references: refs)
         }
         m.messages = [
             summary(5, "Heiko Meier", "heiko@slyy.ai", "ERP Wochenfazit", 1200, seen: false, invite: true),
             summary(4, "Brandt Logistik", "dispo@brandt-logistik.de", "Lieferavis KW 49", 5400, seen: false, attach: true),
-            summary(3, "Jürgen Schott", "j.schott@schott-haustechnik.de", "Re: Angebot Wärmepumpe", 86400, seen: true, flags: ["\\Answered", "\\Flagged"]),
+            summary(3, "Jürgen Schott", "j.schott@schott-haustechnik.de", "Re: Angebot Wärmepumpe", 86400, seen: false, flags: ["\\Flagged"], refs: ["<6@slyy.ai>", "<90@slyy.ai>"]),
             summary(2, "Bob Krause", "bob@slyy.ai", "Accepted: Planung Q1", 2 * 86400, seen: true),
             summary(1, "Finanzamt Bayreuth", "poststelle@finanzamt.bayern.de", "Bescheid über Umsatzsteuer", 3 * 86400, seen: true, attach: true),
+            summary(6, "Jürgen Schott", "j.schott@schott-haustechnik.de", "Angebot Wärmepumpe", 4 * 86400, seen: true, flags: ["\\Answered"], attach: true),
         ]
+        m.sampleSentReply = summary(90, "Anna Weber", "anna@slyy.ai", "Re: Angebot Wärmepumpe", 2 * 86400, seen: true, folder: "Sent", refs: ["<6@slyy.ai>"])
         m.totalMessages = m.messages.count
 
         // Week of today: a recurring video meeting on Friday 10:00, plus a few others.
@@ -728,7 +755,18 @@ extension AppModel {
         mail.calendar = CalendarAttachment(method: "REQUEST", ics: ICalendarWriter.request(invite))
         m.openMessage = ParsedMessage(data: mail.render())
         m.openSummary = m.messages[0]
+        m.openConversation = [m.messages[0]]
         m.selectedMessageIDs = [m.messages[0].id]
+        if conversation, let reply = m.sampleSentReply {
+            let latest = m.messages.first { $0.uid == 3 }!
+            let original = m.messages.first { $0.uid == 6 }!
+            m.openConversation = [original, reply, latest]
+            m.openSummary = latest
+            m.selectedMessageIDs = [latest.id]
+            m.openMessage = ParsedMessage(data: OutgoingMessage(
+                from: EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de"), to: [account.address],
+                subject: "Re: Angebot Wärmepumpe", text: "Hallo Frau Weber,\n\nmorgen 10 Uhr passt. Bitte die Montage mit anbieten.\n\nGrüße\nJürgen Schott").render())
+        }
         if calendar {
             m.sidebarSelection = .calendar
             m.selectedEvent = ICalendarReader.expand([weekly], from: week, to: at(7, 0)).first

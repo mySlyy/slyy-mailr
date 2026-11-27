@@ -96,8 +96,13 @@ public struct MessageSummary: Codable, Hashable, Sendable, Identifiable {
     public var messageID: String?
     public var hasAttachments: Bool
     public var isInvite: Bool
+    /// Threading headers (optional so older caches still decode).
+    public var inReplyTo: String?
+    public var references: [String]?
 
-    public init(uid: UInt32, folder: String, flags: Set<String>, date: Date, size: Int, from: [EmailAddress], to: [EmailAddress], cc: [EmailAddress], subject: String, messageID: String?, hasAttachments: Bool, isInvite: Bool) {
+    public init(uid: UInt32, folder: String, flags: Set<String>, date: Date, size: Int, from: [EmailAddress], to: [EmailAddress], cc: [EmailAddress], subject: String, messageID: String?, hasAttachments: Bool, isInvite: Bool, inReplyTo: String? = nil, references: [String]? = nil) {
+        self.inReplyTo = inReplyTo
+        self.references = references
         self.uid = uid
         self.folder = folder
         self.flags = flags
@@ -462,7 +467,7 @@ public actor IMAPClient {
         return sel
     }
 
-    static let summaryItems = "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE CONTENT-CLASS)])"
+    static let summaryItems = "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE CONTENT-CLASS IN-REPLY-TO REFERENCES)])"
 
     /// Newest-first page of summaries. Page 0 = most recent `pageSize` messages.
     public func summaries(folder serverPath: String, page: Int, pageSize: Int = 50) async throws -> (messages: [MessageSummary], total: Int) {
@@ -501,6 +506,34 @@ public actor IMAPClient {
             uids += line.dropFirst().compactMap { $0.text.flatMap { UInt32($0) } }
         }
         return try await summaries(folder: serverPath, uids: Array(uids.sorted().suffix(limit)))
+    }
+
+    /// Messages in a folder that belong to a conversation: the given Message-IDs themselves,
+    /// and anything whose References or In-Reply-To mention them.
+    public func conversation(folder serverPath: String, messageIDs: [String]) async throws -> [MessageSummary] {
+        let ids = Array(Set(messageIDs)).filter { !$0.isEmpty }.prefix(8)
+        guard !ids.isEmpty else { return [] }
+        try await select(serverPath)
+        var keys: [[Part]] = []
+        for id in ids {
+            for field in ["Message-ID", "References", "In-Reply-To"] {
+                keys.append([.text("HEADER \(field) "), .astring(id)])
+            }
+        }
+        // OR k1 OR k2 ... kn
+        var parts: [Part] = [.text("UID SEARCH ")]
+        for (i, k) in keys.enumerated() {
+            if i < keys.count - 1 { parts.append(.text("OR ")) }
+            parts += k
+            parts.append(.text(" "))
+        }
+        if case .text(let t)? = parts.last, t == " " { parts.removeLast() }
+        let r = try await command(parts, name: "SEARCH")
+        var uids: [UInt32] = []
+        for line in r.untagged where line.first?.text?.uppercased() == "SEARCH" {
+            uids += line.dropFirst().compactMap { $0.text.flatMap { UInt32($0) } }
+        }
+        return try await summaries(folder: serverPath, uids: Array(uids.sorted().suffix(200)))
     }
 
     /// Full RFC 5322 source of one message (does not set \Seen).
@@ -688,7 +721,9 @@ public actor IMAPClient {
             subject: EncodedWord.decode(headers["Subject"] ?? ""),
             messageID: headers["Message-ID"],
             hasAttachments: ct.value == "multipart/mixed",
-            isInvite: IMAPClient.looksLikeInvite(contentType: ct, contentClass: headers["Content-Class"], subject: EncodedWord.decode(headers["Subject"] ?? ""))
+            isInvite: IMAPClient.looksLikeInvite(contentType: ct, contentClass: headers["Content-Class"], subject: EncodedWord.decode(headers["Subject"] ?? "")),
+            inReplyTo: MessageThreads.ids(in: headers["In-Reply-To"] ?? "").first,
+            references: MessageThreads.ids(in: headers["References"] ?? "")
         )
     }
 }

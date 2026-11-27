@@ -321,6 +321,11 @@ struct SettingsView: View {
                                 .hairlineBorder(Slyy.lineStrong)
                         }
                     }
+                    VStack(alignment: .leading, spacing: 8) {
+                        SectionLabel("Reading")
+                        Toggle("Group messages by conversation", isOn: Binding(get: { model.threaded }, set: { model.threaded = $0 }))
+                            .toggleStyle(SlyyCheckboxStyle())
+                    }
                     ServerSettingsForm(settings: Binding(get: { settings! }, set: { settings = $0 }))
                     HStack(spacing: 10) {
                         Button {

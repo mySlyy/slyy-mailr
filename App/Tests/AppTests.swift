@@ -52,6 +52,18 @@ final class AppLogicTests: XCTestCase {
         XCTAssertTrue(SignInError.explain(TransportError.timeout, settings: s).contains("mail.mc1.simplify-erp.de"))
     }
 
+    func testInboxGroupsConversations() {
+        let m = AppModel.sample()
+        XCTAssertEqual(m.messages.count, 6)
+        XCTAssertEqual(m.threads.count, 5, "Jürgen's original and his reply are one conversation")
+        let juergen = m.threads.first { $0.subject == "Angebot Wärmepumpe" }
+        XCTAssertEqual(juergen?.count, 2)
+        XCTAssertEqual(juergen?.unreadCount, 1)
+        m.threaded = false
+        XCTAssertEqual(m.thread(containing: m.messages[0]).count, 1)
+        m.threaded = true
+    }
+
     func testSampleModelMatchesWireframe() {
         let m = AppModel.sample()
         XCTAssertEqual(m.folders.first?.unseen, 12)
@@ -98,6 +110,11 @@ final class ScreenshotTests: XCTestCase {
     func testMail() throws {
         let m = AppModel.sample()
         try render(DesktopShell().environment(m), "1-mail")
+    }
+
+    func testConversation() throws {
+        let m = AppModel.sample(conversation: true)
+        try render(DesktopShell().environment(m), "6-conversation")
     }
 
     func testCompose() throws {
