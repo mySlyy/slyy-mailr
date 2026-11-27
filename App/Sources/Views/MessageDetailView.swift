@@ -461,7 +461,7 @@ struct ConversationStrip: View {
                 let isCurrent = m.id == current.id
                 let mine = m.from.first?.address.caseInsensitiveCompare(model.account?.email ?? "") == .orderedSame
                 Button {
-                    Task { await model.open(m) }
+                    if !isCurrent { Task { await model.open(m) } }
                 } label: {
                     HStack(spacing: 10) {
                         Circle().fill(m.isSeen ? Color.clear : Slyy.accent).frame(width: 6, height: 6)
@@ -470,7 +470,7 @@ struct ConversationStrip: View {
                             .lineLimit(1)
                             .frame(width: 150, alignment: .leading)
                         if mine { MonoTag(text: "SENT", background: Slyy.ink2) }
-                        Text(m.subject).font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
+                        Text(m.subject).font(Slyy.font(13)).foregroundStyle(isCurrent ? Slyy.ink2 : Slyy.muted).lineLimit(1)
                         Spacer(minLength: 8)
                         Text(m.date.formatted(date: .abbreviated, time: .shortened)).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
                     }
@@ -480,7 +480,7 @@ struct ConversationStrip: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(isCurrent)
+                .accessibilityAddTraits(isCurrent ? .isSelected : [])
             }
         }
         .hairlineBorder()
