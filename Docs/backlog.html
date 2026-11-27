@@ -60,6 +60,7 @@ li { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto; gap: 4px 1
 .tag.done { color: var(--done); border-color: currentColor; }
 .tag.built { color: var(--done); border-style: dashed; border-color: currentColor; }
 .tag.partial { color: var(--part); border-color: currentColor; }
+.tag.ready { color: var(--accent); border-color: currentColor; border-style: dotted; }
 .tag.todo { color: var(--ink2); }
 .tag.v { border: 0; background: var(--panel); color: var(--muted); }
 details.fold { margin-top: 0; }
@@ -84,7 +85,7 @@ footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
   <header>
     <div class="brand"><span class="dot"></span>slyy mailr</div>
     <h1>Mailr Backlog</h1>
-    <p class="sub">Mac app and the new iPhone &amp; iPad app on one list. Open items come first, by priority. Implemented items are struck through and folded at the end of each section. Current release: <b>0.2.4</b>, updated 27 Nov 2026.</p>
+    <p class="sub">Mac app and the new iPhone &amp; iPad app on one list. Open items come first, by priority. Implemented items are struck through and folded at the end of each section. Current release: <b>0.2.4</b>; 0.3.0 (first iPhone test round) is ready. Updated 27 Nov 2026.</p>
     <div class="meters" id="meters"></div>
     <div class="controls">
       <div class="seg" role="group" aria-label="Platform">
@@ -98,6 +99,7 @@ footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
       <span><i class="tag done">Mac ✓</i> shipped</span>
       <span><i class="tag built">iOS ✓</i> in the iOS build, not yet tested on a device</span>
       <span><i class="tag partial">part</i> partly there</span>
+      <span><i class="tag ready">ready</i> code written for 0.3.0, waiting for the build</span>
       <span><i class="tag p1">P1</i> needed for iOS 1.0</span>
       <span><i class="tag p2">P2</i> soon after</span>
       <span><i class="tag">P3</i> later</span>
@@ -114,7 +116,7 @@ const SECTIONS = [
   ["cal", "Calendar"], ["vid", "Video calls"], ["bg", "Notifications & background"], ["ios", "iPhone & iPad"],
   ["mac", "Mac app & delivery"], ["q", "Quality, privacy & accessibility"]
 ];
-const D = "done", B = "built", P = "partial", T = "todo", N = "na";
+const D = "done", B = "built", P = "partial", T = "todo", N = "na", W = "ready";
 const ITEMS = [
   [1, "acc", "Sign in with automatic server discovery", "Autoconfig, MX lookup of the mail domain, then a guess. CalDAV is probed, never assumed.", D, B],
   [2, "acc", "Manual server settings", "IMAP, SMTP (TLS / STARTTLS), user name, CalDAV and video server.", D, B],
@@ -137,8 +139,8 @@ const ITEMS = [
   [18, "read", "Search on the server", "", D, B],
   [19, "read", "Load older messages while scrolling", "", D, B],
   [20, "read", "Offline cache of recent messages", "", D, B],
-  [21, "read", "Mark as unread", "", T, T, 1],
-  [22, "read", "Preview attachments in the app (Quick Look)", "", T, T, 1],
+  [21, "read", "Mark as unread", "In the long-press menu, and as a swipe on iPhone.", D, B],
+  [22, "read", "Preview attachments in the app (Quick Look)", "Tap an attachment.", W, W, 1],
   [23, "read", "Dark mode", "The app is fixed to light today.", T, T, 2],
   [24, "read", "Unified inbox across accounts", "Needs #8.", T, T, 3],
   [25, "read", "Print a message", "AirPrint on iPhone and iPad.", T, T, 3],
@@ -147,8 +149,8 @@ const ITEMS = [
   [27, "org", "Archive, delete, move to folder", "", D, B],
   [28, "org", "Create, rename and delete folders", "", D, B],
   [29, "org", "Drag messages onto folders", "", D, N],
-  [30, "org", "Swipe actions: archive, delete, flag, read / unread", "", N, T, 1],
-  [31, "org", "Select several messages and act on all of them", "", T, T, 1],
+  [30, "org", "Swipe actions: archive, delete, flag, read / unread", "", N, W, 1],
+  [31, "org", "Select several messages and act on all of them", "Mac: Cmd-click and Shift-click. iPhone: Select, then the action bar.", D, W, 1],
   [32, "org", "Undo archive, delete and move", "", T, T, 2],
   [33, "org", "Mark as junk / not junk", "", T, T, 2],
   [34, "org", "Unsubscribe button for mailing lists", "From the List-Unsubscribe header.", T, T, 3],
@@ -162,7 +164,7 @@ const ITEMS = [
   [41, "write", "Replies written in blue, quote kept apart", "", D, B, null, "0.2.4"],
   [42, "write", "Video call link in a mail", "", D, B],
   [43, "write", "mailto: links open a new mail", "", D, B],
-  [44, "write", "Attach photos from the library or the camera", "", N, T, 1],
+  [44, "write", "Attach photos from the library or the camera", "Sent as JPEG, at most 2560 px.", N, W, 1],
   [45, "write", "Rich text: bold, italic, lists, links", "", T, T, 2],
   [46, "write", "Undo send (short delay before sending)", "", T, T, 2],
   [47, "write", "Default mail app on iPhone", "Needs Apple's default-mail-app entitlement.", N, T, 2],
@@ -177,7 +179,7 @@ const ITEMS = [
   [55, "cal", "Incoming answers and cancellations update the calendar", "", D, B],
   [56, "cal", "Show or hide calendars", "", D, B],
   [57, "cal", "Meeting reminders as notifications, with Join", "", D, B],
-  [58, "cal", "Agenda list for the phone", "Week and month grids are cramped on an iPhone.", N, T, 1],
+  [58, "cal", "Agenda list for the phone", "Next 14 days, grouped by day, with Join buttons.", N, W, 1],
   [59, "cal", "Change a single occurrence of a series", "Today an edit applies to the whole series.", T, T, 2],
   [60, "cal", "Free / busy and finding a time", "", T, T, 3],
 
@@ -189,8 +191,8 @@ const ITEMS = [
   [66, "vid", "Keep a call going in the background / picture in picture", "", N, T, 2],
 
   [67, "bg", "Unread count on the app icon", "", D, B],
-  [68, "bg", "New-mail notifications", "", T, T, 1],
-  [69, "bg", "Check mail in the background (iOS background refresh)", "", N, T, 1],
+  [68, "bg", "New-mail notifications", "Each message once, never on the first sync; tap opens it.", W, W, 1],
+  [69, "bg", "Check mail in the background (iOS background refresh)", "", N, W, 1],
   [70, "bg", "Share sheet: send a file or link from any app", "Share extension.", T, T, 2],
   [71, "bg", "Instant push for new mail", "Needs a push relay next to the Slyy mail server.", N, T, 3],
   [72, "bg", "Widgets: unread mail, next meeting", "", T, T, 3],
@@ -199,8 +201,8 @@ const ITEMS = [
   [74, "ios", "iPad uses the three-pane layout", "", N, B],
   [75, "ios", "Slyy blue-dot app icon", "", D, B, null, "0.2.2"],
   [76, "ios", "Device test pass on iPhone and iPad", "Every “not yet tested” iOS item gets checked here.", N, T, 1],
-  [77, "ios", "Signed device builds and TestFlight", "", N, T, 1],
-  [78, "ios", "iPhone screenshots and UI tests in CI", "CI builds for the simulator only today.", N, T, 1],
+  [77, "ios", "Signed device builds and TestFlight", "Pipeline written: cloud signing, upload, public link for 100 testers, beta review. Needs the App Store Connect app record.", N, W, 1],
+  [78, "ios", "iPhone screenshots and UI tests in CI", "Unit tests and five iPhone screens in the simulator.", N, W, 1],
   [79, "ios", "Keyboard, haptics and safe-area polish", "", N, T, 2],
   [80, "ios", "App Store listing: privacy labels, screenshots, review", "", N, T, 2],
 
@@ -226,7 +228,7 @@ function implemented(it, p) {
 }
 function chip(label, s) {
   if (s === N) return "";
-  const txt = s === D || s === B ? "✓" : s === P ? "part" : "to do";
+  const txt = s === D || s === B ? "✓" : s === P ? "part" : s === W ? "ready" : "to do";
   return `<i class="tag ${s}" title="${label}: ${s === B ? "in the build, not yet tested on a device" : s}">${label} ${txt}</i>`;
 }
 function row(it) {
