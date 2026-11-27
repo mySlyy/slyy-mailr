@@ -76,7 +76,7 @@ public struct OutgoingMessage: Sendable {
         if let inReplyTo { h.append("In-Reply-To: \(inReplyTo)") }
         if !references.isEmpty { h.append("References: \(references.joined(separator: "\r\n "))") }
         h.append("MIME-Version: 1.0")
-        h.append("User-Agent: Slyy Mail")
+        h.append("User-Agent: Slyy Mailr")
 
         let body = renderBody()
         return Data((h.joined(separator: "\r\n") + "\r\n" + body).utf8)
@@ -147,6 +147,11 @@ public enum ReplyKind {
 public extension ParsedMessage {
     /// Prepares a reply/forward draft: recipients, subject prefix, threading headers and quoted text.
     func draft(_ kind: ReplyKind, me: EmailAddress) -> OutgoingMessage {
+        draft(kind, me: me, myAddresses: [me.address.lowercased()])
+    }
+
+    /// Same, with all of my addresses (aliases) left out of Reply All.
+    func draft(_ kind: ReplyKind, me: EmailAddress, myAddresses: Set<String>) -> OutgoingMessage {
         let sender = replyTo.isEmpty ? from : replyTo
         var to: [EmailAddress] = []
         var cc: [EmailAddress] = []
@@ -154,11 +159,12 @@ public extension ParsedMessage {
         case .reply:
             to = sender
         case .replyAll:
-            to = sender
-            let mine = me.address.lowercased()
-            let already = Set(to.map { $0.address.lowercased() })
-            to += self.to.filter { $0.address.lowercased() != mine && !already.contains($0.address.lowercased()) }
-            cc = self.cc.filter { $0.address.lowercased() != mine }
+            let mine = myAddresses.union([me.address.lowercased()])
+            to = sender.filter { !mine.contains($0.address.lowercased()) }
+            var seen = Set(to.map { $0.address.lowercased() })
+            to += self.to.filter { a in !mine.contains(a.address.lowercased()) && seen.insert(a.address.lowercased()).inserted }
+            cc = self.cc.filter { a in !mine.contains(a.address.lowercased()) && seen.insert(a.address.lowercased()).inserted }
+            if to.isEmpty && cc.isEmpty { to = sender } // only I was involved: reply to the sender
         case .forward:
             break
         }

@@ -325,7 +325,7 @@ extension AppModel {
     }
 
     func iDeclined(_ event: CalendarEvent) -> Bool {
-        account.flatMap { event.status(of: $0.email) } == .declined
+        myStatus(in: event) == .declined
     }
 }
 

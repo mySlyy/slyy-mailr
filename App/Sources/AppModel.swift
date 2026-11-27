@@ -50,23 +50,41 @@ struct ComposeDraft: Identifiable {
     /// Video call link shown as a card while writing; added at the top of the text when sent.
     var videoURL: URL?
     var lastSaved: Date?
+    /// Sender address (account address or an alias); nil = the account address.
+    var from: SenderIdentity?
+    /// Quoted original of a reply, kept below the new text (shown and sent in the normal colour).
+    var quoted = ""
+    /// My reply text is written and sent in blue (Settings → Mail).
+    var blueReply = false
+
+    static let replyBlue = "rgba(0, 0, 255, 1)"
 
     var fullBody: String {
         guard let videoURL else { return body }
         return JitsiRoom.descriptionBlock(videoURL) + "\n" + body
     }
 
+    var plainText: String { fullBody + quoted }
+
+    /// HTML part: my text (blue for replies), then the quote in the default colour.
+    var html: String {
+        let mine = HTMLText.fromPlain(fullBody)
+        let top = blueReply ? "<div style=\"color:\(Self.replyBlue)\">\(mine)</div>" : mine
+        guard !quoted.isEmpty else { return top }
+        return top + HTMLText.fromPlain(quoted)
+    }
+
     var isEmpty: Bool { to.isEmpty && cc.isEmpty && subject.isEmpty && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty }
 
-    func message(from: EmailAddress) -> OutgoingMessage {
+    func message(from fallback: EmailAddress) -> OutgoingMessage {
         let m = OutgoingMessage(
-            from: from,
+            from: from.map { EmailAddress(name: $0.name.isEmpty ? fallback.name : $0.name, address: $0.email) } ?? fallback,
             to: EmailAddress.parseList(to),
             cc: EmailAddress.parseList(cc),
             bcc: EmailAddress.parseList(bcc),
             subject: subject,
-            text: fullBody,
-            html: HTMLText.fromPlain(fullBody),
+            text: plainText,
+            html: html,
             attachments: attachments,
             inReplyTo: inReplyTo,
             references: references
@@ -80,7 +98,14 @@ struct ComposeDraft: Identifiable {
         to = m.to.map(\.headerValue).joined(separator: ", ")
         cc = m.cc.map(\.headerValue).joined(separator: ", ")
         subject = m.subject
-        body = (signature.isEmpty ? "" : "\n\n-- \n" + signature) + m.text
+        let sig = signature.isEmpty ? "" : "\n\n-- \n" + signature
+        if m.inReplyTo != nil {
+            // Reply: my text above (editable, blue if enabled), the quote separately below.
+            body = sig.isEmpty ? "\n" : sig
+            quoted = m.text
+        } else {
+            body = sig + m.text
+        }
         attachments = m.attachments
         inReplyTo = m.inReplyTo
         references = m.references
@@ -121,8 +146,17 @@ final class AppModel {
     var threaded: Bool = UserDefaults.standard.object(forKey: "threaded") as? Bool ?? true {
         didSet { UserDefaults.standard.set(threaded, forKey: "threaded") }
     }
+    /// Write replies in blue, rgba(0, 0, 255, 1) (Settings → Mail).
+    var blueReplies: Bool = UserDefaults.standard.object(forKey: "blueReplies") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(blueReplies, forKey: "blueReplies") }
+    }
     /// The open message's whole conversation (this folder + Sent), oldest first.
     private(set) var openConversation: [MessageSummary] = []
+    /// Reader accordion: which messages of the open conversation are unfolded, and their loaded bodies.
+    var expandedMessages: Set<String> = []
+    private(set) var conversationBodies: [String: ParsedMessage] = [:]
+    /// List accordion: conversations unfolded in the message list.
+    var expandedThreads: Set<String> = []
     private var sampleSentReply: MessageSummary?
 
     var threads: [MessageThread] { MessageThreads.group(messages) }
@@ -339,18 +373,27 @@ final class AppModel {
         let sameConversation = openConversation.contains { $0.id == s.id }
         openSummary = s
         openMessage = nil
-        if !sameConversation { openConversation = [] }
+        if !sameConversation {
+            openConversation = []
+            conversationBodies = [:]
+            expandedMessages = [s.id]
+        }
         isLoadingMessage = true
         defer { isLoadingMessage = false }
         do {
             let m = try await mail.message(s)
             guard openSummary?.id == s.id else { return }
             openMessage = m
+            conversationBodies[s.id] = m
+            expandedMessages.insert(s.id)
             if !s.isSeen { setLocalFlag("\\Seen", on: true, ids: [s.id]) }
             if threaded && !sameConversation {
                 Task {
                     let convo = (try? await mail.conversation(of: s)) ?? [s]
-                    if openSummary?.id == s.id { openConversation = convo }
+                    guard openSummary?.id == s.id else { return }
+                    openConversation = convo
+                    // Unread messages start unfolded, like the one just opened.
+                    for u in convo where !u.isSeen { await unfold(u, focusing: false) }
                 }
             }
             contacts.add(m.from + m.to + m.cc)
@@ -364,6 +407,37 @@ final class AppModel {
         } catch {
             report(error)
         }
+    }
+
+    /// Folds/unfolds one message of the open conversation, loading its body the first time.
+    func toggleFold(_ m: MessageSummary) async {
+        if expandedMessages.contains(m.id) {
+            expandedMessages.remove(m.id)
+        } else {
+            await unfold(m)
+        }
+    }
+
+    func unfold(_ m: MessageSummary, focusing: Bool = true) async {
+        expandedMessages.insert(m.id)
+        if focusing { focus(m) }
+        guard conversationBodies[m.id] == nil, let mail else { return }
+        do {
+            let parsed = try await mail.message(m)
+            conversationBodies[m.id] = parsed
+            if openSummary?.id == m.id { openMessage = parsed }
+            if !m.isSeen { setLocalFlag("\\Seen", on: true, ids: [m.id]) }
+        } catch { report(error) }
+    }
+
+    /// Makes a message of the open conversation the target of Reply/Archive/Delete.
+    func focus(_ m: MessageSummary) {
+        openSummary = m
+        if let body = conversationBodies[m.id] { openMessage = body }
+    }
+
+    func toggleThread(_ id: String) {
+        if expandedThreads.contains(id) { expandedThreads.remove(id) } else { expandedThreads.insert(id) }
     }
 
     var selectedMessages: [MessageSummary] {
@@ -457,7 +531,6 @@ final class AppModel {
 
     func compose(_ kind: ComposeKind) {
         guard let a = account else { return }
-        let me = a.address
         switch kind {
         case .new:
             var d = ComposeDraft()
@@ -468,12 +541,15 @@ final class AppModel {
             d.to = addr.headerValue
             if !a.signature.isEmpty { d.body = "\n\n-- \n" + a.signature }
             composeDraft = d
-        case .reply(let m):
-            composeDraft = ComposeDraft(m.draft(.reply, me: me), signature: a.signature)
-        case .replyAll(let m):
-            composeDraft = ComposeDraft(m.draft(.replyAll, me: me), signature: a.signature)
-        case .forward(let m):
-            composeDraft = ComposeDraft(m.draft(.forward, me: me), signature: a.signature)
+        case .reply(let m), .replyAll(let m), .forward(let m):
+            // Answer from the address the mail was sent to (alias), and keep all my addresses out of Reply All.
+            let id = a.identity(forReplyTo: m)
+            let kindOf: ReplyKind
+            if case .reply = kind { kindOf = .reply } else if case .replyAll = kind { kindOf = .replyAll } else { kindOf = .forward }
+            var d = ComposeDraft(m.draft(kindOf, me: id.address, myAddresses: a.myAddresses), signature: signature(for: id))
+            d.from = id
+            d.blueReply = kindOf != .forward && blueReplies
+            composeDraft = d
         case .mailto(let url):
             var d = ComposeDraft()
             let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -507,6 +583,20 @@ final class AppModel {
                 } catch { report(error) }
             }
         }
+    }
+
+    /// The signature for an identity (its own, else the account's).
+    func signature(for id: SenderIdentity) -> String {
+        id.signature.isEmpty ? (account?.signature ?? "") : id.signature
+    }
+
+    var identities: [SenderIdentity] { account?.identities ?? [] }
+
+    func isMine(_ address: String) -> Bool { account?.isMine(address) ?? false }
+
+    /// My answer to an event, whichever of my addresses was invited.
+    func myStatus(in event: CalendarEvent) -> ParticipationStatus? {
+        event.attendees.first { isMine($0.email) }?.status
     }
 
     func send(_ draft: ComposeDraft) async -> Bool {
@@ -694,7 +784,9 @@ extension AppModel {
             smtp: ServerEndpoint(host: "mail.mc1.simplify-erp.de", port: 587, security: .startTLS),
             caldavURL: "https://mail.mc1.simplify-erp.de/"
         )
-        m.account = account
+        var withAlias = account
+        withAlias.aliases = [SenderIdentity(name: "Slyy Info", email: "info@slyy.ai", signature: "Slyy · info@slyy.ai")]
+        m.account = withAlias
         func folder(_ path: String, _ use: SpecialUse?, unseen: Int = 0, total: Int = 0) -> IMAPFolder {
             IMAPFolder(path: path, serverPath: path, name: path.components(separatedBy: "/").last!, delimiter: "/", flags: [], specialUse: use, unseen: unseen, total: total)
         }
@@ -761,11 +853,20 @@ extension AppModel {
             let latest = m.messages.first { $0.uid == 3 }!
             let original = m.messages.first { $0.uid == 6 }!
             m.openConversation = [original, reply, latest]
+            m.expandedMessages = [latest.id]
+            m.expandedThreads = [MessageThreads.group(m.messages).first { $0.messages.contains { $0.id == latest.id } }!.id]
             m.openSummary = latest
             m.selectedMessageIDs = [latest.id]
             m.openMessage = ParsedMessage(data: OutgoingMessage(
                 from: EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de"), to: [account.address],
                 subject: "Re: Angebot Wärmepumpe", text: "Hallo Frau Weber,\n\nmorgen 10 Uhr passt. Bitte die Montage mit anbieten.\n\nGrüße\nJürgen Schott").render())
+            m.conversationBodies[latest.id] = m.openMessage
+            m.conversationBodies[original.id] = ParsedMessage(data: OutgoingMessage(
+                from: EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de"), to: [account.address],
+                subject: "Angebot Wärmepumpe", text: "Guten Tag, bitte um ein Angebot für eine Wärmepumpe im Einfamilienhaus.").render())
+            m.conversationBodies[reply.id] = ParsedMessage(data: OutgoingMessage(
+                from: account.address, to: [EmailAddress(address: "j.schott@schott-haustechnik.de")],
+                subject: "Re: Angebot Wärmepumpe", text: "Hallo Herr Schott, anbei das Angebot. Passt Ihnen morgen 10 Uhr für Rückfragen?").render())
         }
         if calendar {
             m.sidebarSelection = .calendar

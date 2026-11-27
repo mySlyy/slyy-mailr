@@ -1,11 +1,17 @@
-Slyy Mailr 0.2.3 — tidies up after itself
+Slyy Mailr 0.2.4 — aliases, folded conversations, blue replies, tabbed settings
 
-**Automatic cleanup**: after each install or update, Slyy Mailr moves leftovers to the Trash —
-old Slyy Mailr installer DMGs (and their .sha256 files) in Downloads, and the app from before the
-rename ("Slyy Mail.app") — and ejects mounted Slyy Mailr installer disks. Only files that are
-provably Slyy Mailr's are touched, nothing is deleted outright, and newer installers are kept.
-Settings → Updates shows what was cleaned and has "Clean up now".
+**Sender aliases**: add extra From addresses (e.g. info@slyy.ai) with their own name and signature in
+Settings → Mail. Pick the sender in the compose window; replies automatically come from the address
+the mail was sent to, Reply All leaves all your addresses out, and invitations are answered as the
+invited alias.
 
-**Also**: the conversation strip highlights the message you are reading.
+**Folded conversations**: conversations open as an accordion: older messages are folded to one line,
+the newest is open. Click a header to fold or unfold. In the list, a chevron unfolds a thread in place.
+
+**Blue replies**: what you write in a reply is shown and sent in blue (rgba(0, 0, 255, 1)); the quoted
+original stays in its normal colour below. Switch it off in Settings → Mail.
+
+**Settings in three tabs**: Mail, Calendar and Video Calls. Calendar lists your calendars to show or
+hide; Video Calls has the meeting server, a preview of new room links and a test call.
 
 Installed 0.2.1 or newer? This update arrives by itself. Signed with Developer ID and notarized by Apple.

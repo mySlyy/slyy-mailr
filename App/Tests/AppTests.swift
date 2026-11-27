@@ -52,6 +52,49 @@ final class AppLogicTests: XCTestCase {
         XCTAssertTrue(SignInError.explain(TransportError.timeout, settings: s).contains("mail.mc1.simplify-erp.de"))
     }
 
+    func testDraftFromAliasAndReplyPicksAlias() {
+        let m = AppModel.sample()
+        XCTAssertEqual(m.identities.map(\.email), ["anna@slyy.ai", "info@slyy.ai"])
+        var d = ComposeDraft()
+        d.to = "k@x.de"
+        d.from = m.identities[1]
+        XCTAssertEqual(d.message(from: m.account!.address).from.address, "info@slyy.ai")
+        XCTAssertEqual(d.message(from: m.account!.address).from.name, "Slyy Info")
+        let toInfo = ParsedMessage(data: Data("From: k@x.de\r\nTo: info@slyy.ai\r\nSubject: Frage\r\n\r\nx\r\n".utf8))
+        m.compose(.reply(toInfo))
+        XCTAssertEqual(m.composeDraft?.from?.email, "info@slyy.ai")
+        XCTAssertTrue(m.composeDraft?.body.contains("Slyy · info@slyy.ai") == true, "alias signature used")
+        XCTAssertTrue(m.isMine("INFO@slyy.ai"))
+    }
+
+    func testRepliesAreBlueAndQuoteIsNot() throws {
+        let m = AppModel.sample()
+        m.blueReplies = true
+        defer { UserDefaults.standard.removeObject(forKey: "blueReplies") }
+        let orig = ParsedMessage(data: Data("From: k@x.de\r\nTo: anna@slyy.ai\r\nSubject: Frage\r\nMessage-ID: <q1@x.de>\r\n\r\nOriginal text\r\n".utf8))
+        m.compose(.reply(orig))
+        var d = try XCTUnwrap(m.composeDraft)
+        XCTAssertTrue(d.blueReply)
+        XCTAssertTrue(d.quoted.contains("> Original text"))
+        XCTAssertFalse(d.body.contains("Original text"), "the quote is kept apart from my text")
+        d.body = "Meine Antwort" + d.body
+        let out = d.message(from: m.account!.address)
+        let html = try XCTUnwrap(out.html)
+        XCTAssertTrue(html.hasPrefix("<div style=\"color:rgba(0, 0, 255, 1)\">"))
+        let blueEnd = try XCTUnwrap(html.range(of: "</div></div>"))
+        XCTAssertTrue(html[..<blueEnd.lowerBound].contains("Meine Antwort"))
+        XCTAssertTrue(html[blueEnd.upperBound...].contains("Original text"), "quote stays outside the blue block")
+        XCTAssertTrue(out.text.hasPrefix("Meine Antwort") && out.text.contains("> Original text"))
+        XCTAssertEqual(out.inReplyTo, "<q1@x.de>")
+
+        m.compose(.forward(orig))
+        XCTAssertEqual(m.composeDraft?.blueReply, false, "forwards are not blue")
+        m.blueReplies = false
+        m.compose(.reply(orig))
+        XCTAssertEqual(m.composeDraft?.blueReply, false)
+        XCTAssertFalse(m.composeDraft!.message(from: m.account!.address).html!.contains("0, 0, 255"))
+    }
+
     func testInboxGroupsConversations() {
         let m = AppModel.sample()
         XCTAssertEqual(m.messages.count, 6)
@@ -201,7 +244,16 @@ final class ScreenshotTests: XCTestCase {
         d.videoURL = URL(string: "https://vid.rocket.re-cloud.io/slyy-p3w8kx2m9qtz7ghd4fna")
         d.attachments = [OutgoingAttachment(filename: "Angebot-2026-118.pdf", mimeType: "application/pdf", data: Data(count: 212_000))]
         d.lastSaved = Date()
+        d.blueReply = true
+        d.quoted = "\n\nOn 26 Nov 2026 at 09:12, Jürgen Schott <j.schott@schott-haustechnik.de> wrote:\n> Guten Morgen Frau Weber,\n> können Sie das Angebot bis Freitag anpassen?"
         try render(ComposeView(draft: d).environment(m), "2-compose", width: 860, height: 680)
+    }
+
+    func testSettingsTabs() throws {
+        for (tab, name) in [(SettingsTab.mail, "7-settings-mail"), (.calendar, "8-settings-calendar"), (.video, "9-settings-video")] {
+            let m = AppModel.sample(calendar: true)
+            try render(SettingsView(tab: tab).environment(m), name, width: 720, height: 900)
+        }
     }
 
     func testSetup() throws {

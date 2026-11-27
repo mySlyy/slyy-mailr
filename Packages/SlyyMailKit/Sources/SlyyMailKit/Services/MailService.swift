@@ -190,7 +190,7 @@ public actor MailService {
         let smtp = SMTPClient(endpoint: account.smtp, heloName: account.domain.isEmpty ? "slyy-mail.local" : account.domain)
         try await smtp.connect(user: account.username, password: password)
         do {
-            try await smtp.send(from: account.email, recipients: message.envelopeRecipients, data: data)
+            try await smtp.send(from: message.from.address, recipients: message.envelopeRecipients, data: data)
         } catch {
             await smtp.quit()
             throw error
@@ -213,15 +213,15 @@ public actor MailService {
     }
 
     /// Sends an iTIP message (REQUEST/CANCEL/REPLY) as an email.
-    public func sendCalendarMail(to recipients: [EmailAddress], subject: String, text: String, method: String, ics: String) async throws {
+    public func sendCalendarMail(to recipients: [EmailAddress], subject: String, text: String, method: String, ics: String, from: EmailAddress? = nil) async throws {
         guard !recipients.isEmpty else { return }
-        var msg = OutgoingMessage(from: account.address, to: recipients, subject: subject, text: text)
+        var msg = OutgoingMessage(from: from ?? account.address, to: recipients, subject: subject, text: text)
         msg.calendar = CalendarAttachment(method: method, ics: ics)
         let data = msg.render()
         let smtp = SMTPClient(endpoint: account.smtp, heloName: account.domain.isEmpty ? "slyy-mail.local" : account.domain)
         try await smtp.connect(user: account.username, password: password)
         defer { Task { await smtp.quit() } }
-        try await smtp.send(from: account.email, recipients: msg.envelopeRecipients, data: data)
+        try await smtp.send(from: msg.from.address, recipients: msg.envelopeRecipients, data: data)
     }
 }
 

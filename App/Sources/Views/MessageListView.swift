@@ -38,11 +38,22 @@ struct MessageListView: View {
                 LazyVStack(spacing: 0) {
                     if model.threaded && model.searchText.isEmpty {
                         ForEach(model.threads) { t in
-                            ThreadRow(thread: t, me: model.account?.email, showRecipients: isSentLike, selected: t.messages.contains { model.selectedMessageIDs.contains($0.id) })
+                            ThreadRow(thread: t, me: model.account?.email, mine: model.account?.myAddresses ?? [], showRecipients: isSentLike,
+                                      selected: t.messages.contains { model.selectedMessageIDs.contains($0.id) },
+                                      expanded: model.expandedThreads.contains(t.id), onToggle: { model.toggleThread(t.id) })
                                 .contentShape(Rectangle())
                                 .onTapGesture { select(t.latest) }
                                 .draggable(t.latest.id)
                                 .contextMenu { MessageMenu(list: t.messages) }
+                            if t.count > 1 && model.expandedThreads.contains(t.id) {
+                                ForEach(t.messages.reversed()) { m in
+                                    ThreadChildRow(message: m, mine: model.isMine(m.from.first?.address ?? ""), selected: model.selectedMessageIDs.contains(m.id))
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { select(m) }
+                                        .draggable(m.id)
+                                        .contextMenu { MessageMenu(list: [m]) }
+                                }
+                            }
                         }
                     } else {
                         ForEach(model.messages) { m in
@@ -279,7 +290,7 @@ struct PhoneInboxView: View {
                     if model.threaded && model.searchText.isEmpty {
                         ForEach(model.threads) { t in
                             NavigationLink(value: t.latest) {
-                                ThreadRow(thread: t, me: model.account?.email, phone: true)
+                                ThreadRow(thread: t, me: model.account?.email, mine: model.account?.myAddresses ?? [], phone: true)
                             }
                             .buttonStyle(.plain)
                             .contextMenu { MessageMenu(list: t.messages) }
@@ -318,9 +329,12 @@ struct PhoneInboxView: View {
 struct ThreadRow: View {
     let thread: MessageThread
     let me: String?
+    var mine: Set<String> = []
     var showRecipients = false
     var selected = false
     var phone = false
+    var expanded = false
+    var onToggle: (() -> Void)? = nil
 
     var body: some View {
         if thread.count == 1 {
@@ -333,7 +347,18 @@ struct ThreadRow: View {
                     .padding(.top, 6)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(thread.participants(me: me).map { $0 == "Me" ? String(localized: "Me") : $0 }.joined(separator: ", "))
+                        if let onToggle {
+                            Button(action: onToggle) {
+                                Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Slyy.ink2)
+                                    .frame(width: 16, height: 16)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(expanded ? "Fold conversation" : "Unfold conversation")
+                        }
+                        Text(thread.participants(mine: mine).map { $0 == "Me" ? String(localized: "Me") : $0 }.joined(separator: ", "))
                             .font(Slyy.font(phone ? 15 : 14, thread.unreadCount > 0 ? .semibold : .regular))
                             .lineLimit(1)
                         Text("\(thread.count)")
@@ -369,5 +394,30 @@ struct ThreadRow: View {
             .bottomHairline()
             .accessibilityElement(children: .combine)
         }
+    }
+}
+
+/// One message under an unfolded conversation in the list.
+struct ThreadChildRow: View {
+    let message: MessageSummary
+    var mine = false
+    var selected = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle().fill(message.isSeen ? Color.clear : Slyy.accent).frame(width: 6, height: 6)
+            Text(mine ? String(localized: "Me") : (message.from.first?.display ?? "?"))
+                .font(Slyy.font(13, message.isSeen ? .regular : .semibold))
+                .lineLimit(1)
+            if message.hasAttachments { Image(systemName: "paperclip").imageScale(.small).foregroundStyle(Slyy.muted) }
+            Spacer(minLength: 6)
+            Text(MessageRow.shortDate(message.date)).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+        }
+        .padding(.leading, 44)
+        .padding(.trailing, 16)
+        .padding(.vertical, 8)
+        .background(selected ? Slyy.tint : Slyy.sidebar)
+        .bottomHairline()
+        .accessibilityElement(children: .combine)
     }
 }

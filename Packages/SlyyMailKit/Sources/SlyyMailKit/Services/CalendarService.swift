@@ -135,9 +135,13 @@ public actor CalendarService {
     /// Answers an invite from a mail: REPLY to the organizer and update my calendar.
     public func respond(to invite: CalendarEvent, status: ParticipationStatus, comment: String? = nil) async throws {
         guard let organizer = invite.organizer else { return }
-        let ics = ICalendarWriter.reply(to: invite, attendee: account.address, status: status, comment: comment)
+        // Answer as the address that was invited (an alias, if that's where the invite went).
+        let me = invite.attendees.first { account.isMine($0.email) }.map { a in
+            account.identities.first { $0.email.caseInsensitiveCompare(a.email) == .orderedSame }?.address ?? EmailAddress(name: a.name, address: a.email)
+        } ?? account.address
+        let ics = ICalendarWriter.reply(to: invite, attendee: me, status: status, comment: comment)
         let verb = status == .accepted ? "Accepted" : status == .declined ? "Declined" : "Tentative"
-        try await mail.sendCalendarMail(to: [organizer], subject: "\(verb): \(invite.summary)", text: comment ?? "", method: "REPLY", ics: ics)
+        try await mail.sendCalendarMail(to: [organizer], subject: "\(verb): \(invite.summary)", text: comment ?? "", method: "REPLY", ics: ics, from: me)
         guard let caldav else { return }
         let existing = try await findObject(uid: invite.uid)
         if status == .declined {
@@ -145,10 +149,10 @@ public actor CalendarService {
             return
         }
         var mine = invite
-        if let idx = mine.attendees.firstIndex(where: { $0.email.caseInsensitiveCompare(account.email) == .orderedSame }) {
+        if let idx = mine.attendees.firstIndex(where: { account.isMine($0.email) }) {
             mine.attendees[idx].status = status
         } else {
-            mine.attendees.append(Attendee(email: account.email, name: account.displayName, status: status))
+            mine.attendees.append(Attendee(email: me.address, name: me.name, status: status))
         }
         // Existing object: update in place. New: store in my default calendar.
         var calendarURL = ""

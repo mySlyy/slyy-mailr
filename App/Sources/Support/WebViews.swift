@@ -21,6 +21,8 @@ func openExternally(_ url: URL) {
 struct MailHTMLView: PlatformViewRepresentable {
     let html: String
     let allowRemoteContent: Bool
+    /// Reports the document height (accordion sections size themselves to their mail).
+    var onHeight: ((CGFloat) -> Void)? = nil
     var onMailto: (URL) -> Void = { _ in }
 
     static func document(_ body: String, allowRemote: Bool) -> String {
@@ -75,6 +77,14 @@ struct MailHTMLView: PlatformViewRepresentable {
 
         init(_ parent: MailHTMLView) {
             self.parent = parent
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard let report = parent.onHeight else { return }
+            // App-side script (page scripts stay disabled).
+            webView.evaluateJavaScript("Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)") { value, _ in
+                if let h = value as? Double { DispatchQueue.main.async { report(CGFloat(h)) } }
+            }
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

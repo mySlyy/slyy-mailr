@@ -16,13 +16,19 @@ public struct MessageThread: Identifiable, Hashable, Sendable {
 
     /// Senders in order of first appearance, de-duplicated.
     public func participants(me: String?) -> [String] {
+        participants(mine: me.map { [$0.lowercased()] } ?? [])
+    }
+
+    /// Senders in order of first appearance; any of my addresses shows as "Me".
+    public func participants(mine: Set<String>) -> [String] {
         var seen = Set<String>()
         var out: [String] = []
         for m in messages {
             guard let a = m.from.first else { continue }
             let key = a.address.lowercased()
-            guard seen.insert(key).inserted else { continue }
-            if let me, key == me.lowercased() { out.append("Me") } else { out.append(a.name.isEmpty ? a.address : a.name.components(separatedBy: " ").first ?? a.name) }
+            let label = mine.contains(key) ? "Me" : (a.name.isEmpty ? a.address : a.name.components(separatedBy: " ").first ?? a.name)
+            guard seen.insert(mine.contains(key) ? "me" : key).inserted else { continue }
+            out.append(label)
         }
         return out
     }

@@ -21,6 +21,7 @@ struct ComposeView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            if model.identities.count > 1 { fromRow }
             AddressField(label: "To", text: $draft.to, focus: $focus, field: .to) {
                 if !draft.showCcBcc {
                     Button("Cc / Bcc") { draft.showCcBcc = true }
@@ -51,9 +52,19 @@ struct ComposeView: View {
                     TextEditor(text: $draft.body)
                         .font(Slyy.font(14))
                         .lineSpacing(4)
+                        .foregroundStyle(draft.blueReply ? Slyy.replyBlue : Slyy.ink)
                         .focused($focus, equals: .body)
                         .scrollContentBackground(.hidden)
-                        .frame(minHeight: 300)
+                        .frame(minHeight: draft.quoted.isEmpty ? 300 : 120)
+                    if !draft.quoted.isEmpty {
+                        TextEditor(text: $draft.quoted)
+                            .font(Slyy.font(14))
+                            .lineSpacing(4)
+                            .foregroundStyle(Slyy.ink2)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 180)
+                            .accessibilityLabel("Quoted message")
+                    }
                 }
                 .padding(16)
             }
@@ -123,6 +134,54 @@ struct ComposeView: View {
         .bottomHairline()
     }
 
+    var currentIdentity: SenderIdentity? {
+        draft.from ?? model.identities.first
+    }
+
+    /// "From" with the account address and its aliases.
+    var fromRow: some View {
+        HStack(spacing: 10) {
+            Text("From").foregroundStyle(Slyy.muted).frame(width: 56, alignment: .leading)
+            Menu {
+                ForEach(model.identities) { id in
+                    Button {
+                        switchIdentity(to: id)
+                    } label: {
+                        Text(id.name.isEmpty ? id.email : "\(id.name) <\(id.email)>")
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    if let c = currentIdentity {
+                        Text(c.name.isEmpty ? c.email : c.name).font(Slyy.font(14, .semibold))
+                        if !c.name.isEmpty { Text(c.email).font(Slyy.font(13)).foregroundStyle(Slyy.ink2) }
+                    }
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(Slyy.muted)
+                }
+                .foregroundStyle(Slyy.ink)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .fixedSize()
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 9)
+        .bottomHairline()
+    }
+
+    /// Changes the sender and swaps the signature block if the old one is still in the text.
+    func switchIdentity(to id: SenderIdentity) {
+        let oldSig = currentIdentity.map { model.signature(for: $0) } ?? ""
+        let newSig = model.signature(for: id)
+        if !oldSig.isEmpty, draft.body.contains("-- \n" + oldSig) {
+            draft.body = draft.body.replacingOccurrences(of: "-- \n" + oldSig, with: newSig.isEmpty ? "" : "-- \n" + newSig)
+        } else if oldSig.isEmpty, !newSig.isEmpty, !draft.body.contains("-- \n") {
+            draft.body += "\n\n-- \n" + newSig
+        }
+        draft.from = id
+    }
+
     func videoCard(_ v: URL) -> some View {
         HStack(spacing: 12) {
             Image(systemName: SlyyIcon.video).foregroundStyle(Slyy.accent)
@@ -170,7 +229,7 @@ struct ComposeView: View {
             }
             Spacer()
             if let a = model.account {
-                Text("Sent from \(a.email) via \(a.smtp.host) · \(a.smtp.security == .plain ? "no encryption" : "TLS")")
+                Text("Sent from \(currentIdentity?.email ?? a.email) via \(a.smtp.host) · \(a.smtp.security == .plain ? "no encryption" : "TLS")")
                     .lineLimit(1)
                     .truncationMode(.middle)
             }

@@ -12,12 +12,17 @@ struct MessageDetailView: View {
 
     var body: some View {
         Group {
-            if let m = model.openMessage, let s = model.openSummary {
+            if model.openConversation.count > 1, let m = model.openMessage, let s = model.openSummary {
+                VStack(spacing: 0) {
+                    if !phone { actionBar(m, s) }
+                    ConversationAccordion(phone: phone)
+                    if phone { phoneReplyBar(m) }
+                }
+            } else if let m = model.openMessage, let s = model.openSummary {
                 VStack(alignment: .leading, spacing: 0) {
                     if !phone { actionBar(m, s) }
                     VStack(alignment: .leading, spacing: 0) {
                         VStack(alignment: .leading, spacing: 16) {
-                            if model.openConversation.count > 1 { ConversationStrip(current: s) }
                             header(m, s)
                             if let invite = invite(in: m) {
                                 InviteCard(invite: invite.event, method: invite.method, phone: phone)
@@ -40,9 +45,9 @@ struct MessageDetailView: View {
                         .padding(.top, 20)
                         .padding(.bottom, 8)
                         .frame(maxWidth: 760, alignment: .leading)
-                        MailHTMLView(html: bodyHTML(m), allowRemoteContent: allowImages) { url in
+                        MailHTMLView(html: MessageBody.html(m), allowRemoteContent: allowImages, onMailto: { url in
                             model.compose(.mailto(url))
-                        }
+                        })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.horizontal, phone ? 2 : 12)
                     }
@@ -208,31 +213,8 @@ struct MessageDetailView: View {
 
     // MARK: Body
 
-    func bodyHTML(_ m: ParsedMessage) -> String {
-        if let html = m.htmlBody {
-            var out = html
-            for a in m.attachments where a.contentID != nil {
-                out = out.replacingOccurrences(of: "cid:\(a.contentID!)", with: "data:\(a.mimeType);base64,\(a.data.base64EncodedString())")
-            }
-            return out
-        }
-        return HTMLText.fromPlain(m.textBody ?? "")
-    }
-
-    func hasRemoteContent(_ m: ParsedMessage) -> Bool {
-        guard let html = m.htmlBody?.lowercased() else { return false }
-        return html.contains("src=\"http") || html.contains("src='http") || html.contains("url(http") || html.contains("background=\"http")
-    }
-
-    func invite(in m: ParsedMessage) -> (event: CalendarEvent, method: String)? {
-        for part in m.calendarParts {
-            let r = ICalendarReader.read(part)
-            if let e = r.events.first(where: { $0.recurrenceID == nil }) ?? r.events.first {
-                return (e, r.method ?? "PUBLISH")
-            }
-        }
-        return nil
-    }
+    func hasRemoteContent(_ m: ParsedMessage) -> Bool { MessageBody.hasRemoteContent(m) }
+    func invite(in m: ParsedMessage) -> (event: CalendarEvent, method: String)? { MessageBody.invite(in: m) }
 }
 
 /// Invitation card from the wireframe: date badge, title, when, organizer, Join; RSVP strip below.
@@ -351,7 +333,7 @@ struct InviteCard: View {
     }
 
     var current: ParticipationStatus? {
-        answered ?? model.account.flatMap { invite.status(of: $0.email) }
+        answered ?? model.myStatus(in: invite)
     }
 
     var statusText: String {
@@ -442,47 +424,200 @@ enum EventFormat {
     }
 }
 
-/// Every message of the open conversation, oldest first; your replies come from Sent. Click to read one.
-struct ConversationStrip: View {
+enum MessageBody {
+    static func html(_ m: ParsedMessage) -> String {
+        if let html = m.htmlBody {
+            var out = html
+            for a in m.attachments where a.contentID != nil {
+                out = out.replacingOccurrences(of: "cid:\(a.contentID!)", with: "data:\(a.mimeType);base64,\(a.data.base64EncodedString())")
+            }
+            return out
+        }
+        return HTMLText.fromPlain(m.textBody ?? "")
+    }
+
+    static func hasRemoteContent(_ m: ParsedMessage) -> Bool {
+        guard let html = m.htmlBody?.lowercased() else { return false }
+        return html.contains("src=\"http") || html.contains("src='http") || html.contains("url(http") || html.contains("background=\"http")
+    }
+
+    static func invite(in m: ParsedMessage) -> (event: CalendarEvent, method: String)? {
+        for part in m.calendarParts {
+            let r = ICalendarReader.read(part)
+            if let e = r.events.first(where: { $0.recurrenceID == nil }) ?? r.events.first {
+                return (e, r.method ?? "PUBLISH")
+            }
+        }
+        return nil
+    }
+
+    /// First words of the text, for folded messages ("Hallo Frau Weber, morgen 10 Uhr passt …").
+    static func preview(_ m: ParsedMessage) -> String {
+        let text = m.textBody ?? m.htmlBody.map(HTMLText.toPlain) ?? ""
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix(">") && !$0.hasPrefix("On ") && $0 != "--" }
+        return String(lines.joined(separator: " ").prefix(160))
+    }
+}
+
+/// A conversation as folded sections (oldest first): one line per message, unfolding in place.
+struct ConversationAccordion: View {
     @Environment(AppModel.self) private var model
-    let current: MessageSummary
+    var phone = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(MessageThreads.baseSubject(model.openConversation.last?.subject ?? ""))
+                        .font(Slyy.font(phone ? 21 : 22, .semibold))
+                        .tracking(-0.2)
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button(allOpen ? "Fold all" : "Unfold all") {
+                        if allOpen {
+                            model.expandedMessages = model.openSummary.map { [$0.id] } ?? []
+                        } else {
+                            Task { for m in model.openConversation { await model.unfold(m, focusing: false) } }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(Slyy.font(13))
+                    .foregroundStyle(Slyy.accent)
+                }
+                Text("\(model.openConversation.count) messages").font(Slyy.font(13)).foregroundStyle(Slyy.muted)
+                ForEach(model.openConversation) { m in
+                    AccordionSection(summary: m, phone: phone)
+                }
+            }
+            .padding(.horizontal, phone ? 14 : 24)
+            .padding(.vertical, 18)
+            .frame(maxWidth: 820, alignment: .leading)
+        }
+        .background(Color.white)
+    }
+
+    var allOpen: Bool { model.openConversation.allSatisfy { model.expandedMessages.contains($0.id) } }
+}
+
+struct AccordionSection: View {
+    @Environment(AppModel.self) private var model
+    let summary: MessageSummary
+    var phone = false
+    @State private var bodyHeight: CGFloat = 120
+    @State private var allowImages = false
+
+    var open: Bool { model.expandedMessages.contains(summary.id) }
+    var focused: Bool { model.openSummary?.id == summary.id }
+    var mine: Bool { model.isMine(summary.from.first?.address ?? "") }
+    var parsed: ParsedMessage? { model.conversationBodies[summary.id] }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                SectionLabel("Conversation")
-                Spacer()
-                Text("\(model.openConversation.count) messages").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .bottomHairline()
-            ForEach(model.openConversation) { m in
-                let isCurrent = m.id == current.id
-                let mine = m.from.first?.address.caseInsensitiveCompare(model.account?.email ?? "") == .orderedSame
-                Button {
-                    if !isCurrent { Task { await model.open(m) } }
-                } label: {
-                    HStack(spacing: 10) {
-                        Circle().fill(m.isSeen ? Color.clear : Slyy.accent).frame(width: 6, height: 6)
-                        Text(mine ? String(localized: "Me") : (m.from.first?.display ?? "?"))
-                            .font(Slyy.font(13, isCurrent ? .semibold : .regular))
-                            .lineLimit(1)
-                            .frame(width: 150, alignment: .leading)
-                        if mine { MonoTag(text: "SENT", background: Slyy.ink2) }
-                        Text(m.subject).font(Slyy.font(13)).foregroundStyle(isCurrent ? Slyy.ink2 : Slyy.muted).lineLimit(1)
-                        Spacer(minLength: 8)
-                        Text(m.date.formatted(date: .abbreviated, time: .shortened)).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            Button {
+                Task { await model.toggleFold(summary) }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Image(systemName: open ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Slyy.muted)
+                        .frame(width: 10)
+                    Circle().fill(summary.isSeen ? Color.clear : Slyy.accent).frame(width: 7, height: 7)
+                    Text(mine ? String(localized: "Me") : (summary.from.first?.display ?? "?"))
+                        .font(Slyy.font(14, .semibold))
+                        .lineLimit(1)
+                    if mine { MonoTag(text: "SENT", background: Slyy.ink2) }
+                    if open {
+                        Text(recipients).font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
+                    } else {
+                        Text(parsed.map(MessageBody.preview) ?? summary.subject)
+                            .font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(isCurrent ? Slyy.tint : Color.white)
-                    .contentShape(Rectangle())
+                    Spacer(minLength: 8)
+                    if summary.hasAttachments { Image(systemName: "paperclip").imageScale(.small).foregroundStyle(Slyy.muted) }
+                    Text(summary.date.formatted(date: .abbreviated, time: .shortened))
+                        .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isCurrent ? .isSelected : [])
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(open ? Slyy.sidebar : Color.white)
+
+            if open {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let p = parsed {
+                        if let inv = MessageBody.invite(in: p) {
+                            InviteCard(invite: inv.event, method: inv.method, phone: phone)
+                        }
+                        if !p.attachments.filter({ !$0.isInline || $0.contentID == nil }).isEmpty {
+                            AttachmentChips(attachments: p.attachments.filter { !$0.isInline || $0.contentID == nil })
+                        }
+                        if MessageBody.hasRemoteContent(p) && !allowImages {
+                            Button("Load images") { allowImages = true }
+                                .buttonStyle(SlyyOutlineButtonStyle(height: 28))
+                        }
+                        MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages, onHeight: { h in
+                            bodyHeight = min(max(h, 60), 4000)
+                        }, onMailto: { url in model.compose(.mailto(url)) })
+                        .frame(height: bodyHeight)
+                        HStack(spacing: 6) {
+                            Button("Reply") { model.focus(summary); model.compose(.reply(p)) }
+                            Button("Reply all") { model.focus(summary); model.compose(.replyAll(p)) }
+                            Button("Forward") { model.focus(summary); model.compose(.forward(p)) }
+                        }
+                        .buttonStyle(SlyyOutlineButtonStyle(height: 30))
+                    } else {
+                        ProgressView().controlSize(.small).padding(8)
+                    }
+                }
+                .padding(12)
+                .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
+                .onTapGesture { model.focus(summary) }
             }
         }
-        .hairlineBorder()
+        .overlay(Rectangle().stroke(focused && open ? Slyy.ink : Slyy.line, lineWidth: 1))
+    }
+
+    var recipients: String {
+        let to = (parsed?.to ?? summary.to).map(\.display).joined(separator: ", ")
+        return to.isEmpty ? "" : String(localized: "to \(to)")
+    }
+}
+
+/// Attachment chips with save/share/open.
+struct AttachmentChips: View {
+    let attachments: [Attachment]
+    @State private var exporting: Attachment?
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(attachments) { a in
+                    Menu {
+                        Button("Save…") { exporting = a }
+                        ShareLink(item: AttachmentFile(attachment: a), preview: SharePreview(a.filename))
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: SlyyIcon.doc).imageScale(.small)
+                            Text("\(a.filename) · \(ByteCountFormatter.string(fromByteCount: Int64(a.data.count), countStyle: .file))").lineLimit(1)
+                        }
+                        .font(Slyy.font(13))
+                        .foregroundStyle(Slyy.ink)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Slyy.panel)
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .fixedSize()
+                }
+            }
+        }
+        .fileExporter(isPresented: Binding(get: { exporting != nil }, set: { if !$0 { exporting = nil } }),
+                      document: exporting.map { AttachmentDocument(data: $0.data) },
+                      contentType: .data,
+                      defaultFilename: exporting?.filename) { _ in exporting = nil }
     }
 }

@@ -8,7 +8,7 @@ struct EventDetailView: View {
     @State private var confirmDelete = false
 
     var isMine: Bool { model.account.map { event.isOrganized(by: $0.email) } ?? true }
-    var myStatus: ParticipationStatus? { model.account.flatMap { event.status(of: $0.email) } }
+    var myStatus: ParticipationStatus? { model.myStatus(in: event) }
 
     var body: some View {
         ScrollView {
@@ -47,7 +47,7 @@ struct EventDetailView: View {
                         }
                         ForEach(event.attendees) { a in
                             HStack {
-                                Text(a.name.isEmpty ? a.email : a.name) + Text(a.email.caseInsensitiveCompare(model.account?.email ?? "") == .orderedSame ? " (you)" : "")
+                                Text(a.name.isEmpty ? a.email : a.name) + Text(model.isMine(a.email) ? " (you)" : "")
                                 Spacer()
                                 Text(a.email.caseInsensitiveCompare(event.organizer?.address ?? "") == .orderedSame ? String(localized: "Organizer") : EventFormat.status(a.status))
                                     .font(Slyy.font(12))

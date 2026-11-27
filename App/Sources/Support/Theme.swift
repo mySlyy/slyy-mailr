@@ -4,6 +4,8 @@ import CoreText
 /// Slyy look from the wireframes: Hanken Grotesk + Martian Mono, white ground, near-black ink,
 /// one blue accent, square corners, 1 px hairlines.
 enum Slyy {
+    /// Reply text colour, rgba(0, 0, 255, 1).
+    static let replyBlue = Color(.sRGB, red: 0, green: 0, blue: 1, opacity: 1)
     // MARK: Colors
     static let ink = Color(rgb: 0x0A0A0A)
     static let ink2 = Color(rgb: 0x3D3D3D)
@@ -278,6 +280,8 @@ struct InitialsAvatar: View {
 /// Wireframe icons (stroke SVG paths from the design) drawn as SwiftUI shapes where SF Symbols differ too much.
 enum SlyyIcon {
     static let video = "video"
+    static let mail = "envelope"
+    static let calendar = "calendar"
     static let compose = "square.and.pencil"
     static let attach = "paperclip"
     static let doc = "doc"

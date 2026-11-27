@@ -28,11 +28,13 @@ class Handler:
         (self.spool / name).write_bytes(envelope.original_content)
         (self.spool / (name + ".rcpt")).write_text("\n".join(envelope.rcpt_tos))
         if self.lda_config:
+            # Like a real MTA's final delivery: record the envelope sender as Return-Path.
+            delivered = b"Return-Path: <" + envelope.mail_from.encode() + b">\r\n" + envelope.original_content
             for rcpt in envelope.rcpt_tos:
                 if rcpt.lower() in USERS:
                     subprocess.run(
                         ["/usr/lib/dovecot/dovecot-lda", "-c", self.lda_config, "-d", rcpt.lower(), "-f", envelope.mail_from],
-                        input=envelope.original_content, check=False,
+                        input=delivered, check=False,
                     )
         return "250 OK queued"
 

@@ -19,6 +19,8 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
     public var caldavURL: String
     public var jitsiURL: String
     public var signature: String
+    /// Extra From addresses (aliases) on this mailbox. Optional so settings saved by older versions still load.
+    public var aliases: [SenderIdentity]?
 
     public init(id: UUID = UUID(), email: String, displayName: String = "", username: String? = nil, imap: ServerEndpoint, smtp: ServerEndpoint, caldavURL: String = "", jitsiURL: String = JitsiRoom.defaultServer, signature: String = "") {
         self.id = id
@@ -33,6 +35,28 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
     }
 
     public var address: EmailAddress { EmailAddress(name: displayName, address: email) }
+
+    /// The primary address first, then the aliases.
+    public var identities: [SenderIdentity] {
+        [SenderIdentity(id: id, name: displayName, email: email, signature: signature)] + (aliases ?? []).filter { EmailAddress(address: $0.email).isValid }
+    }
+
+    /// Every address that is "me" (lower-cased), for reply-all, conversations and invites.
+    public var myAddresses: Set<String> { Set(identities.map { $0.email.lowercased() }) }
+
+    public func isMine(_ address: String) -> Bool { myAddresses.contains(address.lowercased()) }
+
+    /// The identity a reply should come from: the address the original was sent to, else the primary.
+    public func identity(forReplyTo m: ParsedMessage) -> SenderIdentity {
+        var candidates: [String] = []
+        for h in ["Delivered-To", "X-Original-To", "Envelope-To"] { candidates += m.headers.all(h).map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "<> ")) } }
+        candidates += (m.to + m.cc).map(\.address)
+        for c in candidates {
+            // Prefer aliases: the primary is always a delivery target, so it is the fallback.
+            if let alias = identities.dropFirst().first(where: { $0.email.caseInsensitiveCompare(c) == .orderedSame }) { return alias }
+        }
+        return identities[0]
+    }
     public var domain: String { address.domain }
 }
 
