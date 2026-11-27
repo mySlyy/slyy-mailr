@@ -61,7 +61,7 @@ struct ComposeView: View {
                     TextEditor(text: $draft.body)
                         .font(Slyy.font(14))
                         .lineSpacing(4)
-                        .foregroundStyle(draft.blueReply ? Slyy.replyBlue : Slyy.ink)
+                        .foregroundStyle(draft.blueReply ? (Color(hex: draft.replyColor) ?? Slyy.accent) : Slyy.ink)
                         .focused($focus, equals: .body)
                         .scrollContentBackground(.hidden)
                         .frame(minHeight: draft.quoted.isEmpty ? 300 : 120)
@@ -98,8 +98,8 @@ struct ComposeView: View {
         #endif
         .interactiveDismissDisabled(!draft.isEmpty)
         .confirmationDialog("Save this message as a draft?", isPresented: $confirmClose) {
-            Button("Save Draft") { Task { _ = await model.saveDraft(draft); dismiss() } }
-            Button("Discard", role: .destructive) { dismiss() }
+            Button("Save Draft") { Task { _ = await model.saveDraft(draft); close() } }
+            Button("Discard", role: .destructive) { close() }
             Button("Keep Editing", role: .cancel) {}
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
@@ -129,6 +129,13 @@ struct ComposeView: View {
         }
         #endif
         .task { await autosave() }
+        // Crash safety: written to disk a second after the last change.
+        .task(id: journalKey) {
+            guard model.autoSave else { return }
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            DraftJournal.standard.save(draft)
+        }
         .onAppear { focus = draft.to.isEmpty ? .to : .body }
     }
 
@@ -171,7 +178,7 @@ struct ComposeView: View {
 
     var topBar: some View {
         HStack(spacing: 8) {
-            Button("Cancel") { if draft.isEmpty { dismiss() } else { confirmClose = true } }
+            Button("Cancel") { if draft.isEmpty { close() } else { confirmClose = true } }
                 .buttonStyle(.slyyOutline)
                 .keyboardShortcut(.cancelAction)
             Text(draft.subject.isEmpty ? String(localized: "New message") : draft.subject)
@@ -297,7 +304,9 @@ struct ComposeView: View {
 
     var footer: some View {
         HStack {
-            if let saved = draft.lastSaved {
+            if draft.recovered {
+                Text("Recovered after Mailr quit unexpectedly").foregroundStyle(Slyy.accent)
+            } else if let saved = draft.lastSaved {
                 Text("Draft saved to Drafts · \(saved.formatted(date: .omitted, time: .shortened))")
             }
             Spacer()
@@ -317,7 +326,7 @@ struct ComposeView: View {
     func send() async {
         sending = true
         defer { sending = false }
-        if await model.send(draft) { dismiss() }
+        if await model.send(draft) { close() }
     }
 
     func addVideo() {
@@ -337,9 +346,21 @@ struct ComposeView: View {
     }
 
     /// Saves to the Drafts folder every 10 s while there are unsaved changes.
+    /// Changes whenever anything in the mail changes.
+    var journalKey: String {
+        "\(draft.to)|\(draft.cc)|\(draft.bcc)|\(draft.subject)|\(draft.body)|\(draft.quoted)|\(draft.attachments.count)|\(draft.videoURL?.absoluteString ?? "")|\(draft.from?.email ?? "")|\(draft.draftUID ?? 0)"
+    }
+
+    /// Normal close (sent, saved to Drafts, discarded): the crash copy is no longer needed.
+    func close() {
+        DraftJournal.standard.remove(draft.id)
+        dismiss()
+    }
+
     func autosave() async {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 10_000_000_000)
+            guard model.autoSave else { continue }
             let fingerprint = "\(draft.to)|\(draft.cc)|\(draft.bcc)|\(draft.subject)|\(draft.body)|\(draft.attachments.count)|\(draft.videoURL?.absoluteString ?? "")"
             guard !draft.isEmpty, fingerprint != lastSaved, !sending else { continue }
             let saved = await model.saveDraft(draft)

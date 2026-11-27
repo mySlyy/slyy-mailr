@@ -75,6 +75,24 @@ final class AppLogicTests: XCTestCase {
         XCTAssertTrue(m.isMine("INFO@slyy.ai"))
     }
 
+    func testEachSettingsSectionSavesOnlyItsOwnFields() async throws {
+        let m = AppModel.sample()
+        var state = SaveState()
+        let binding = Binding(get: { state }, set: { state = $0 })
+        let before = try XCTUnwrap(m.account)
+        let ok = await saveSection(m, state: binding, reconnect: false, apply: { $0.jitsiURL = "https://meet.slyy.ai" })
+        XCTAssertTrue(ok)
+        XCTAssertTrue(state.saved)
+        XCTAssertEqual(m.account?.jitsiURL, "https://meet.slyy.ai")
+        XCTAssertEqual(m.account?.imap, before.imap, "other sections are untouched")
+        XCTAssertEqual(m.account?.aliases, before.aliases)
+        XCTAssertEqual(SettingsTab.mail.sections.first, .account)
+        XCTAssertTrue(SettingsTab.mail.sections.contains(.senders))
+        XCTAssertEqual(SettingsTab.calendar.sections, [.calendarServer, .calendars])
+        XCTAssertEqual(SettingsSection.rooms.tab, .video)
+        UserDefaults.standard.removeObject(forKey: "accounts.v1")
+    }
+
     func testNewMailStartsFromTheDefaultSender() throws {
         let m = AppModel.sample()
         m.compose(.new)
@@ -103,7 +121,7 @@ final class AppLogicTests: XCTestCase {
         d.body = "Meine Antwort" + d.body
         let out = d.message(from: m.account!.address)
         let html = try XCTUnwrap(out.html)
-        XCTAssertTrue(html.hasPrefix("<div style=\"color:rgba(0, 0, 255, 1)\">"))
+        XCTAssertTrue(html.hasPrefix("<div style=\"color:#2B3BFF\">"), "default: the Slyy dot blue")
         let blueEnd = try XCTUnwrap(html.range(of: "</div></div>"))
         XCTAssertTrue(html[..<blueEnd.lowerBound].contains("Meine Antwort"))
         XCTAssertTrue(html[blueEnd.upperBound...].contains("Original text"), "quote stays outside the blue block")
@@ -115,7 +133,48 @@ final class AppLogicTests: XCTestCase {
         m.blueReplies = false
         m.compose(.reply(orig))
         XCTAssertEqual(m.composeDraft?.blueReply, false)
-        XCTAssertFalse(m.composeDraft!.message(from: m.account!.address).html!.contains("0, 0, 255"))
+        XCTAssertFalse(m.composeDraft!.message(from: m.account!.address).html!.contains("color:"))
+
+        m.blueReplies = true
+        m.replyColorHex = "#1F8A4C"
+        defer { UserDefaults.standard.removeObject(forKey: "replyColor") }
+        m.compose(.reply(orig))
+        XCTAssertTrue(m.composeDraft!.message(from: m.account!.address).html!.hasPrefix("<div style=\"color:#1F8A4C\">"), "my own colour")
+        var evil = try XCTUnwrap(m.composeDraft)
+        evil.replyColor = "red;background:url(x)"
+        XCTAssertTrue(evil.message(from: m.account!.address).html!.hasPrefix("<div style=\"color:#2B3BFF\">"), "no raw CSS from settings")
+        XCTAssertEqual(Color(hex: "#2B3BFF")?.hexString, "#2B3BFF")
+        XCTAssertNil(Color(hex: "blue"))
+    }
+
+    func testAutoSaveKeepsUnsentMailsAcrossACrash() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("journal-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let journal = DraftJournal(directory: dir)
+        var d = ComposeDraft()
+        d.to = "j.schott@schott-haustechnik.de"
+        d.subject = "Angebot"
+        d.body = "Guten Tag"
+        d.quoted = "> Original"
+        d.attachments = [OutgoingAttachment(filename: "a.pdf", mimeType: "application/pdf", data: Data([1, 2, 3]))]
+        d.draftUID = 42
+        journal.save(d)
+        var later = ComposeDraft()
+        later.body = "Zweite Mail"
+        journal.save(later)
+        // "Crash": nothing removed. The next launch finds both, newest first, with everything restored.
+        let back = journal.leftovers()
+        XCTAssertEqual(back.count, 2)
+        let restored = try XCTUnwrap(back.first { $0.id == d.id })
+        XCTAssertEqual(restored.subject, "Angebot")
+        XCTAssertEqual(restored.quoted, "> Original")
+        XCTAssertEqual(restored.attachments.first?.data, Data([1, 2, 3]))
+        XCTAssertEqual(restored.draftUID, 42, "keeps replacing the same server draft")
+        // Normal close removes it; an emptied mail is not kept.
+        journal.remove(d.id)
+        later.body = ""
+        journal.save(later)
+        XCTAssertTrue(journal.leftovers().isEmpty)
     }
 
     func testInboxGroupsConversations() {
@@ -361,9 +420,10 @@ final class ScreenshotTests: XCTestCase {
     }
 
     func testSettingsTabs() throws {
-        for (tab, name) in [(SettingsTab.mail, "7-settings-mail"), (.calendar, "8-settings-calendar"), (.video, "9-settings-video")] {
+        for (tab, section, name) in [(SettingsTab.mail, SettingsSection.account, "7-settings-mail"), (.mail, .senders, "7b-settings-senders"),
+                                     (.calendar, .calendarServer, "8-settings-calendar"), (.video, .videoServer, "9-settings-video")] {
             let m = AppModel.sample(calendar: true)
-            try render(SettingsView(tab: tab).environment(m), name, width: 720, height: 900)
+            try render(SettingsView(tab: tab, section: section).environment(m), name, width: 860, height: 760)
         }
     }
 

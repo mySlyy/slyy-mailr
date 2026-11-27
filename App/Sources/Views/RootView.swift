@@ -29,7 +29,7 @@ struct RootView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
-        .sheet(item: $model.composeDraft) { draft in
+        .sheet(item: $model.composeDraft, onDismiss: { model.openNextRecovered() }) { draft in
             ComposeView(draft: draft)
                 .environment(model)
         }

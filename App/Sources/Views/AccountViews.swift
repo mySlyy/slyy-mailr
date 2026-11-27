@@ -297,19 +297,53 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .video: SlyyIcon.video
         }
     }
+    var sections: [SettingsSection] {
+        switch self {
+        case .mail:
+            #if os(macOS)
+            return [.account, .senders, .reading, .assistant, .servers, .updates]
+            #else
+            return [.account, .senders, .reading, .assistant, .servers]
+            #endif
+        case .calendar: return [.calendarServer, .calendars]
+        case .video: return [.videoServer, .rooms]
+        }
+    }
 }
 
+/// One form in Settings. Each saves on its own.
+enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
+    case account, senders, reading, assistant, servers, updates
+    case calendarServer, calendars
+    case videoServer, rooms
+    var id: String { rawValue }
+    var title: LocalizedStringKey {
+        switch self {
+        case .account: "Account"
+        case .senders: "Sender Addresses"
+        case .reading: "Reading and Writing"
+        case .assistant: "Assistant"
+        case .servers: "Servers"
+        case .updates: "Updates"
+        case .calendarServer: "Calendar Server"
+        case .calendars: "Shown Calendars"
+        case .videoServer: "Video Server"
+        case .rooms: "Room Links"
+        }
+    }
+    var tab: SettingsTab { SettingsTab.allCases.first { $0.sections.contains(self) } ?? .mail }
+}
+
+/// Settings: tabs (Mail · Calendar · Video Calls) on top, the tab's sections on the left, one form on the right.
+/// On iPhone the sections are a list that opens each form.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var settings: AccountSettings?
-    @State private var newPassword = ""
-    @State private var saving = false
-    @State private var error: String?
-    @State private var saved = false
-    @State private var confirmRemove = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State var tab: SettingsTab = .mail
-    @AppStorage("notifyNewMail") private var notifyNewMail = true
+    @State var section: SettingsSection = .account
+
+    var compact: Bool { sizeClass == .compact }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -333,32 +367,29 @@ struct SettingsView: View {
             .padding(.top, 24)
             .padding(.bottom, 14)
             tabBar
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    if settings != nil {
-                        switch tab {
-                        case .mail: mailTab
-                        case .calendar: calendarTab
-                        case .video: videoTab
-                        }
-                        saveRow
-                    } else {
-                        Text("No account configured.").foregroundStyle(Slyy.muted)
+            if model.account == nil {
+                Text("No account configured.").foregroundStyle(Slyy.muted).padding(24)
+                Spacer()
+            } else if compact {
+                sectionList
+            } else {
+                HStack(spacing: 0) {
+                    sidebar
+                    ScrollView {
+                        SettingsSectionView(section: section)
+                            .padding(24)
+                            .frame(maxWidth: 600, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    if tab == .mail { UpdatesSection() }
+                    .id(section) // each form starts from the saved settings
                 }
-                .padding(24)
-                .frame(maxWidth: 640, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .font(Slyy.body)
         .foregroundStyle(Slyy.ink)
         .background(Color.white)
-        .onAppear { settings = model.account }
-        .confirmationDialog("Remove this account?", isPresented: $confirmRemove) {
-            Button("Remove", role: .destructive) { Task { await model.removeAccount(); dismiss() } }
-        }
+        .onChange(of: tab) { _, t in if section.tab != t { section = t.sections[0] } }
+        .onAppear { if section.tab != tab { section = tab.sections[0] } }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         #endif
@@ -378,6 +409,7 @@ struct SettingsView: View {
                             .fixedSize()
                         Rectangle().fill(tab == t ? Slyy.accent : Color.clear).frame(height: 2)
                     }
+                    .fixedSize()
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -389,69 +421,316 @@ struct SettingsView: View {
         .bottomHairline()
     }
 
-    var binding: Binding<AccountSettings> { Binding(get: { settings! }, set: { settings = $0 }) }
-
-    @ViewBuilder var mailTab: some View {
-        HStack(spacing: 16) {
-            InitialsAvatar(name: settings!.displayName.isEmpty ? settings!.email : settings!.displayName, size: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(settings!.displayName.isEmpty ? settings!.email : settings!.displayName).font(Slyy.font(15, .semibold))
-                Text(settings!.email).font(Slyy.font(13)).foregroundStyle(Slyy.muted)
+    /// Left pane: the sections of the current tab.
+    var sidebar: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(tab.sections) { s in
+                Button { section = s } label: {
+                    HStack(spacing: 0) {
+                        Rectangle().fill(section == s ? Slyy.accent : Color.clear).frame(width: 2)
+                        Text(s.title)
+                            .font(Slyy.font(14, section == s ? .semibold : .regular))
+                            .foregroundStyle(section == s ? Slyy.ink : Slyy.ink2)
+                            .lineLimit(1)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                        Spacer(minLength: 0)
+                    }
+                    .background(section == s ? Slyy.panel : Color.clear)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(section == s ? .isSelected : [])
             }
             Spacer()
         }
-        .padding(16)
-        .hairlineBorder()
+        .padding(.vertical, 16)
+        .padding(.leading, 12)
+        .frame(width: 200, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .trailingHairline()
+    }
 
-        VStack(alignment: .leading, spacing: 12) {
-            SectionLabel("Account")
-            labeled("Your name") {
-                TextField("", text: binding.displayName).textFieldStyle(SlyyFieldStyle(padding: 8))
-            }
-            labeled("New password (leave empty to keep)") {
-                SecureField("", text: $newPassword).textFieldStyle(SlyyFieldStyle(padding: 8))
-            }
-            labeled("Signature") {
-                TextEditor(text: binding.signature)
-                    .font(Slyy.body)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 70)
-                    .padding(6)
-                    .hairlineBorder(Slyy.lineStrong)
+    /// iPhone: sections as a list; each opens its form.
+    var sectionList: some View {
+        List {
+            ForEach(tab.sections) { s in
+                NavigationLink {
+                    ScrollView { SettingsSectionView(section: s).padding(18) }
+                        .background(Color.white)
+                        .navigationTitle(Text(s.title))
+                } label: {
+                    Text(s.title).font(Slyy.font(15))
+                }
             }
         }
-        AliasesEditor(aliases: Binding(get: { settings!.aliases ?? [] }, set: { settings!.aliases = $0 }), primary: settings!.email,
-                      defaultSender: Binding(get: { settings!.defaultSender }, set: { settings!.defaultSender = $0 }))
+        .listStyle(.plain)
+    }
+}
+
+/// The form for one section, with its own copy of the settings and its own Save.
+struct SettingsSectionView: View {
+    @Environment(AppModel.self) private var model
+    let section: SettingsSection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(section.title).font(Slyy.font(18, .semibold))
+            switch section {
+            case .account: AccountForm()
+            case .senders: SendersForm()
+            case .reading: ReadingForm()
+            case .assistant: HavenSection()
+            case .servers: ServersForm()
+            case .updates: UpdatesSection()
+            case .calendarServer: CalendarServerForm()
+            case .calendars: ShownCalendarsForm()
+            case .videoServer: VideoServerForm()
+            case .rooms: RoomLinksInfo()
+            }
+        }
+    }
+}
+
+/// Save row shared by the forms: disabled until something changed, "Saved" after.
+struct SectionSaveBar: View {
+    let title: LocalizedStringKey
+    let changed: Bool
+    let state: SaveState
+    let action: () async -> Void
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("Reading and writing")
+            HStack(spacing: 10) {
+                Button { Task { await action() } } label: {
+                    HStack(spacing: 8) {
+                        if state.saving { ProgressView().controlSize(.small).tint(.white) }
+                        Text(title)
+                    }
+                }
+                .buttonStyle(SlyyPrimaryButtonStyle(height: 40))
+                .disabled(!changed || state.saving)
+                if state.saved && !changed {
+                    Label("Saved", systemImage: "checkmark").font(Slyy.font(13)).foregroundStyle(Slyy.muted)
+                }
+            }
+            if let e = state.error { Text(e).font(Slyy.font(13)).foregroundStyle(Slyy.danger) }
+        }
+        .padding(.top, 4)
+    }
+}
+
+struct SaveState {
+    var saving = false
+    var saved = false
+    var error: String?
+}
+
+/// Saves one section: only the fields `apply` writes are taken over into the current settings,
+/// so unsaved edits in other sections are never saved along with it.
+@MainActor
+func saveSection(_ model: AppModel, state: Binding<SaveState>, reconnect: Bool, password: String? = nil, apply: (inout AccountSettings) -> Void) async -> Bool {
+    guard var s = model.account else { return false }
+    apply(&s)
+    state.wrappedValue = SaveState(saving: true)
+    do {
+        if reconnect || !(password ?? "").isEmpty {
+            try await model.updateAccount(s, password: password)
+        } else {
+            model.saveSettings(s)
+        }
+        state.wrappedValue = SaveState(saved: true)
+        return true
+    } catch {
+        state.wrappedValue = SaveState(error: SignInError.explain(error, settings: s))
+        return false
+    }
+}
+
+func settingsField<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+        Text(title).font(Slyy.font(13))
+        content()
+    }
+}
+
+struct AccountForm: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var signature = ""
+    @State private var password = ""
+    @State private var state = SaveState()
+    @State private var confirmRemove = false
+
+    var changed: Bool {
+        guard let a = model.account else { return false }
+        return name != a.displayName || signature != a.signature || !password.isEmpty
+    }
+
+    var body: some View {
+        if let a = model.account {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 16) {
+                    InitialsAvatar(name: a.displayName.isEmpty ? a.email : a.displayName, size: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(a.displayName.isEmpty ? a.email : a.displayName).font(Slyy.font(15, .semibold))
+                        Text(a.email).font(Slyy.font(13)).foregroundStyle(Slyy.muted)
+                    }
+                    Spacer()
+                }
+                .padding(16)
+                .hairlineBorder()
+                settingsField("Your name") { TextField("", text: $name).textFieldStyle(SlyyFieldStyle(padding: 8)) }
+                settingsField("New password (leave empty to keep)") { SecureField("", text: $password).textFieldStyle(SlyyFieldStyle(padding: 8)) }
+                settingsField("Signature") {
+                    TextEditor(text: $signature)
+                        .font(Slyy.body)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 70)
+                        .padding(6)
+                        .hairlineBorder(Slyy.lineStrong)
+                }
+                SectionSaveBar(title: password.isEmpty ? "Save" : "Save and reconnect", changed: changed, state: state) {
+                    let n = name, sig = signature, pw = password
+                    if await saveSection(model, state: $state, reconnect: false, password: pw, apply: { $0.displayName = n; $0.signature = sig }) {
+                        password = ""
+                    }
+                }
+                Divider().padding(.vertical, 6)
+                Button("Remove account…") { confirmRemove = true }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Slyy.danger)
+                Text("Removing the account deletes its password and cached mail from this device. Mail on the server is not touched.")
+                    .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            }
+            .onAppear { name = a.displayName; signature = a.signature }
+            .confirmationDialog("Remove this account?", isPresented: $confirmRemove) {
+                Button("Remove", role: .destructive) { Task { await model.removeAccount(); dismiss() } }
+            }
+        }
+    }
+}
+
+struct SendersForm: View {
+    @Environment(AppModel.self) private var model
+    @State private var aliases: [SenderIdentity] = []
+    @State private var defaultSender: String?
+    @State private var state = SaveState()
+
+    var changed: Bool {
+        guard let a = model.account else { return false }
+        return aliases != (a.aliases ?? []) || defaultSender != a.defaultSender
+    }
+
+    var body: some View {
+        if let a = model.account {
+            VStack(alignment: .leading, spacing: 14) {
+                AliasesEditor(aliases: $aliases, primary: a.email, defaultSender: $defaultSender)
+                SectionSaveBar(title: "Save", changed: changed, state: state) {
+                    // Keep only valid, distinct aliases that are not the account address itself.
+                    var seen = Set([a.email.lowercased()])
+                    let clean = aliases.filter { x in
+                        EmailAddress(address: x.email.trimmingCharacters(in: .whitespaces)).isValid && seen.insert(x.email.lowercased()).inserted
+                    }
+                    var def = defaultSender
+                    if let d = def, !clean.contains(where: { $0.email.caseInsensitiveCompare(d) == .orderedSame }) { def = nil }
+                    if await saveSection(model, state: $state, reconnect: false, apply: { $0.aliases = clean; $0.defaultSender = def }) {
+                        aliases = clean
+                        defaultSender = def
+                    }
+                }
+            }
+            .onAppear { aliases = a.aliases ?? []; defaultSender = a.defaultSender }
+        }
+    }
+}
+
+struct ReadingForm: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage("notifyNewMail") private var notifyNewMail = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
             Toggle("Group messages by conversation", isOn: Binding(get: { model.threaded }, set: { model.threaded = $0 }))
                 .toggleStyle(SlyyCheckboxStyle())
             Toggle("Notify me about new mail", isOn: $notifyNewMail)
                 .toggleStyle(SlyyCheckboxStyle())
-            Toggle(isOn: Binding(get: { model.blueReplies }, set: { model.blueReplies = $0 })) {
-                HStack(spacing: 6) {
-                    Text("Write replies in")
-                    Text("blue").foregroundStyle(Slyy.replyBlue).font(Slyy.font(14, .semibold))
+            HStack(spacing: 10) {
+                Toggle(isOn: Binding(get: { model.blueReplies }, set: { model.blueReplies = $0 })) {
+                    Text("Write my replies in colour")
+                }
+                .toggleStyle(SlyyCheckboxStyle())
+                ColorPicker("Reply colour", selection: Binding(get: { model.replyColor }, set: { model.replyColorHex = $0.hexString }), supportsOpacity: false)
+                    .labelsHidden()
+                    .disabled(!model.blueReplies)
+                Text("Sample reply").font(Slyy.font(14, .semibold)).foregroundStyle(model.blueReplies ? model.replyColor : Slyy.muted)
+                if model.replyColorHex != Slyy.replyDefaultHex {
+                    Button("Slyy blue") { model.replyColorHex = Slyy.replyDefaultHex }
+                        .buttonStyle(.slyyOutline)
                 }
             }
-            .toggleStyle(SlyyCheckboxStyle())
-        }
-        HavenSection()
-        VStack(alignment: .leading, spacing: 12) {
-            SectionLabel("Servers")
-            ServerSettingsForm(settings: binding, parts: [.mail])
+            Toggle("Auto-save mails while writing (also survives a crash)", isOn: Binding(get: { model.autoSave }, set: { model.autoSave = $0 }))
+                .toggleStyle(SlyyCheckboxStyle())
+            Text("These apply right away.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
         }
     }
+}
 
-    @ViewBuilder var calendarTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionLabel("Calendar server")
-            ServerSettingsForm(settings: binding, parts: [.calendar])
+struct ServersForm: View {
+    @Environment(AppModel.self) private var model
+    @State private var draft: AccountSettings?
+    @State private var state = SaveState()
+
+    var changed: Bool {
+        guard let d = draft, let a = model.account else { return false }
+        return d.imap != a.imap || d.smtp != a.smtp || d.username != a.username
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if draft != nil {
+                ServerSettingsForm(settings: Binding(get: { draft! }, set: { draft = $0 }), parts: [.mail])
+                SectionSaveBar(title: "Save and reconnect", changed: changed, state: state) {
+                    guard let d = draft else { return }
+                    _ = await saveSection(model, state: $state, reconnect: true, apply: { $0.imap = d.imap; $0.smtp = d.smtp; $0.username = d.username })
+                }
+            }
         }
+        .onAppear { draft = model.account }
+    }
+}
+
+struct CalendarServerForm: View {
+    @Environment(AppModel.self) private var model
+    @State private var draft: AccountSettings?
+    @State private var state = SaveState()
+
+    var changed: Bool { draft?.caldavURL != model.account?.caldavURL }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if draft != nil {
+                ServerSettingsForm(settings: Binding(get: { draft! }, set: { draft = $0 }), parts: [.calendar])
+                SectionSaveBar(title: "Save and reconnect", changed: changed, state: state) {
+                    let url = draft?.caldavURL ?? ""
+                    _ = await saveSection(model, state: $state, reconnect: true, apply: { $0.caldavURL = url })
+                }
+                Text("Invitations go out as standard iCalendar mails, so Outlook, Apple Calendar and Gmail can answer them.")
+                    .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            }
+        }
+        .onAppear { draft = model.account }
+    }
+}
+
+struct ShownCalendarsForm: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Shown calendars")
             if model.calendars.isEmpty {
-                Text(settings!.caldavURL.isEmpty ? "The calendar is off: no calendar server set." : "No calendars loaded yet.")
+                Text((model.account?.caldavURL ?? "").isEmpty ? "The calendar is off: no calendar server set." : "No calendars loaded yet.")
                     .font(Slyy.font(13)).foregroundStyle(Slyy.muted)
             }
             ForEach(model.calendars) { c in
@@ -466,86 +745,50 @@ struct SettingsView: View {
                 }
                 .toggleStyle(SlyyCheckboxStyle())
             }
+            Text("These apply right away.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
         }
-        Text("Invitations go out as standard iCalendar mails, so Outlook, Apple Calendar and Gmail can answer them.")
-            .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
     }
+}
 
-    @ViewBuilder var videoTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionLabel("Video call server")
-            ServerSettingsForm(settings: binding, parts: [.video])
+struct VideoServerForm: View {
+    @Environment(AppModel.self) private var model
+    @State private var server = ""
+    @State private var state = SaveState()
+
+    var changed: Bool { server != (model.account?.jitsiURL ?? "") }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            settingsField("Video call server") {
+                TextField("", text: $server).textFieldStyle(SlyyFieldStyle(padding: 8)).serverField()
+            }
+            Text("Jitsi Meet server for new meetings and \u{201C}Meet now\u{201D}.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
             HStack(spacing: 10) {
-                Button("Use default") { settings!.jitsiURL = JitsiRoom.defaultServer }
+                Button("Use default") { server = JitsiRoom.defaultServer }
                     .buttonStyle(.slyyOutline)
-                    .disabled(settings!.jitsiURL == JitsiRoom.defaultServer)
+                    .disabled(server == JitsiRoom.defaultServer)
                 Button { model.meetNow() } label: { Label("Test call", systemImage: SlyyIcon.video) }
                     .buttonStyle(SlyyOutlineButtonStyle(strong: true))
             }
+            SectionSaveBar(title: "Save", changed: changed, state: state) {
+                let url = server.trimmingCharacters(in: .whitespacesAndNewlines)
+                _ = await saveSection(model, state: $state, reconnect: false, apply: { $0.jitsiURL = url })
+            }
         }
+        .onAppear { server = model.account?.jitsiURL ?? JitsiRoom.defaultServer }
+    }
+}
+
+struct RoomLinksInfo: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("New rooms look like")
-            Text(JitsiRoom.newURL(server: settings!.jitsiURL).absoluteString)
+            Text(JitsiRoom.newURL(server: model.account?.jitsiURL ?? JitsiRoom.defaultServer).absoluteString)
                 .font(Slyy.mono(12)).foregroundStyle(Slyy.ink2).textSelection(.enabled)
             Text("Every meeting gets its own unguessable room name. Meetings and \u{201C}Meet now\u{201D} add the link to invitations automatically.")
                 .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
-        }
-    }
-
-    @ViewBuilder var saveRow: some View {
-        HStack(spacing: 10) {
-            Button {
-                Task { await save() }
-            } label: {
-                HStack(spacing: 8) {
-                    if saving { ProgressView().controlSize(.small).tint(.white) }
-                    Text(saved ? "Saved" : "Save and reconnect")
-                }
-            }
-            .buttonStyle(SlyyPrimaryButtonStyle(height: 40))
-            .disabled(saving)
-            Spacer()
-            if tab == .mail {
-                Button("Remove account…") { confirmRemove = true }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Slyy.danger)
-            }
-        }
-        if let error { Text(error).font(Slyy.font(13)).foregroundStyle(Slyy.danger) }
-        if tab == .mail {
-            Text("Removing the account deletes its password and cached mail from this device. Mail on the server is not touched.")
-                .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
-        }
-    }
-
-    func labeled<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(Slyy.font(13))
-            content()
-        }
-    }
-
-    func save() async {
-        guard var s = settings else { return }
-        // Keep only valid, distinct aliases that are not the account address itself.
-        var seen = Set([s.email.lowercased()])
-        s.aliases = (s.aliases ?? []).filter { a in
-            EmailAddress(address: a.email.trimmingCharacters(in: .whitespaces)).isValid && seen.insert(a.email.lowercased()).inserted
-        }
-        if let d = s.defaultSender, !s.identities.contains(where: { $0.email.caseInsensitiveCompare(d) == .orderedSame }) || d.caseInsensitiveCompare(s.email) == .orderedSame {
-            s.defaultSender = nil
-        }
-        settings = s
-        saving = true
-        error = nil
-        saved = false
-        defer { saving = false }
-        do {
-            try await model.updateAccount(s, password: newPassword)
-            newPassword = ""
-            saved = true
-        } catch {
-            self.error = SignInError.explain(error, settings: s)
         }
     }
 }
@@ -564,7 +807,7 @@ struct UpdatesSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                SectionLabel("Updates")
+                Text("Installed version").font(Slyy.font(13))
                 Spacer()
                 Text(version).font(Slyy.mono(12))
             }
@@ -662,7 +905,6 @@ struct AliasesEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Sender addresses")
             Text("Send as other addresses of this mailbox (e.g. info@ or rechnung@). New mails start from the default address; replies go out from the address a mail was sent to. The mail server must allow sending as these addresses.")
                 .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
             HStack(spacing: 8) {
@@ -722,7 +964,6 @@ struct HavenSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("Assistant")
             HStack(spacing: 10) {
                 Circle().fill(model.havenState == .connected ? Slyy.accent : Slyy.lineStrong).frame(width: 8, height: 8)
                 Text(status).font(Slyy.font(13))

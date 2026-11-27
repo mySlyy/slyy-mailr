@@ -123,7 +123,7 @@ struct AskHavenBar: View {
         case .draft(let d):
             VStack(alignment: .leading, spacing: 8) {
                 if let s = d.subject, !s.isEmpty { Text(s).font(Slyy.font(13, .semibold)) }
-                Text(d.body).font(Slyy.font(13)).foregroundStyle(Slyy.replyBlue).lineLimit(6).textSelection(.enabled)
+                Text(d.body).font(Slyy.font(13)).foregroundStyle(model.replyColor).lineLimit(6).textSelection(.enabled)
                 HStack(spacing: 8) {
                     Button(draftAction) { onDraft(d); dismissProposal(p) }
                         .buttonStyle(SlyyAccentButtonStyle(height: 28))

@@ -1,11 +1,16 @@
 import SwiftUI
 import CoreText
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 /// Slyy look from the wireframes: Hanken Grotesk + Martian Mono, white ground, near-black ink,
 /// one blue accent, square corners, 1 px hairlines.
 enum Slyy {
-    /// Reply text colour, rgba(0, 0, 255, 1).
-    static let replyBlue = Color(.sRGB, red: 0, green: 0, blue: 1, opacity: 1)
+    /// Default colour of my reply text: the Slyy dot blue. Users pick their own in Settings → Mail.
+    static let replyDefaultHex = "#2B3BFF"
     // MARK: Colors
     static let ink = Color(rgb: 0x0A0A0A)
     static let ink2 = Color(rgb: 0x3D3D3D)
@@ -59,6 +64,29 @@ enum Slyy {
 extension Color {
     init(rgb: UInt32) {
         self.init(red: Double((rgb >> 16) & 0xFF) / 255, green: Double((rgb >> 8) & 0xFF) / 255, blue: Double(rgb & 0xFF) / 255)
+    }
+
+    /// "#2B3BFF" → colour; nil for anything that is not #RRGGBB.
+    init?(hex: String) {
+        guard Color.isHex(hex), let v = UInt32(hex.dropFirst(), radix: 16) else { return nil }
+        self.init(rgb: v)
+    }
+
+    static func isHex(_ s: String) -> Bool {
+        s.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil
+    }
+
+    /// The colour as "#RRGGBB" (sRGB).
+    var hexString: String {
+        #if os(macOS)
+        let c = NSColor(self).usingColorSpace(.sRGB) ?? .black
+        let (r, g, b) = (c.redComponent, c.greenComponent, c.blueComponent)
+        #else
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a)
+        #endif
+        func byte(_ x: CGFloat) -> Int { Int((min(max(x, 0), 1) * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", byte(r), byte(g), byte(b))
     }
 }
 

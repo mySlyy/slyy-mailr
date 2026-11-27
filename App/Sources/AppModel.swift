@@ -41,8 +41,8 @@ enum ComposeKind {
 }
 
 /// Editable state of a message being written.
-struct ComposeDraft: Identifiable {
-    let id = UUID()
+struct ComposeDraft: Identifiable, Codable {
+    var id = UUID()
     var to = ""
     var cc = ""
     var bcc = ""
@@ -60,10 +60,12 @@ struct ComposeDraft: Identifiable {
     var from: SenderIdentity?
     /// Quoted original of a reply, kept below the new text (shown and sent in the normal colour).
     var quoted = ""
+    /// Reopened after a crash (the editor says so).
+    var recovered = false
     /// My reply text is written and sent in blue (Settings → Mail).
     var blueReply = false
-
-    static let replyBlue = "rgba(0, 0, 255, 1)"
+    /// Colour of my reply text (#RRGGBB), taken from Settings when the reply is started.
+    var replyColor = Slyy.replyDefaultHex
 
     var fullBody: String {
         guard let videoURL else { return body }
@@ -75,7 +77,8 @@ struct ComposeDraft: Identifiable {
     /// HTML part: my text (blue for replies), then the quote in the default colour.
     var html: String {
         let mine = HTMLText.fromPlain(fullBody)
-        let top = blueReply ? "<div style=\"color:\(Self.replyBlue)\">\(mine)</div>" : mine
+        let colour = Color.isHex(replyColor) ? replyColor : Slyy.replyDefaultHex // never raw text in the CSS
+        let top = blueReply ? "<div style=\"color:\(colour)\">\(mine)</div>" : mine
         guard !quoted.isEmpty else { return top }
         return top + HTMLText.fromPlain(quoted)
     }
@@ -152,6 +155,22 @@ final class AppModel {
     var threaded: Bool = UserDefaults.standard.object(forKey: "threaded") as? Bool ?? true {
         didSet { UserDefaults.standard.set(threaded, forKey: "threaded") }
     }
+    /// My reply colour (#RRGGBB); default the Slyy dot blue.
+    var replyColorHex: String = UserDefaults.standard.string(forKey: "replyColor").flatMap { Color.isHex($0) ? $0 : nil } ?? Slyy.replyDefaultHex {
+        didSet { UserDefaults.standard.set(replyColorHex, forKey: "replyColor") }
+    }
+    var replyColor: Color { Color(hex: replyColorHex) ?? Slyy.accent }
+
+    /// Auto-save: open drafts are kept on disk (crash-safe) and in the server's Drafts folder. Default on.
+    var autoSave: Bool = UserDefaults.standard.object(forKey: "autoSave") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(autoSave, forKey: "autoSave")
+            if !autoSave { DraftJournal.standard.clear() }
+        }
+    }
+    /// Drafts found on disk after a crash, opened one after the other.
+    private(set) var recovered: [ComposeDraft] = []
+
     /// Write replies in blue, rgba(0, 0, 255, 1) (Settings → Mail).
     var blueReplies: Bool = UserDefaults.standard.object(forKey: "blueReplies") as? Bool ?? true {
         didSet { UserDefaults.standard.set(blueReplies, forKey: "blueReplies") }
@@ -267,6 +286,31 @@ final class AppModel {
         await activate(settings, password: pw)
     }
 
+    /// Reopens mails that were being written when Mailr quit unexpectedly.
+    func recoverUnsentDrafts() {
+        guard autoSave, recovered.isEmpty else { return }
+        recovered = DraftJournal.standard.leftovers()
+        openNextRecovered()
+    }
+
+    /// Called when the editor closes: the next recovered draft, if any.
+    func openNextRecovered() {
+        guard composeDraft == nil, !recovered.isEmpty else { return }
+        var d = recovered.removeFirst()
+        d.recovered = true
+        composeDraft = d
+    }
+
+    /// Saves settings that need no reconnect (name, signature, sender addresses, video server).
+    func saveSettings(_ settings: AccountSettings) {
+        persist([settings])
+        account = settings
+        // Invitations are answered as the invited alias: the calendar service needs the new addresses.
+        if let mail, let pw = Keychain.password(for: settings.id) {
+            calendarService = CalendarService(account: settings, password: pw, mail: mail)
+        }
+    }
+
     func removeAccount() async {
         guard let a = account else { return }
         await watcher?.stop()
@@ -303,6 +347,7 @@ final class AppModel {
         }
         await ReminderScheduler.requestAuthorization()
         await connectHaven()
+        recoverUnsentDrafts()
         cache.prune()
     }
 
@@ -672,6 +717,7 @@ final class AppModel {
             var d = ComposeDraft(m.draft(kindOf, me: id.address, myAddresses: a.myAddresses), signature: signature(for: id))
             d.from = id
             d.blueReply = kindOf != .forward && blueReplies
+            d.replyColor = replyColorHex
             composeDraft = d
         case .mailto(let url):
             var d = newDraft(a)

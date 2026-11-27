@@ -211,3 +211,22 @@
 "Default sender" = "Standardabsender";
 "Send as other addresses of this mailbox (e.g. info@ or rechnung@). New mails start from the default address; replies go out from the address a mail was sent to. The mail server must allow sending as these addresses." = "Mit weiteren Adressen dieses Postfachs senden (z. B. info@ oder rechnung@). Neue E-Mails beginnen mit der Standardadresse; Antworten gehen von der Adresse aus, an die eine E-Mail ging. Der Mailserver muss das Senden mit diesen Adressen erlauben.";
 "Default" = "Standard";
+
+/* 0.3.1 settings sections, colour, auto-save */
+"Sender Addresses" = "Absenderadressen";
+"Reading and Writing" = "Lesen und Schreiben";
+"Updates" = "Updates";
+"Calendar Server" = "Kalenderserver";
+"Shown Calendars" = "Angezeigte Kalender";
+"Video Server" = "Videoserver";
+"Room Links" = "Raum-Links";
+"Installed version" = "Installierte Version";
+"These apply right away." = "Diese Einstellungen gelten sofort.";
+"Write my replies in colour" = "Meine Antworten farbig schreiben";
+"Reply colour" = "Antwortfarbe";
+"Sample reply" = "Beispielantwort";
+"Slyy blue" = "Slyy-Blau";
+"Auto-save mails while writing (also survives a crash)" = "E-Mails beim Schreiben automatisch sichern (auch bei einem Absturz)";
+"Recovered after Mailr quit unexpectedly" = "Wiederhergestellt, nachdem Mailr unerwartet beendet wurde";
+"Remove account…" = "Konto entfernen …";
+"Jitsi Meet server for new meetings and “Meet now”." = "Jitsi-Meet-Server für neue Besprechungen und „Jetzt besprechen“.";
