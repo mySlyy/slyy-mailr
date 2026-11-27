@@ -3,6 +3,7 @@ import SlyyMailKit
 import UserNotifications
 #if os(macOS)
 import AppKit
+import Security
 #else
 import UIKit
 #endif
@@ -180,6 +181,15 @@ final class AppModel {
     var calendarMode: CalendarMode = .week
     /// iPhone navigation stack (lets notifications open a message).
     var phonePath: [MessageSummary] = []
+
+    // Assistant (Slyy Haven)
+    enum HavenState: Equatable {
+        case unknown, notInstalled, connected
+        case failed(String)
+    }
+    /// The "Ask Haven" bars only show when this is `.connected`; without Haven, Mailr has no AI features.
+    var havenState: HavenState = .unknown
+    private var haven: HavenClient?
     var editingEvent: CalendarEvent?
     var selectedEvent: CalendarEvent?
     private var loadedRange: (Date, Date)?
@@ -283,6 +293,7 @@ final class AppModel {
             await AppModel.shared.mailChanged()
         }
         await ReminderScheduler.requestAuthorization()
+        await connectHaven()
         cache.prune()
     }
 
@@ -314,6 +325,51 @@ final class AppModel {
             await MailNotifier.process(inbox: r.messages, account: a.id)
         }
     }
+
+    /// Connects to Slyy Haven on this Mac (its socket in the shared Slyy app group). iOS has no Haven.
+    func connectHaven() async {
+        #if os(macOS)
+        await haven?.close()
+        haven = nil
+        guard let path = HavenClient.defaultSocketPath(teamID: Self.teamID) else { havenState = .notInstalled; return }
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        do {
+            haven = try await HavenClient.connect(path: path, app: "Slyy Mailr", version: version)
+            havenState = .connected
+        } catch HavenClient.Failure.notInstalled {
+            havenState = .notInstalled
+        } catch {
+            havenState = .failed(error.localizedDescription)
+        }
+        #else
+        havenState = .notInstalled
+        #endif
+    }
+
+    /// A fresh assistant run on the current Haven connection (reconnects once if Haven restarted).
+    func assistant() async -> MailAssistant? {
+        if haven == nil, havenState != .notInstalled { await connectHaven() }
+        return haven.map { MailAssistant(client: $0) }
+    }
+
+    func havenConnectionLost() {
+        haven = nil
+        havenState = .unknown
+    }
+
+    #if os(macOS)
+    /// Our Apple Team ID from the app's own code signature (names the shared app group).
+    static let teamID: String? = {
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let dict = info as? [String: Any] else { return nil }
+        return dict[kSecCodeInfoTeamIdentifier as String] as? String
+    }()
+    #endif
 
     /// Background refresh (iOS): checks the Inbox, announces new mail and updates the badge.
     func backgroundCheck() async {

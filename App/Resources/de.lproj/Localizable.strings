@@ -186,3 +186,23 @@
 "%lld more new messages" = "%lld weitere neue E-Mails";
 "Notify me about new mail" = "Bei neuer E-Mail benachrichtigen";
 "Opens a preview. Touch and hold for more." = "Öffnet eine Vorschau. Gedrückt halten für mehr.";
+
+/* Slyy Haven assistant */
+"Ask Haven…" = "Haven fragen …";
+"Ask Haven" = "Haven fragen";
+"Ask Haven about this mail…" = "Haven zu dieser E-Mail fragen …";
+"Ask Haven to write, shorten, translate…" = "Haven schreiben, kürzen, übersetzen lassen …";
+"Reply with this" = "Damit antworten";
+"Review event" = "Termin prüfen";
+"Send to Haven" = "An Haven senden";
+"Assistant" = "Assistent";
+"Check again" = "Erneut prüfen";
+"Checking…" = "Wird geprüft …";
+"Connected to Slyy Haven" = "Mit Slyy Haven verbunden";
+"Install Slyy Haven to use AI in Mailr" = "Installieren Sie Slyy Haven, um KI in Mailr zu nutzen";
+"Slyy Haven is not available." = "Slyy Haven ist nicht verfügbar.";
+"With Slyy Haven, “Ask Haven” at the bottom of the writer and the reader drafts mails, schedules meetings and creates tasks from your connected data sources. Models, keys and connections are set up in Slyy Haven." = "Mit Slyy Haven entwirft „Haven fragen“ unten im Schreib- und Lesefenster E-Mails, plant Termine und legt Aufgaben in Ihren verbundenen Datenquellen an. Modelle, Schlüssel und Verbindungen richten Sie in Slyy Haven ein.";
+"Ask Haven is available in Slyy Mailr on the Mac." = "„Haven fragen“ gibt es in Slyy Mailr auf dem Mac.";
+"Insert" = "Einfügen";
+"Close" = "Schließen";
+"Stop" = "Stopp";

@@ -17,6 +17,7 @@ struct MessageDetailView: View {
                 VStack(spacing: 0) {
                     if !phone { actionBar(m, s) }
                     ConversationAccordion(phone: phone)
+                    askBar(m)
                     if phone { phoneReplyBar(m) }
                 }
             } else if let m = model.openMessage, let s = model.openSummary {
@@ -52,6 +53,7 @@ struct MessageDetailView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.horizontal, phone ? 2 : 12)
                     }
+                    askBar(m)
                     if phone { phoneReplyBar(m) }
                 }
                 .id(s.id)
@@ -81,6 +83,23 @@ struct MessageDetailView: View {
                       document: exporting.map { AttachmentDocument(data: $0.data) },
                       contentType: .data,
                       defaultFilename: exporting?.filename) { _ in exporting = nil }
+    }
+
+    /// "Ask Haven about this mail…" (only with Slyy Haven connected).
+    @ViewBuilder
+    func askBar(_ m: ParsedMessage) -> some View {
+        if model.havenState == .connected {
+            AskHavenBar(
+                context: { .forMessage(m, me: model.account?.email ?? "") },
+                draftAction: "Reply with this",
+                onDraft: { p in
+                    model.compose(.reply(m))
+                    model.composeDraft?.apply(p)
+                },
+                placeholder: "Ask Haven about this mail…"
+            )
+            .id(m.messageID ?? m.subject) // a new conversation starts a fresh bar
+        }
     }
 
     func actionBar(_ m: ParsedMessage, _ s: MessageSummary) -> some View {

@@ -164,10 +164,16 @@ jobs:
           fi
           find "$APP/Contents/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) ! -name "Sparkle.framework" -print0 2>/dev/null \
             | xargs -0 -I{} codesign --force --options runtime --timestamp -s "$IDENTITY" {}
+          # App group for Slyy Haven: "<TEAMID>.ai.slyy" (the build left the Team ID prefix empty).
+          TEAM=$(echo "$IDENTITY" | sed -E 's/.*\(([A-Z0-9]{10})\)$/\1/')
+          ENT="$RUNNER_TEMP/app.entitlements"
+          sed -E "s/<string>(\\\$\(TeamIdentifierPrefix\))?ai\.slyy<\/string>/<string>$TEAM.ai.slyy<\/string>/" App/Generated/SlyyMail-macOS.entitlements > "$ENT"
+          grep -q "<string>$TEAM.ai.slyy</string>" "$ENT" || { echo "::error::app group not set in entitlements"; cat "$ENT"; exit 1; }
           codesign --force --options runtime --timestamp \
-            --entitlements App/Generated/SlyyMail-macOS.entitlements -s "$IDENTITY" "$APP"
+            --entitlements "$ENT" -s "$IDENTITY" "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign -d --entitlements - "$APP" | grep -q mach-lookup || { echo "::error::app entitlements missing"; exit 1; }
+          codesign -d --entitlements - "$APP" | grep -q "$TEAM.ai.slyy" || { echo "::error::app group missing from signature"; exit 1; }
 
       - name: Note when the build is not notarized
         if: ${{ env.MACOS_CERT_P12 == '' || env.ASC_KEY_P8 == '' }}

@@ -426,6 +426,7 @@ struct SettingsView: View {
             }
             .toggleStyle(SlyyCheckboxStyle())
         }
+        HavenSection()
         VStack(alignment: .leading, spacing: 12) {
             SectionLabel("Servers")
             ServerSettingsForm(settings: binding, parts: [.mail])
@@ -660,5 +661,45 @@ struct AliasesEditor: View {
         if a.email.caseInsensitiveCompare(primary) == .orderedSame { return String(localized: "This is already the account address.") }
         if aliases.filter({ $0.email.caseInsensitiveCompare(a.email) == .orderedSame }).count > 1 { return String(localized: "Listed twice.") }
         return nil
+    }
+}
+
+/// Assistant status: Slyy Haven provides models and data sources; Mailr never holds AI keys.
+struct HavenSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var checking = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Assistant")
+            HStack(spacing: 10) {
+                Circle().fill(model.havenState == .connected ? Slyy.accent : Slyy.lineStrong).frame(width: 8, height: 8)
+                Text(status).font(Slyy.font(13))
+                Spacer()
+                Button(checking ? "Checking…" : "Check again") {
+                    checking = true
+                    Task { await model.connectHaven(); checking = false }
+                }
+                .buttonStyle(.slyyOutline)
+                .disabled(checking)
+            }
+            Text(hint).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+        }
+    }
+
+    var status: String {
+        switch model.havenState {
+        case .connected: return String(localized: "Connected to Slyy Haven")
+        case .notInstalled, .unknown: return String(localized: "Install Slyy Haven to use AI in Mailr")
+        case .failed(let m): return m
+        }
+    }
+
+    var hint: String {
+        #if os(macOS)
+        return String(localized: "With Slyy Haven, \u{201C}Ask Haven\u{201D} at the bottom of the writer and the reader drafts mails, schedules meetings and creates tasks from your connected data sources. Models, keys and connections are set up in Slyy Haven.")
+        #else
+        return String(localized: "Ask Haven is available in Slyy Mailr on the Mac.")
+        #endif
     }
 }

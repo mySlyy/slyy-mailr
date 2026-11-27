@@ -106,14 +106,14 @@ footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
     </div>
   </header>
   <main id="list"></main>
-  <footer>Numbers are stable; new items get the next free number. The device test pass (#76) is the gate for every “not yet tested” iOS item.</footer>
+  <footer>Numbers are stable; new items get the next free number. On iPhone, Ask Haven waits for Haven's gateway route (the spec has no mobile build). The device test pass (#76) is the gate for every “not yet tested” iOS item.</footer>
 </div>
 
 <script>
 // status per platform: done (shipped), built (iOS: compiled, untested), partial, todo, na (not applicable)
 const SECTIONS = [
   ["acc", "Accounts & settings"], ["read", "Reading mail"], ["org", "Organising mail"], ["write", "Writing mail"],
-  ["cal", "Calendar"], ["vid", "Video calls"], ["bg", "Notifications & background"], ["ios", "iPhone & iPad"],
+  ["cal", "Calendar"], ["vid", "Video calls"], ["ai", "Assistant (Slyy Haven)"], ["bg", "Notifications & background"], ["ios", "iPhone & iPad"],
   ["mac", "Mac app & delivery"], ["q", "Quality, privacy & accessibility"]
 ];
 const D = "done", B = "built", P = "partial", T = "todo", N = "na", W = "ready";
@@ -211,6 +211,14 @@ const ITEMS = [
   [83, "mac", "Old installers and the pre-rename app cleaned up", "", D, N, null, "0.2.3"],
   [84, "mac", "Keyboard shortcuts and menu commands", "", D, N],
 
+  [89, "ai", "Ask Haven bar in the mail writer and reader", "One quiet line at the bottom, ⌘J; hidden when Slyy Haven is not installed.", W, T, 2],
+  [90, "ai", "Haven client: haven.v1 over the shared Slyy app-group socket", "Tested against a scripted Haven. Framing and chat shape are assumed until the haven.v1 schema is published.", W, N],
+  [91, "ai", "Text proposals: Insert in the writer, Reply with this in the reader", "Keeps signature and quote; nothing is sent by the assistant.", W, N],
+  [92, "ai", "Meeting proposals open in the event editor for review", "With a video link when asked.", W, N],
+  [93, "ai", "Tasks and lookups through Haven data sources (Odoo, Files, Google, Microsoft 365)", "Haven asks before any write.", W, N],
+  [94, "ai", "Switch to the generated HavenKit when haven.v1 is published", "", T, T, 2],
+  [95, "ai", "Summaries and triage in the message list", "Class fast; from the Haven spec's Mailr row.", T, T, 2],
+  [96, "ai", "Offer Mailr's mailbox and calendars to other Slyy apps through Haven", "Haven S3: no second IMAP or CalDAV login for Slyy Desktop.", T, N, 3],
   [85, "q", "German and English interface", "", D, B],
   [86, "q", "Regression tests against real mail servers in CI", "", D, D],
   [87, "q", "VoiceOver and Dynamic Type pass", "", T, T, 2],

@@ -165,6 +165,26 @@ final class AppLogicTests: XCTestCase {
         XCTAssertEqual(cal.dateComponents([.day], from: t9, to: m.calendarDate).day, CalendarMode.agendaDays)
     }
 
+    func testHavenDraftReplacesMyTextButKeepsSignatureAndQuote() {
+        var d = ComposeDraft()
+        d.body = "Hallo,\n\n-- \nAnna Weber · Slyy"
+        d.quoted = "\n\n> Original"
+        d.subject = "Re: Angebot"
+        d.apply(DraftProposal(subject: "Neues Thema", to: [EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de")], body: "Guten Tag Herr Schott,\n\ndas Angebot kommt Freitag."))
+        XCTAssertEqual(d.body, "Guten Tag Herr Schott,\n\ndas Angebot kommt Freitag.\n\n-- \nAnna Weber · Slyy")
+        XCTAssertEqual(d.quoted, "\n\n> Original", "the quote is untouched")
+        XCTAssertEqual(d.subject, "Re: Angebot", "an existing subject is kept")
+        XCTAssertTrue(d.to.contains("j.schott@schott-haustechnik.de"))
+        var empty = ComposeDraft()
+        empty.apply(DraftProposal(subject: "Termin", body: "Text"))
+        XCTAssertEqual(empty.body, "Text")
+        XCTAssertEqual(empty.subject, "Termin")
+        XCTAssertEqual(AskHavenBar.toolLabel("odoo__create_task"), "odoo · create task…")
+
+        let m = AppModel.sample()
+        XCTAssertNotEqual(m.havenState, .connected, "no Haven, no assistant bars")
+    }
+
     func testSampleModelMatchesWireframe() {
         let m = AppModel.sample()
         XCTAssertEqual(m.folders.first?.unseen, 12)
@@ -291,6 +311,7 @@ final class ScreenshotTests: XCTestCase {
 
     func testConversation() throws {
         let m = AppModel.sample(conversation: true)
+        m.havenState = .connected
         try render(DesktopShell().environment(m), "6-conversation")
     }
 
@@ -305,7 +326,23 @@ final class ScreenshotTests: XCTestCase {
         d.lastSaved = Date()
         d.blueReply = true
         d.quoted = "\n\nOn 26 Nov 2026 at 09:12, Jürgen Schott <j.schott@schott-haustechnik.de> wrote:\n> Guten Morgen Frau Weber,\n> können Sie das Angebot bis Freitag anpassen?"
+        m.havenState = .connected
         try render(ComposeView(draft: d).environment(m), "2-compose", width: 860, height: 680)
+    }
+
+    func testAskHaven() throws {
+        let m = AppModel.sample()
+        m.havenState = .connected
+        let start = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: Date().addingTimeInterval(4 * 86400))!
+        let bar = AskHavenBar(context: { .forMessage(m.openMessage!, me: "anna@slyy.ai") }, draftAction: "Reply with this", onDraft: { _ in },
+                              placeholder: "Ask Haven about this mail…",
+                              seed: (answer: "Herr Schott möchte das Angebot für die Wärmepumpe bis Freitag. In Odoo gibt es dazu die Aufgabe „Angebot Schott“ (neu angelegt).",
+                                     proposals: [
+                                        .draft(DraftProposal(body: "Guten Tag Herr Schott,\n\nvielen Dank für Ihre Anfrage. Das Angebot erhalten Sie bis Freitag.")),
+                                        .event(EventProposal(title: "Abstimmung Angebot Schott", start: start, end: start.addingTimeInterval(1800),
+                                                             attendees: [EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de")], video: true)),
+                                     ]))
+        try render(VStack(spacing: 0) { Spacer(); bar }.environment(m), "10-ask-haven", width: 760, height: 520)
     }
 
     func testSettingsTabs() throws {

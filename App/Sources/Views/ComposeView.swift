@@ -78,6 +78,14 @@ struct ComposeView: View {
                 .padding(16)
             }
 
+            if model.havenState == .connected {
+                AskHavenBar(
+                    context: { .forDraft(draft, from: currentIdentity?.email ?? model.account?.email ?? "") },
+                    draftAction: "Insert",
+                    onDraft: { draft.apply($0) },
+                    placeholder: "Ask Haven to write, shorten, translate…"
+                )
+            }
             footer
         }
         .font(Slyy.body)
