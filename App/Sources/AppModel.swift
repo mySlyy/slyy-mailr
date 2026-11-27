@@ -105,6 +105,15 @@ final class AppModel {
     var sidebarSelection: SidebarItem? = .folder("INBOX")
     private(set) var folders: [IMAPFolder] = []
     private(set) var messages: [MessageSummary] = []
+    /// Newest Sent mails, so my own replies show inside conversations of the folder shown.
+    private(set) var sentContext: [MessageSummary] = []
+    /// Settings: one row per conversation (default) or one row per mail.
+    var groupsConversations = UserDefaults.standard.object(forKey: AppModel.conversationsKey) as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(groupsConversations, forKey: Self.conversationsKey)
+            Task { await loadMessages(reset: true) }
+        }
+    }
     var totalMessages = 0
     private var page = 0
     var selectedMessageIDs: Set<String> = []
@@ -148,6 +157,18 @@ final class AppModel {
         folders.first { $0.serverPath == currentFolder }
     }
 
+    /// Rows of the message list: conversations, or one per mail when grouping is off or in Drafts.
+    var conversations: [Conversation] {
+        guard groupsConversations, currentFolderInfo?.specialUse != .drafts else { return messages.map { Conversation(messages: [$0]) } }
+        return Threader.conversations(messages, context: sentContext)
+    }
+
+    /// The conversation of the open mail.
+    var openConversation: Conversation? {
+        guard let s = openSummary else { return nil }
+        return conversations.first { $0.messages.contains { $0.id == s.id } }
+    }
+
     var visibleEvents: [CalendarEvent] {
         events.filter { !hiddenCalendars.contains($0.calendarURL ?? "") }
     }
@@ -159,6 +180,7 @@ final class AppModel {
     // MARK: Accounts
 
     private static let accountsKey = "accounts.v1"
+    static let conversationsKey = "mail.conversations"
 
     private func storedAccounts() -> [AccountSettings] {
         guard let data = UserDefaults.standard.data(forKey: Self.accountsKey) else { return [] }
@@ -202,6 +224,7 @@ final class AppModel {
         calendarService = nil
         folders = []
         messages = []
+        sentContext = []
         events = []
         calendars = []
         openMessage = nil
@@ -285,7 +308,21 @@ final class AppModel {
             contacts.add(r.messages.flatMap(\.from))
         } catch {
             report(error)
+            return
         }
+        if reset { await loadSentContext() }
+    }
+
+    /// Fetches the newest page of Sent when conversations are on and another folder is shown.
+    private func loadSentContext() async {
+        guard let mail, groupsConversations, let folder = currentFolder,
+              let sent = folders.first(where: { $0.specialUse == .sent })?.serverPath,
+              folder != sent, currentFolderInfo?.specialUse != .drafts else {
+            sentContext = []
+            return
+        }
+        let list = (try? await mail.messages(in: sent, page: 0).messages) ?? []
+        if folder == currentFolder { sentContext = list }
     }
 
     var canLoadMore: Bool { searchText.isEmpty && messages.count < totalMessages }
@@ -341,6 +378,19 @@ final class AppModel {
         }
     }
 
+    /// Opens a conversation with its latest mail expanded; its other unread mails in this folder count as read.
+    func open(_ c: Conversation) async {
+        let others = c.messages.filter { !$0.isSeen && $0.folder == currentFolder && $0.id != c.latest.id }
+        if !others.isEmpty { setLocalFlag("\\Seen", on: true, ids: Set(others.map(\.id))) }
+        await open(c.latest)
+        if !others.isEmpty, let mail { try? await mail.setFlag("\\Seen", on: true, for: others) }
+    }
+
+    /// Mails of a conversation in the folder shown (not my replies from Sent): what list actions apply to.
+    func inFolder(_ c: Conversation) -> [MessageSummary] {
+        c.messages.filter { $0.folder == currentFolder }
+    }
+
     var selectedMessages: [MessageSummary] {
         messages.filter { selectedMessageIDs.contains($0.id) }
     }
@@ -349,11 +399,15 @@ final class AppModel {
         for i in messages.indices where ids.contains(messages[i].id) {
             if on { messages[i].flags.insert(flag) } else { messages[i].flags.remove(flag) }
         }
+        for i in sentContext.indices where ids.contains(sentContext[i].id) {
+            if on { sentContext[i].flags.insert(flag) } else { sentContext[i].flags.remove(flag) }
+        }
         if let s = openSummary, ids.contains(s.id) {
             if on { openSummary?.flags.insert(flag) } else { openSummary?.flags.remove(flag) }
         }
         if flag == "\\Seen", let f = folders.firstIndex(where: { $0.serverPath == currentFolder }) {
-            folders[f].unseen = max(0, folders[f].unseen + (on ? -ids.count : ids.count))
+            let here = messages.filter { ids.contains($0.id) }.count  // not my mails from Sent
+            folders[f].unseen = max(0, folders[f].unseen + (on ? -here : here))
             updateBadge()
         }
     }
@@ -367,13 +421,15 @@ final class AppModel {
 
     private func removeLocally(_ list: [MessageSummary]) {
         let ids = Set(list.map(\.id))
+        let here = messages.filter { ids.contains($0.id) }.count
         messages.removeAll { ids.contains($0.id) }
+        sentContext.removeAll { ids.contains($0.id) }
         selectedMessageIDs.subtract(ids)
         if let s = openSummary, ids.contains(s.id) {
             openSummary = nil
             openMessage = nil
         }
-        totalMessages = max(0, totalMessages - list.count)
+        totalMessages = max(0, totalMessages - here)
     }
 
     func delete(_ list: [MessageSummary]) async {
@@ -502,6 +558,7 @@ final class AppModel {
                 setLocalFlag("\\Answered", on: true, ids: [original.id])
                 try? await mail.setFlag("\\Answered", on: true, for: [original])
             }
+            if draft.inReplyTo != nil { await loadSentContext() }  // show the reply in its conversation
             return true
         } catch {
             report(error)
@@ -680,19 +737,20 @@ extension AppModel {
         ]
         m.folders[0].name = "Inbox"
         let now = Date()
-        func summary(_ uid: UInt32, _ name: String, _ addr: String, _ subject: String, _ ago: TimeInterval, seen: Bool, flags: Set<String> = [], attach: Bool = false, invite: Bool = false) -> MessageSummary {
-            MessageSummary(uid: uid, folder: "INBOX", flags: seen ? flags.union(["\\Seen"]) : flags, date: now.addingTimeInterval(-ago), size: 4000,
+        func summary(_ uid: UInt32, _ name: String, _ addr: String, _ subject: String, _ ago: TimeInterval, seen: Bool, flags: Set<String> = [], attach: Bool = false, invite: Bool = false, folder: String = "INBOX", references: [String] = []) -> MessageSummary {
+            MessageSummary(uid: uid, folder: folder, flags: seen ? flags.union(["\\Seen"]) : flags, date: now.addingTimeInterval(-ago), size: 4000,
                            from: [EmailAddress(name: name, address: addr)], to: [account.address], cc: [], subject: subject, messageID: "<\(uid)@slyy.ai>",
-                           hasAttachments: attach, isInvite: invite)
+                           hasAttachments: attach, isInvite: invite, inReplyTo: references.last, references: references)
         }
         m.messages = [
             summary(5, "Heiko Meier", "heiko@slyy.ai", "ERP Wochenfazit", 1200, seen: false, invite: true),
             summary(4, "Brandt Logistik", "dispo@brandt-logistik.de", "Lieferavis KW 49", 5400, seen: false, attach: true),
-            summary(3, "Jürgen Schott", "j.schott@schott-haustechnik.de", "Re: Angebot Wärmepumpe", 86400, seen: true, flags: ["\\Answered", "\\Flagged"]),
+            summary(3, "Jürgen Schott", "j.schott@schott-haustechnik.de", "Re: Angebot Wärmepumpe", 86400, seen: true, flags: ["\\Answered", "\\Flagged"], references: ["<9@slyy.ai>"]),
             summary(2, "Bob Krause", "bob@slyy.ai", "Accepted: Planung Q1", 2 * 86400, seen: true),
             summary(1, "Finanzamt Bayreuth", "poststelle@finanzamt.bayern.de", "Bescheid über Umsatzsteuer", 3 * 86400, seen: true, attach: true),
         ]
         m.totalMessages = m.messages.count
+        m.sentContext = [summary(9, account.displayName, account.email, "Angebot Wärmepumpe", 4 * 86400, seen: true, folder: "Sent")]
 
         // Week of today: a recurring video meeting on Friday 10:00, plus a few others.
         var cal = Calendar.current

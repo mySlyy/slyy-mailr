@@ -151,3 +151,8 @@
 "Remove this account?" = "Dieses Konto entfernen?";
 "Remove" = "Entfernen";
 "Done" = "Fertig";
+"Group mails into conversations" = "E-Mails als Konversationen gruppieren";
+"Replies, including your own from Sent, show together in one row." = "Antworten, auch Ihre eigenen aus „Gesendet“, erscheinen zusammen in einer Zeile.";
+"Me" = "Ich";
+"%lld messages" = "%lld Nachrichten";
+"%lld messages in this conversation" = "%lld Nachrichten in dieser Konversation";

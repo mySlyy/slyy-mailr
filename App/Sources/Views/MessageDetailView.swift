@@ -17,6 +17,7 @@ struct MessageDetailView: View {
                     if !phone { actionBar(m, s) }
                     VStack(alignment: .leading, spacing: 0) {
                         VStack(alignment: .leading, spacing: 16) {
+                            if let c = model.openConversation, c.count > 1 { conversationList(c, open: s) }
                             header(m, s)
                             if let invite = invite(in: m) {
                                 InviteCard(invite: invite.event, method: invite.method, phone: phone)
@@ -153,6 +154,56 @@ struct MessageDetailView: View {
                     .textSelection(.enabled)
             }
         }
+    }
+
+    /// The conversation's mails, oldest first; the open one is expanded below, tapping another opens it.
+    func conversationList(_ c: Conversation, open s: MessageSummary) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(c.count) messages in this conversation")
+                .font(Slyy.font(12))
+                .foregroundStyle(Slyy.muted)
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(c.messages) { m in
+                        Button { Task { await model.open(m) } } label: { conversationLine(m, isOpen: m.id == s.id) }
+                            .buttonStyle(.plain)
+                            .disabled(m.id == s.id)
+                    }
+                }
+            }
+            .frame(maxHeight: min(CGFloat(c.count) * 34, 170))
+            .hairlineBorder()
+        }
+    }
+
+    func conversationLine(_ m: MessageSummary, isOpen: Bool) -> some View {
+        HStack(spacing: 8) {
+            Circle().fill(m.isSeen ? Color.clear : Slyy.accent).frame(width: 6, height: 6)
+            Text(sender(m))
+                .font(Slyy.font(13, isOpen || !m.isSeen ? .semibold : .regular))
+                .lineLimit(1)
+            if m.folder != model.currentFolder, let name = model.folders.first(where: { $0.serverPath == m.folder })?.name {
+                Text(name)
+                    .font(Slyy.font(11))
+                    .foregroundStyle(Slyy.muted)
+                    .padding(.horizontal, 4)
+                    .hairlineBorder()
+            }
+            Spacer(minLength: 6)
+            Text(MessageRow.shortDate(m.date))
+                .font(Slyy.font(12))
+                .foregroundStyle(Slyy.muted)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .background(isOpen ? Slyy.tint : Color.white)
+        .contentShape(Rectangle())
+        .bottomHairline()
+    }
+
+    func sender(_ m: MessageSummary) -> String {
+        guard let f = m.from.first else { return String(localized: "(unknown)") }
+        return f.address.caseInsensitiveCompare(model.account?.email ?? "") == .orderedSame ? String(localized: "Me") : f.display
     }
 
     func recipientLine(_ m: ParsedMessage) -> String {

@@ -52,6 +52,16 @@ final class AppLogicTests: XCTestCase {
         XCTAssertTrue(SignInError.explain(TransportError.timeout, settings: s).contains("mail.mc1.simplify-erp.de"))
     }
 
+    /// My offer from Sent and Schott's reply form one conversation row; the rest stay single.
+    func testSampleConversationIncludesMyMailFromSent() throws {
+        let m = AppModel.sample()
+        try XCTSkipUnless(m.groupsConversations, "conversations switched off in this test host's settings")
+        XCTAssertEqual(m.conversations.count, m.messages.count)
+        let schott = try XCTUnwrap(m.conversations.first { $0.messages.contains { $0.uid == 3 } })
+        XCTAssertEqual(schott.messages.map(\.folder), ["Sent", "INBOX"])
+        XCTAssertEqual(m.inFolder(schott).map(\.uid), [3])
+    }
+
     func testSampleModelMatchesWireframe() {
         let m = AppModel.sample()
         XCTAssertEqual(m.folders.first?.unseen, 12)

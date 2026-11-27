@@ -3,6 +3,7 @@
 Native (Swift/SwiftUI) replacement for Outlook on our own infrastructure:
 
 - **Mail** over our IMAP/SMTP servers (TLS or STARTTLS), push via IMAP IDLE.
+- **Conversations**: related mails (Message-ID / In-Reply-To / References, subject fallback for replies) show as one row, my replies from Sent inline. Threaded client-side, so any IMAP server works. Off switch in Settings.
 - **Calendar** over CalDAV with invitations that work with Outlook, Google and Apple (iTIP/iMIP).
 - **Video calls** on Jitsi Meet at <https://vid.rocket.re-cloud.io>, one click from events, mails and reminders.
 

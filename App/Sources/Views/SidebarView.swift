@@ -150,7 +150,8 @@ struct SidebarView: View {
             Button("New Folder…") { showNewFolder = true }
         }
         .dropDestination(for: String.self) { ids, _ in
-            let list = model.messages.filter { ids.contains($0.id) }
+            let wanted = Set(ids.flatMap { $0.split(separator: "\n").map(String.init) })  // a conversation drags all its ids
+            let list = model.messages.filter { wanted.contains($0.id) }
             guard !list.isEmpty else { return false }
             Task { await model.move(list, to: f) }
             return true

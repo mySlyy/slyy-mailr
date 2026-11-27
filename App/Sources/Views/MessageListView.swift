@@ -36,12 +36,12 @@ struct MessageListView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(model.messages) { m in
-                        MessageRow(message: m, showRecipients: isSentLike, selected: model.selectedMessageIDs.contains(m.id))
+                    ForEach(model.conversations) { c in
+                        MessageRow(conversation: c, showRecipients: isSentLike, selected: isSelected(c), me: model.account?.email)
                             .contentShape(Rectangle())
-                            .onTapGesture { select(m) }
-                            .draggable(m.id)
-                            .contextMenu { MessageMenu(list: targets(m)) }
+                            .onTapGesture { select(c) }
+                            .draggable(model.inFolder(c).map(\.id).joined(separator: "\n"))
+                            .contextMenu { MessageMenu(list: targets(c)) }
                     }
                     if model.canLoadMore {
                         Button("Load more") { Task { await model.loadMore() } }
@@ -83,19 +83,25 @@ struct MessageListView: View {
         return u == .sent || u == .drafts
     }
 
-    func select(_ m: MessageSummary) {
+    func isSelected(_ c: Conversation) -> Bool {
+        c.messages.contains { model.selectedMessageIDs.contains($0.id) }
+    }
+
+    /// Selecting a conversation selects its mails in this folder, so actions apply to all of them.
+    func select(_ c: Conversation) {
+        let ids = Set(model.inFolder(c).map(\.id))
         #if os(macOS)
         if NSEvent.modifierFlags.contains(.command) {
-            if model.selectedMessageIDs.contains(m.id) { model.selectedMessageIDs.remove(m.id) } else { model.selectedMessageIDs.insert(m.id) }
+            if isSelected(c) { model.selectedMessageIDs.subtract(ids) } else { model.selectedMessageIDs.formUnion(ids) }
             return
         }
         #endif
-        model.selectedMessageIDs = [m.id]
-        Task { await model.open(m) }
+        model.selectedMessageIDs = ids
+        Task { await model.open(c) }
     }
 
-    func targets(_ m: MessageSummary) -> [MessageSummary] {
-        model.selectedMessageIDs.contains(m.id) ? model.selectedMessages : [m]
+    func targets(_ c: Conversation) -> [MessageSummary] {
+        isSelected(c) ? model.selectedMessages : model.inFolder(c)
     }
 }
 
@@ -122,24 +128,38 @@ struct MessageMenu: View {
     }
 }
 
+/// One row per conversation (a single mail is a conversation of one).
 struct MessageRow: View {
-    let message: MessageSummary
+    let conversation: Conversation
     var showRecipients = false
     var selected = false
     var phone = false
+    /// My address: shown as "Me" among the senders.
+    var me: String?
+
+    var message: MessageSummary { conversation.latest }
+    var isSeen: Bool { !conversation.isUnread }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill(message.isSeen ? Color.clear : Slyy.accent)
+                .fill(isSeen ? Color.clear : Slyy.accent)
                 .frame(width: 8, height: 8)
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(people)
-                        .font(Slyy.font(phone ? 15 : 14, message.isSeen ? .regular : .semibold))
+                        .font(Slyy.font(phone ? 15 : 14, isSeen ? .regular : .semibold))
                         .lineLimit(1)
                     Spacer(minLength: 6)
+                    if conversation.count > 1 {
+                        Text(conversation.count, format: .number)
+                            .font(Slyy.mono(11))
+                            .foregroundStyle(Slyy.ink2)
+                            .padding(.horizontal, 5)
+                            .hairlineBorder(Slyy.lineStrong)
+                            .accessibilityLabel(Text("\(conversation.count) messages"))
+                    }
                     Text(Self.shortDate(message.date))
                         .font(Slyy.font(12))
                         .foregroundStyle(selected ? Slyy.ink2 : Slyy.muted)
@@ -147,13 +167,13 @@ struct MessageRow: View {
                 HStack(spacing: 6) {
                     if message.isInvite { MonoTag(text: "INVITE") }
                     Text(message.subject.isEmpty ? String(localized: "(no subject)") : message.subject)
-                        .font(Slyy.font(phone ? 15 : 14, message.isSeen ? .regular : .semibold))
-                        .foregroundStyle(message.isSeen ? Slyy.ink2 : Slyy.ink)
+                        .font(Slyy.font(phone ? 15 : 14, isSeen ? .regular : .semibold))
+                        .foregroundStyle(isSeen ? Slyy.ink2 : Slyy.ink)
                         .lineLimit(1)
                 }
                 if let detail = detailLine {
                     HStack(spacing: 6) {
-                        if message.hasAttachments { Image(systemName: "paperclip").imageScale(.small) }
+                        if conversation.hasAttachments { Image(systemName: "paperclip").imageScale(.small) }
                         Text(detail)
                     }
                     .font(Slyy.font(13))
@@ -171,15 +191,16 @@ struct MessageRow: View {
 
     var detailLine: String? {
         var parts: [String] = []
-        if message.hasAttachments { parts.append(String(localized: "Attachment")) }
-        if message.isAnswered { parts.append(String(localized: "Replied")) }
-        if message.isFlagged { parts.append(String(localized: "Flagged")) }
+        if conversation.hasAttachments { parts.append(String(localized: "Attachment")) }
+        if conversation.messages.contains(where: \.isAnswered) { parts.append(String(localized: "Replied")) }
+        if conversation.isFlagged { parts.append(String(localized: "Flagged")) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    /// Recipients in Sent/Drafts; otherwise the sender, or all senders of a conversation (latest first).
     var people: String {
-        let list = showRecipients ? message.to : message.from
-        let s = list.map(\.display).joined(separator: ", ")
+        let list = showRecipients ? message.to : conversation.count > 1 ? conversation.senders : message.from
+        let s = list.map { $0.address.caseInsensitiveCompare(me ?? "") == .orderedSame ? String(localized: "Me") : $0.display }.joined(separator: ", ")
         return s.isEmpty ? String(localized: "(unknown)") : s
     }
 
@@ -195,7 +216,6 @@ struct MessageRow: View {
 /// iPhone inbox (M1): header, search, next-event banner, list; tapping opens the message.
 struct PhoneInboxView: View {
     @Environment(AppModel.self) private var model
-    @State private var path: [MessageSummary] = []
 
     var nextEvent: CalendarEvent? {
         let now = Date()
@@ -266,12 +286,12 @@ struct PhoneInboxView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(model.messages) { m in
-                        NavigationLink(value: m) {
-                            MessageRow(message: m, showRecipients: false, phone: true)
+                    ForEach(model.conversations) { c in
+                        NavigationLink(value: c) {
+                            MessageRow(conversation: c, showRecipients: false, phone: true, me: model.account?.email)
                         }
                         .buttonStyle(.plain)
-                        .contextMenu { MessageMenu(list: [m]) }
+                        .contextMenu { MessageMenu(list: model.inFolder(c)) }
                     }
                     if model.canLoadMore {
                         Button("Load more") { Task { await model.loadMore() } }
@@ -287,9 +307,9 @@ struct PhoneInboxView: View {
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         #endif
-        .navigationDestination(for: MessageSummary.self) { m in
+        .navigationDestination(for: Conversation.self) { c in
             MessageDetailView()
-                .task { model.selectedMessageIDs = [m.id]; await model.open(m) }
+                .task { model.selectedMessageIDs = Set(model.inFolder(c).map(\.id)); await model.open(c) }
         }
     }
 }

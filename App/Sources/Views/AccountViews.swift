@@ -344,6 +344,13 @@ struct SettingsView: View {
                 } else {
                     Text("No account configured.").foregroundStyle(Slyy.muted)
                 }
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel("Mail")
+                    Toggle("Group mails into conversations", isOn: Binding(get: { model.groupsConversations }, set: { model.groupsConversations = $0 }))
+                        .toggleStyle(SlyyCheckboxStyle())
+                    Text("Replies, including your own from Sent, show together in one row.")
+                        .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                }
                 UpdatesSection()
             }
             .padding(24)
