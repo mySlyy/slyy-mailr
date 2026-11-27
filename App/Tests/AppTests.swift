@@ -431,6 +431,29 @@ final class ScreenshotTests: XCTestCase {
         try render(VStack(spacing: 0) { Spacer(); bar }.environment(m), "10-ask-haven", width: 760, height: 520)
     }
 
+    func testUpdateWindow() throws {
+        let notes = """
+        Slyy Mailr 0.3.3 — Gmail and Google Workspace
+
+        **Gmail and Google Workspace accounts**: type the address and Slyy Mailr fills in Google's servers by itself
+        and shows how to create an app password.
+
+        **Gmail behaves like Gmail**: Archive moves mail to All Mail, and sent mail is no longer filed twice.
+
+        - Same on Mac, iPhone and iPad.
+        - Signed with Developer ID and notarized by Apple.
+        """
+        let blocks = MarkdownNotes.blocks(notes)
+        XCTAssertEqual(blocks.first, .heading("Slyy Mailr 0.3.3 — Gmail and Google Workspace"))
+        XCTAssertEqual(blocks[1], .paragraph("**Gmail and Google Workspace accounts**: type the address and Slyy Mailr fills in Google's servers by itself and shows how to create an app password."), "hard-wrapped lines become one paragraph")
+        XCTAssertEqual(blocks.suffix(2), [.bullet("Same on Mac, iPhone and iPad."), .bullet("Signed with Developer ID and notarized by Apple.")])
+        XCTAssertEqual(String(MarkdownNotes.inline("**Gmail** works").characters), "Gmail works", "Markdown markers are rendered, not shown")
+
+        let prompt = UpdatePrompt()
+        prompt.phase = .found(version: "0.3.3", notes: notes, downloaded: false)
+        try render(UpdateView(prompt: prompt), "12-update", width: 520, height: 470)
+    }
+
     func testSettingsTabs() throws {
         for (tab, section, name) in [(SettingsTab.mail, SettingsSection.account, "7-settings-mail"), (.mail, .senders, "7b-settings-senders"),
                                      (.calendar, .calendarServer, "8-settings-calendar"), (.video, .videoServer, "9-settings-video")] {

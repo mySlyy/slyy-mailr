@@ -10,36 +10,41 @@ import Sparkle
 final class AppUpdater {
     static let shared = AppUpdater()
 
-    private let controller: SPUStandardUpdaterController?
+    private let updater: SPUUpdater?
+    /// Our window instead of Sparkle's standard one (which shows the GitHub release page in a web view).
+    private let driver = SlyyUpdateDriver()
 
     private init() {
         let key = (Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
         let feed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String ?? ""
-        if key.isEmpty || feed.isEmpty {
-            controller = nil
-        } else {
-            controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        guard !key.isEmpty, !feed.isEmpty else { updater = nil; return }
+        let u = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: nil)
+        do {
+            try u.start()
+            updater = u
+        } catch {
+            updater = nil
         }
     }
 
-    var isAvailable: Bool { controller != nil }
+    var isAvailable: Bool { updater != nil }
 
     func checkForUpdates() {
-        controller?.checkForUpdates(nil)
+        updater?.checkForUpdates()
     }
 
     /// Download and install updates without asking (installed when the app quits or relaunches).
     var installsAutomatically: Bool {
-        get { controller?.updater.automaticallyDownloadsUpdates ?? false }
-        set { controller?.updater.automaticallyDownloadsUpdates = newValue }
+        get { updater?.automaticallyDownloadsUpdates ?? false }
+        set { updater?.automaticallyDownloadsUpdates = newValue }
     }
 
     var checksAutomatically: Bool {
-        get { controller?.updater.automaticallyChecksForUpdates ?? false }
-        set { controller?.updater.automaticallyChecksForUpdates = newValue }
+        get { updater?.automaticallyChecksForUpdates ?? false }
+        set { updater?.automaticallyChecksForUpdates = newValue }
     }
 
-    var lastCheck: Date? { controller?.updater.lastUpdateCheckDate }
+    var lastCheck: Date? { updater?.lastUpdateCheckDate }
 }
 #else
 

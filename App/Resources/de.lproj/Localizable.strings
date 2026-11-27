@@ -244,3 +244,23 @@
 "New app password (leave empty to keep)" = "Neues App-Passwort (leer lassen, um es zu behalten)";
 "Google Workspace needs an app password" = "Google Workspace braucht ein App-Passwort";
 "If the page says app passwords are not available, your Google Workspace admin has to allow 2-Step Verification and IMAP access for your account (Admin console → Security and Apps → Gmail → End user access)." = "Wenn die Seite meldet, dass App-Passwörter nicht verfügbar sind, muss Ihr Google-Workspace-Admin die Bestätigung in zwei Schritten und den IMAP-Zugriff für Ihr Konto erlauben (Admin-Konsole → Sicherheit und Apps → Gmail → Zugriff für Endnutzer).";
+
+/* 0.3.4 update window */
+"Checking for updates…" = "Suche nach Updates …";
+"Slyy Mailr %@ is available" = "Slyy Mailr %@ ist verfügbar";
+"Downloading the update…" = "Update wird geladen …";
+"The update is ready" = "Das Update ist bereit";
+"Installing…" = "Wird installiert …";
+"Slyy Mailr is up to date" = "Slyy Mailr ist auf dem neuesten Stand";
+"The update did not work" = "Das Update hat nicht geklappt";
+"You have %@. Signed by Slyy and notarized by Apple." = "Sie haben %@. Von Slyy signiert und von Apple notarisiert.";
+"Slyy Mailr restarts to finish. Open mails and drafts are kept." = "Slyy Mailr startet zum Abschluss neu. Offene E-Mails und Entwürfe bleiben erhalten.";
+"You have the newest version, %@." = "Sie haben die neueste Version, %@.";
+"Install updates automatically" = "Updates automatisch installieren";
+"Checking the signature…" = "Signatur wird geprüft …";
+"Skip this version" = "Diese Version überspringen";
+"Later" = "Später";
+"Restart and update" = "Neu starten und aktualisieren";
+"Install update" = "Update installieren";
+"When I quit" = "Beim Beenden";
+"Restart now" = "Jetzt neu starten";

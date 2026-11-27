@@ -48,6 +48,9 @@ def appcast(key: Ed25519PrivateKey, a: argparse.Namespace) -> str:
     length = os.path.getsize(a.dmg)
     sig = sign(key, a.dmg)
     date = email.utils.formatdate(usegmt=True)
+    # Release notes travel inside the appcast as Markdown (the app renders them; no web page is loaded).
+    with open(a.notes_file, encoding="utf-8") as f:
+        notes = f.read().strip().replace("]]>", "]]]]><![CDATA[>")
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
@@ -59,7 +62,7 @@ def appcast(key: Ed25519PrivateKey, a: argparse.Namespace) -> str:
       <sparkle:version>{escape(a.build)}</sparkle:version>
       <sparkle:shortVersionString>{escape(a.version)}</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>{escape(a.min_os)}</sparkle:minimumSystemVersion>
-      <sparkle:releaseNotesLink>{escape(a.notes)}</sparkle:releaseNotesLink>
+      <description sparkle:format="plain-text"><![CDATA[{notes}]]></description>
       <enclosure url={quoteattr(a.url)} length="{length}" type="application/octet-stream" sparkle:edSignature="{sig}"/>
     </item>
   </channel>
@@ -89,7 +92,7 @@ def main() -> None:
     c.add_argument("--version", required=True)
     c.add_argument("--build", required=True)
     c.add_argument("--url", required=True)
-    c.add_argument("--notes", required=True)
+    c.add_argument("--notes-file", required=True, help="Markdown release notes (RELEASE_NOTES.md)")
     c.add_argument("--min-os", default="14.0")
     v = sub.add_parser("verify")
     v.add_argument("appcast")

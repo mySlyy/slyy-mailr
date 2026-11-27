@@ -1,14 +1,9 @@
-Slyy Mailr 0.3.3 — Gmail and Google Workspace
+Slyy Mailr 0.3.4 — a Slyy update window
 
-**Gmail and Google Workspace accounts**: type the address and Slyy Mailr fills in Google's servers by itself (for your own
-domain on Google Workspace too, found through its mail servers). A short guide shows how to create an app password, with a
-button to Google's page; for Workspace it also says what the admin must allow. If Google refuses the normal password,
-Mailr says so and points to the guide. With an app password, mail works fully; Google calendars stay off (they need
-Google's own sign-in).
+**Updates in the Slyy look**: the update window now matches Slyy Mailr (Slyy buttons, blue dot, Hanken Grotesk) and shows
+these short notes instead of loading the GitHub release page. It shows download progress and asks before restarting.
 
-**Gmail behaves like Gmail**: Archive moves mail to All Mail (it no longer creates an "Archive" label), and sent mail is
-no longer filed twice (Gmail files it in Sent by itself).
+**Lighter update checks**: the notes come with the update feed (about 1 KB), so checking for an update no longer opens a web
+page (about 150 KB of HTML plus its scripts and images).
 
-Same on Mac, iPhone and iPad.
-
-Installed 0.2.1 or newer on the Mac? This update arrives by itself. Signed with Developer ID and notarized by Apple.
+New in 0.3.3: Gmail and Google Workspace accounts with an app-password guide; Gmail's archive and Sent work as in Gmail.

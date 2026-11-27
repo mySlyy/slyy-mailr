@@ -186,6 +186,10 @@ jobs:
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist")
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           lipo -info "$APP/Contents/MacOS/Slyy Mailr"
+          echo "Bundle sizes (KB):"
+          du -sk "$APP" "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks/Sparkle.framework" \
+            "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Resources" "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" \
+            "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices" 2>/dev/null || true
           codesign --verify --deep --verbose=2 "$APP" || true
           mkdir -p dmg dist
           cp -R "$APP" dmg/
@@ -228,7 +232,7 @@ jobs:
           "$RUNNER_TEMP/venv/bin/python" Tools/release/sparkle_sign.py appcast \
             --dmg "$DMG" --version "$VERSION" --build "$BUILD" \
             --url "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/$(basename "$DMG")" \
-            --notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VERSION" \
+            --notes-file RELEASE_NOTES.md \
             --min-os 14.0 > dist/appcast.xml
           cat dist/appcast.xml
           "$RUNNER_TEMP/venv/bin/python" Tools/release/sparkle_sign.py verify dist/appcast.xml "$DMG"
