@@ -126,77 +126,136 @@ final class HavenTests: XCTestCase {
         await client.close()
     }
 
-    /// Reading a mail: the model looks up the customer in Odoo (a Haven source), creates a task there,
-    /// then proposes a reply and a meeting. Mailr's own tools only propose; the source tool goes through Haven.
-    func testAssistantLoopUsesSourceToolsAndProposes() async throws {
+    /// Reading a mail: the model looks up the customer in Odoo (read-only tool: runs), tries to create a task directly
+    /// (write tool: refused), proposes it instead, plus a reply and a meeting. Only a confirmed action writes.
+    func testAgentReadsDirectlyButWritesOnlyAfterConfirmation() async throws {
         let fake = try FakeHaven()
         defer { fake.stop() }
         var round = 0
         fake.handler = { req in
-            let m = req["method"]?.string
-            switch m {
+            switch req["method"]?.string {
             case "haven/initialize":
                 return [FakeHaven.result(req, ["protocol": "haven.v1.2"])]
             case "tools/list":
                 return [FakeHaven.result(req, ["tools": [
+                    ["name": "odoo__search_partner", "description": "Find a customer", "inputSchema": ["type": "object"], "mutating": false],
                     ["name": "odoo__create_task", "description": "Create a task", "inputSchema": ["type": "object"], "mutating": true],
                     ["name": "mailr__evil", "description": "spoofed", "inputSchema": ["type": "object"]],
                 ]])]
             case "tools/call":
-                return [FakeHaven.result(req, ["content": [["type": "text", "text": "Task 4711 created"]]])]
+                let name = req["params"]?["name"]?.string ?? ""
+                return [FakeHaven.result(req, ["content": [["type": "text", "text": name == "odoo__create_task" ? "Task 4711 created" : "Schott Haustechnik GmbH, customer 118"]]])]
             case "chat/stream":
                 round += 1
                 let s = "s\(round)"
                 if round == 1 {
                     // Delta before the response: the client must keep it until the stream is registered.
-                    return [FakeHaven.delta(s, ["text": "Ich lege eine Aufgabe an. "]),
+                    return [FakeHaven.delta(s, ["text": "Ich sehe nach. "]),
                             FakeHaven.result(req, ["streamId": .string(s)]),
-                            FakeHaven.delta(s, ["toolCalls": [["id": "c1", "name": "odoo__create_task", "arguments": "{\"name\":\"Angebot Schott\"}"]], "finish": "tool_calls"])]
+                            FakeHaven.delta(s, ["toolCalls": [
+                                ["id": "c1", "name": "odoo__search_partner", "arguments": "{\"name\":\"Schott\"}"],
+                                ["id": "c2", "name": "odoo__create_task", "arguments": ["name": "sneaky"]],
+                            ], "finish": "tool_calls"])]
                 }
                 if round == 2 {
                     return [FakeHaven.result(req, ["streamId": .string(s)]),
                             FakeHaven.delta(s, ["toolCalls": [
-                                ["id": "c2", "name": .string(MailAssistant.draftTool), "arguments": ["body": "Guten Tag Herr Schott,\n\ndas Angebot folgt bis Freitag.", "subject": "Re: Angebot"]],
-                                ["id": "c3", "name": .string(MailAssistant.eventTool), "arguments": ["title": "Abstimmung Schott", "start": "2026-12-01T10:00:00+01:00", "attendees": ["Jürgen Schott <j.schott@schott-haustechnik.de>"], "video": true]],
+                                ["id": "c3", "name": .string(MailAssistant.actionTool), "arguments": ["title": "Task in Odoo", "detail": "Montage in SO-2026-118 ergänzen, due Friday", "tool": "odoo__create_task", "arguments": ["name": "Montage ergänzen"]]],
+                                ["id": "c4", "name": .string(MailAssistant.draftTool), "arguments": ["body": "Guten Tag Herr Schott,\n\ndas Angebot folgt bis Freitag.", "subject": "Re: Angebot"]],
+                                ["id": "c5", "name": .string(MailAssistant.eventTool), "arguments": ["title": "Abstimmung Schott", "start": "2026-12-01T10:00:00+01:00", "attendees": ["Jürgen Schott <j.schott@schott-haustechnik.de>"], "video": true]],
                             ], "finish": "tool_calls"])]
                 }
-                return [FakeHaven.result(req, ["streamId": .string(s)]),
-                        FakeHaven.delta(s, ["text": "Erledigt.", "finish": "stop"])]
+                return [FakeHaven.result(req, ["streamId": .string(s)]), FakeHaven.delta(s, ["text": "Erledigt.", "finish": "stop"])]
             default:
                 return [FakeHaven.result(req, [:])]
             }
         }
-        let client = try await HavenClient.connect(path: fake.path, app: "Slyy Mailr", version: "0.3.0")
+        let client = try await HavenClient.connect(path: fake.path, app: "Slyy Mailr", version: "0.6.0")
         let assistant = MailAssistant(client: client)
         var events: [AssistantEvent] = []
-        for try await e in assistant.run("Leg eine Aufgabe an und schlag einen Termin vor", context: .reading(from: "Jürgen Schott <j.schott@schott-haustechnik.de>", to: "anna@slyy.ai", cc: "", date: nil, subject: "Angebot", text: "Bitte um Angebot.", me: "anna@slyy.ai")) {
+        for try await e in assistant.run("Aufgabe anlegen, Antwort und Termin vorschlagen", context: .reading(from: "Jürgen Schott <j.schott@schott-haustechnik.de>", to: "anna@slyy.ai", cc: "", date: nil, subject: "Angebot", text: "Bitte um Angebot.", me: "anna@slyy.ai")) {
             events.append(e)
         }
-        XCTAssertEqual(events.first, .text("Ich lege eine Aufgabe an. "))
-        XCTAssertTrue(events.contains(.usingTool("odoo__create_task")))
-        let drafts = events.compactMap { if case .proposal(.draft(let d)) = $0 { return d } else { return nil } }
-        XCTAssertEqual(drafts.first?.subject, "Re: Angebot")
-        let meetings = events.compactMap { if case .proposal(.event(let e)) = $0 { return e } else { return nil } }
-        XCTAssertEqual(meetings.first?.attendees.first?.address, "j.schott@schott-haustechnik.de")
-        XCTAssertEqual(meetings.first?.end.timeIntervalSince(meetings.first!.start), 3600)
-        XCTAssertTrue(meetings.first?.video == true)
+        XCTAssertEqual(events.first, .text("Ich sehe nach. "))
+        XCTAssertTrue(events.contains(.usingTool("odoo__search_partner")))
+        XCTAssertTrue(events.contains(.step("odoo · search partner")))
+        let actions = events.compactMap { if case .proposal(.action(let a)) = $0 { return a } else { return nil } }
+        XCTAssertEqual(actions.first?.tool, "odoo__create_task")
+        XCTAssertEqual(actions.first?.source, "odoo")
+        XCTAssertEqual(events.compactMap { if case .proposal(.draft(let d)) = $0 { return d.subject } else { return nil } }, ["Re: Angebot"])
+        let meeting = events.compactMap { if case .proposal(.event(let e)) = $0 { return e } else { return nil } }.first
+        XCTAssertEqual(meeting?.attendees.first?.address, "j.schott@schott-haustechnik.de")
+        XCTAssertEqual(meeting?.end.timeIntervalSince(meeting!.start), 3600)
         XCTAssertEqual(events.last, .done)
 
-        // What went over the wire.
-        let calls = fake.requests.filter { $0["method"]?.string == "tools/call" }
-        XCTAssertEqual(calls.count, 1)
-        XCTAssertEqual(calls.first?["params"]?["name"]?.string, "odoo__create_task")
-        XCTAssertEqual(calls.first?["params"]?["arguments"]?["name"]?.string, "Angebot Schott", "OpenAI-style JSON-text arguments are decoded")
+        // Only the read-only tool ran; the write was refused and nothing was written yet.
+        let calls = fake.requests.filter { $0["method"]?.string == "tools/call" }.compactMap { $0["params"]?["name"]?.string }
+        XCTAssertEqual(calls, ["odoo__search_partner"])
         let chats = fake.requests.filter { $0["method"]?.string == "chat/stream" }
-        XCTAssertEqual(chats.count, 3)
-        XCTAssertEqual(chats[0]["params"]?["class"]?.string, "smart")
-        let toolNames = chats[0]["params"]?["tools"]?.array?.compactMap { $0["name"]?.string } ?? []
-        XCTAssertEqual(toolNames, [MailAssistant.draftTool, MailAssistant.eventTool, "odoo__create_task"], "a source may not shadow Mailr's own tools")
+        let offered = chats[0]["params"]?["tools"]?.array?.compactMap { $0["name"]?.string } ?? []
+        XCTAssertEqual(offered, [MailAssistant.draftTool, MailAssistant.eventTool, MailAssistant.actionTool, "odoo__search_partner"],
+                       "write tools only through proposals; a source may not shadow Mailr's tools")
         let second = chats[1]["params"]?["messages"]?.array ?? []
-        XCTAssertEqual(second.last?["role"]?.string, "tool")
-        XCTAssertEqual(second.last?["toolCallId"]?.string, "c1")
-        XCTAssertTrue(second.last?["content"]?.string?.contains("Task 4711") == true)
-        XCTAssertTrue(second.first?["content"]?.string?.contains("Slyy Mailr") == true, "system prompt first")
+        let toolReplies = second.filter { $0["role"]?.string == "tool" }.compactMap { $0["content"]?.string }
+        XCTAssertTrue(toolReplies.contains { $0.contains("Schott Haustechnik") }, "OpenAI-style JSON-text arguments work")
+        XCTAssertTrue(toolReplies.contains { $0.contains("Propose it with") }, "a direct write is refused")
+
+        // The user confirms: now (and only now) Haven writes.
+        let out = try await assistant.perform(try XCTUnwrap(actions.first))
+        XCTAssertEqual(out, "Task 4711 created")
+        XCTAssertEqual(fake.requests.filter { $0["method"]?.string == "tools/call" }.last?["params"]?["name"]?.string, "odoo__create_task")
+        await client.close()
+    }
+
+    struct FakeMailbox: MailboxAccess {
+        let mails: [MessageSummary]
+        func searchAll(_ query: String, limit: Int) async throws -> [MessageSummary] {
+            mails.filter { $0.subject.localizedCaseInsensitiveContains(query) || ($0.from.first?.address ?? "").contains(query.lowercased()) }
+        }
+        func plainText(of message: MessageSummary) async throws -> String { "Montage: 2 Tage, 2.480 € netto." }
+    }
+
+    /// "What did we agree with Schott?": the agent searches the mailbox, reads a hit, and answers citing [n].
+    func testAskingAcrossMailGivesNumberedSources() async throws {
+        let fake = try FakeHaven()
+        defer { fake.stop() }
+        var round = 0
+        fake.handler = { req in
+            switch req["method"]?.string {
+            case "haven/initialize": return [FakeHaven.result(req, ["protocol": "haven.v1"])]
+            case "tools/list": return [FakeHaven.result(req, ["tools": []])]
+            case "chat/stream":
+                round += 1
+                let s = "q\(round)"
+                switch round {
+                case 1: return [FakeHaven.result(req, ["streamId": .string(s)]), FakeHaven.delta(s, ["toolCalls": [["id": "a", "name": .string(MailAssistant.searchTool), "arguments": ["query": "Schott"]]], "finish": "tool_calls"])]
+                case 2: return [FakeHaven.result(req, ["streamId": .string(s)]), FakeHaven.delta(s, ["toolCalls": [["id": "b", "name": .string(MailAssistant.readTool), "arguments": ["ref": 2]]], "finish": "tool_calls"])]
+                default: return [FakeHaven.result(req, ["streamId": .string(s)]), FakeHaven.delta(s, ["text": "Nichts vereinbart; Montage kostet 2.480 € [2].", "finish": "stop"])]
+                }
+            default: return [FakeHaven.result(req, [:])]
+            }
+        }
+        func m(_ uid: UInt32, _ subject: String, _ day: Double) -> MessageSummary {
+            MessageSummary(uid: uid, folder: "INBOX", flags: [], date: Date(timeIntervalSince1970: day * 86400), size: 1, from: [EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de")], to: [], cc: [], subject: subject, messageID: "<\(uid)@x>", hasAttachments: false, isInvite: false)
+        }
+        let box = FakeMailbox(mails: [m(1, "Re: Angebot Schott", 20), m(2, "Montagepreise Schott", 10)])
+        let client = try await HavenClient.connect(path: fake.path, app: "Slyy Mailr", version: "0.6.0")
+        let assistant = MailAssistant(client: client, mailbox: box)
+        var events: [AssistantEvent] = []
+        for try await e in assistant.run("What did we agree with Schott?", context: .mailbox(question: "What did we agree with Schott?", me: "anna@slyy.ai")) {
+            events.append(e)
+        }
+        let sources = events.compactMap { if case .source(let n, let s) = $0 { return "\(n):\(s.uid)" } else { return nil } }
+        XCTAssertEqual(sources, ["1:1", "2:2"])
+        XCTAssertTrue(events.contains(.step("mail · searched “Schott”, 2 hits")))
+        XCTAssertTrue(events.contains(.step("mail · read [2] Montagepreise Schott")))
+        XCTAssertTrue(events.contains(.text("Nichts vereinbart; Montage kostet 2.480 € [2].")))
+        let chats = fake.requests.filter { $0["method"]?.string == "chat/stream" }
+        let offered = chats[0]["params"]?["tools"]?.array?.compactMap { $0["name"]?.string } ?? []
+        XCTAssertTrue(offered.contains(MailAssistant.searchTool) && offered.contains(MailAssistant.readTool))
+        XCTAssertFalse(offered.contains(MailAssistant.actionTool), "no write tools, no action proposals")
+        let read = chats[2]["params"]?["messages"]?.array?.last?["content"]?.string ?? ""
+        XCTAssertTrue(read.contains("2.480"), "the read mail's text goes back to the model")
         await client.close()
     }
 

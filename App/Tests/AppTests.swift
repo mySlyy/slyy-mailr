@@ -265,7 +265,13 @@ final class AppLogicTests: XCTestCase {
         empty.apply(DraftProposal(subject: "Termin", body: "Text"))
         XCTAssertEqual(empty.body, "Text")
         XCTAssertEqual(empty.subject, "Termin")
-        XCTAssertEqual(AskHavenBar.toolLabel("odoo__create_task"), "odoo · create task…")
+        XCTAssertEqual(HavenRun.toolLabel("odoo__create_task"), "odoo · create task…")
+        var withText = ComposeDraft()
+        withText.body = "Meine Zeilen\n\n-- \nAnna"
+        withText.insert(DraftProposal(body: "Vorschlag"))
+        XCTAssertEqual(withText.body, "Meine Zeilen\n\nVorschlag\n\n-- \nAnna", "Insert below keeps my text and the signature")
+        XCTAssertEqual(QuickAction.reader.count, 6)
+        XCTAssertEqual(QuickAction.writer.first?.prompt.contains("reply"), true)
 
         let m = AppModel.sample()
         XCTAssertNotEqual(m.havenState, .connected, "no Haven, no assistant bars")
@@ -420,15 +426,18 @@ final class ScreenshotTests: XCTestCase {
         let m = AppModel.sample()
         m.havenState = .connected
         let start = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: Date().addingTimeInterval(4 * 86400))!
-        let bar = AskHavenBar(context: { .forMessage(m.openMessage!, me: "anna@slyy.ai") }, draftAction: "Reply with this", onDraft: { _ in },
+        let bar = AskHavenBar(context: { .forMessage(m.openMessage!, me: "anna@slyy.ai") }, quickActions: QuickAction.reader,
+                              draftButtons: [("Reply with this", { _ in })],
                               placeholder: "Ask Haven about this mail…",
                               seed: (answer: "Herr Schott möchte das Angebot für die Wärmepumpe bis Freitag. In Odoo gibt es dazu die Aufgabe „Angebot Schott“ (neu angelegt).",
                                      proposals: [
                                         .draft(DraftProposal(body: "Guten Tag Herr Schott,\n\nvielen Dank für Ihre Anfrage. Das Angebot erhalten Sie bis Freitag.")),
                                         .event(EventProposal(title: "Abstimmung Angebot Schott", start: start, end: start.addingTimeInterval(1800),
                                                              attendees: [EmailAddress(name: "Jürgen Schott", address: "j.schott@schott-haustechnik.de")], video: true)),
+                                        .action(ActionProposal(title: "Task in Odoo", detail: "Montage in SO-2026-118 ergänzen · Anna · due Friday",
+                                                               tool: "odoo__create_task", arguments: ["name": "Montage ergänzen"])),
                                      ]))
-        try render(VStack(spacing: 0) { Spacer(); bar }.environment(m), "10-ask-haven", width: 760, height: 520)
+        try render(VStack(spacing: 0) { Spacer(); bar }.environment(m), "10-ask-haven", width: 760, height: 620)
     }
 
     func testUpdateWindow() throws {

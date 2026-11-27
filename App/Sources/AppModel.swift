@@ -164,6 +164,14 @@ final class AppModel {
     func zoomOut() { bodyZoom = Self.zoomSteps.last { $0 < bodyZoom - 0.001 } ?? bodyZoom }
     func zoomReset() { bodyZoom = 1 }
 
+    /// A question about the whole mailbox ("Ask Haven" from the search field): its answer replaces the reader.
+    var havenQuestion: String?
+
+    /// A message's content without marking it as read (sources, follow-ups).
+    func parsedMessage(_ s: MessageSummary) async -> ParsedMessage? {
+        try? await mail?.message(s, markSeen: false)
+    }
+
     /// A text field has the keyboard: single-key shortcuts like ⌘A (Reply all) step aside for Select All.
     var typingInField = false
 
@@ -415,7 +423,8 @@ final class AppModel {
     /// A fresh assistant run on the current Haven connection (reconnects once if Haven restarted).
     func assistant() async -> MailAssistant? {
         if haven == nil, havenState != .notInstalled { await connectHaven() }
-        return haven.map { MailAssistant(client: $0) }
+        // The agent may search and read this mailbox (read-only) through Mailr's own connection.
+        return haven.map { MailAssistant(client: $0, mailbox: mail) }
     }
 
     func havenConnectionLost() {

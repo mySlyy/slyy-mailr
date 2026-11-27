@@ -81,9 +81,9 @@ struct ComposeView: View {
             if model.havenState == .connected {
                 AskHavenBar(
                     context: { .forDraft(draft, from: currentIdentity?.email ?? model.account?.email ?? "") },
-                    draftAction: "Insert",
-                    onDraft: { draft.apply($0) },
-                    placeholder: "Ask Haven to write, shorten, translate…"
+                    quickActions: QuickAction.writer,
+                    draftButtons: [("Replace my text", { draft.apply($0) }), ("Insert below", { draft.insert($0) })],
+                    placeholder: "Ask Haven to write, shorten, translate, look something up…"
                 )
             }
             footer

@@ -275,3 +275,35 @@
 "Conversation" = "Konversation";
 "%lld messages" = "%lld Nachrichten";
 "Me" = "Ich";
+
+/* 0.6.0 Haven agent */
+"Write the reply" = "Antwort schreiben";
+"Shorten" = "Kürzen";
+"More formal" = "Formeller";
+"Translate to English" = "Ins Englische übersetzen";
+"Add facts from my data" = "Fakten aus meinen Daten ergänzen";
+"Summarize thread" = "Konversation zusammenfassen";
+"Draft a reply" = "Antwort entwerfen";
+"Research the sender" = "Absender recherchieren";
+"Find related mails" = "Ähnliche E-Mails finden";
+"Create a task" = "Aufgabe anlegen";
+"Schedule a meeting" = "Termin planen";
+"Replace my text" = "Meinen Text ersetzen";
+"Insert below" = "Darunter einfügen";
+"Working…" = "Arbeitet …";
+"Open this mail" = "Diese E-Mail öffnen";
+"Haven will write this to %@. OK?" = "Haven schreibt das nach %@. OK?";
+"Do it" = "Ausführen";
+"Review and create…" = "Prüfen und anlegen …";
+"Running…" = "Läuft …";
+"Not done: %@" = "Nicht ausgeführt: %@";
+"Answer from your mail" = "Antwort aus Ihren E-Mails";
+"Draft a follow-up" = "Nachfass-E-Mail entwerfen";
+"Open all %lld mails" = "Alle %lld E-Mails öffnen";
+"Copy answer" = "Antwort kopieren";
+"Haven read these mails through Mailr on this device; nothing was changed." = "Haven hat diese E-Mails über Mailr auf diesem Gerät gelesen; nichts wurde geändert.";
+"Ask a follow-up…" = "Nachfrage stellen …";
+"Close answer" = "Antwort schließen";
+"Ask Haven this question across your mail" = "Haven diese Frage zu allen E-Mails stellen";
+"Ask" = "Fragen";
+"Ask Haven to write, shorten, translate, look something up…" = "Haven schreiben, kürzen, übersetzen, nachschlagen lassen …";

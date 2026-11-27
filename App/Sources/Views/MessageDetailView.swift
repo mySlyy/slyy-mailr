@@ -8,6 +8,8 @@ struct MessageDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var allowImages = false
     @State private var exporting: Attachment?
+    /// iPhone: Ask Haven as a bottom sheet.
+    @State private var askSheet = false
 
     var phone: Bool { sizeClass == .compact }
 
@@ -85,17 +87,17 @@ struct MessageDetailView: View {
                       defaultFilename: exporting?.filename) { _ in exporting = nil }
     }
 
-    /// "Ask Haven about this mail…" (only with Slyy Haven connected).
+    /// "Ask Haven about this mail…" with quick actions (only with Slyy Haven connected).
     @ViewBuilder
     func askBar(_ m: ParsedMessage) -> some View {
         if model.havenState == .connected {
             AskHavenBar(
-                context: { .forMessage(m, me: model.account?.email ?? "") },
-                draftAction: "Reply with this",
-                onDraft: { p in
+                context: { .forMessage(m, me: model.account?.email ?? "", thread: model.openConversation.compactMap { model.conversationBodies[$0.id] }) },
+                quickActions: QuickAction.reader,
+                draftButtons: [("Reply with this", { p in
                     model.compose(.reply(m))
                     model.composeDraft?.apply(p)
-                },
+                })],
                 placeholder: "Ask Haven about this mail…"
             )
             .id(m.messageID ?? m.subject) // a new conversation starts a fresh bar
@@ -139,6 +141,23 @@ struct MessageDetailView: View {
                 .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
             Button("Forward") { model.compose(.forward(m)) }
                 .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
+            if model.havenState == .connected {
+                Button { askSheet = true } label: {
+                    HStack(spacing: 6) { Circle().fill(Slyy.accent).frame(width: 8, height: 8); Text("Ask") }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(Slyy.tint)
+                        .overlay(Rectangle().stroke(Slyy.accent, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $askSheet) {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        askBar(m)
+                    }
+                    .environment(model)
+                    .presentationDetents([.medium, .large])
+                }
+            }
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)

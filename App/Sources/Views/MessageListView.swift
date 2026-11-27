@@ -47,6 +47,23 @@ struct MessageListView: View {
                     .onChange(of: model.searchText) { _, q in
                         if q.isEmpty { Task { await model.loadMessages(reset: true) } }
                     }
+                if model.havenState == .connected && !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    // Enter searches as before; ⌘↩ asks Haven across the mailbox.
+                    Button { model.havenQuestion = model.searchText.trimmingCharacters(in: .whitespaces) } label: {
+                        HStack(spacing: 8) {
+                            Circle().fill(Slyy.accent).frame(width: 8, height: 8)
+                            Text("Ask Haven this question across your mail").font(Slyy.font(13)).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text("⌘↩").font(Slyy.mono(10)).foregroundStyle(Slyy.ink2)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .background(Slyy.tint)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.return, modifiers: .command)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, topInset)
@@ -134,6 +151,7 @@ struct MessageListView: View {
     }
 
     func select(_ m: MessageSummary) {
+        model.havenQuestion = nil // picking a mail closes Haven's answer pane
         #if os(macOS)
         if NSEvent.modifierFlags.contains(.command) {
             if model.selectedMessageIDs.contains(m.id) { model.selectedMessageIDs.remove(m.id) } else { model.selectedMessageIDs.insert(m.id) }

@@ -76,8 +76,14 @@ struct DesktopShell: View {
                 MessageListView()
                     .frame(minWidth: 300, idealWidth: 370, maxWidth: 400)
                     .trailingHairline()
-                MessageDetailView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if let q = model.havenQuestion {
+                    HavenAnswerView(question: q)
+                        .id(q)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    MessageDetailView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
         .background(Color.white)
