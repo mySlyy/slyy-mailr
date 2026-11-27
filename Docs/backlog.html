@@ -1,0 +1,270 @@
+<title>Mailr Backlog</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Martian+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column of hairline-ruled sections, Slyy desktop look (square, hairlines, one blue). */
+:root {
+  --bg: #ffffff; --panel: #f7f7f8; --ink: #0a0a0a; --ink2: #3a3a40; --muted: #6a6a73;
+  --line: #e4e4e8; --line-strong: #c9c9d0; --accent: #2b3bff; --accent-soft: #e8eaff;
+  --done: #1f8a4c; --part: #b26b00;
+  --sans: "Hanken Grotesk", -apple-system, system-ui, sans-serif;
+  --mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d0d10; --panel: #16161b; --ink: #f2f2f5; --ink2: #c8c8d0; --muted: #8c8c97;
+  --line: #26262e; --line-strong: #3a3a45; --accent: #7a85ff; --accent-soft: #1c1f45;
+  --done: #4cc583; --part: #e0a040; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d0d10; --panel: #16161b; --ink: #f2f2f5; --ink2: #c8c8d0; --muted: #8c8c97;
+  --line: #26262e; --line-strong: #3a3a45; --accent: #7a85ff; --accent-soft: #1c1f45;
+  --done: #4cc583; --part: #e0a040; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: grid; gap: 18px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+h1 { margin: 0; font-size: 32px; line-height: 1.15; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); max-width: 62ch; }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.meter { border: 1px solid var(--line); padding: 12px 14px; display: grid; gap: 8px; }
+.meter .k { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.meter .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter .v small { font-size: 13px; font-weight: 400; color: var(--muted); }
+.bar { height: 4px; background: var(--line); }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); }
+.seg button { font: 500 13px var(--sans); color: var(--ink); background: var(--bg); border: 0; padding: 7px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg button:focus-visible, summary:focus-visible, label.chk:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.chk { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
+label.chk input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+section { padding-top: 30px; }
+h2 { margin: 0 0 10px; font-size: 13px; font-family: var(--mono); font-weight: 500; text-transform: uppercase; letter-spacing: .07em; display: flex; justify-content: space-between; gap: 12px; color: var(--ink2); }
+h2 .c { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+li { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+.n { font: 400 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.t { min-width: 0; }
+.t b { font-weight: 500; }
+.t p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.tag { font: 500 10.5px/1 var(--mono); padding: 4px 6px; border: 1px solid var(--line-strong); color: var(--ink2); white-space: nowrap; }
+.tag.p1 { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tag.p2 { border-color: var(--accent); color: var(--accent); }
+.tag.done { color: var(--done); border-color: currentColor; }
+.tag.built { color: var(--done); border-style: dashed; border-color: currentColor; }
+.tag.partial { color: var(--part); border-color: currentColor; }
+.tag.todo { color: var(--ink2); }
+.tag.v { border: 0; background: var(--panel); color: var(--muted); }
+details.fold { margin-top: 0; }
+details.fold summary { cursor: pointer; list-style: none; padding: 9px 0; font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
+details.fold summary::-webkit-details-marker { display: none; }
+details.fold summary::before { content: "›"; font-family: var(--mono); display: inline-block; transition: transform .15s; }
+details.fold[open] summary::before { transform: rotate(90deg); }
+details.fold li { background: var(--panel); padding-left: 8px; padding-right: 8px; }
+details.fold li .t b { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); font-weight: 400; }
+details.fold li .t p { display: none; }
+.empty { padding: 10px 0; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
+footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
+@media (max-width: 560px) {
+  li { grid-template-columns: 2.2em minmax(0, 1fr); }
+  .tags { grid-column: 2; justify-content: flex-start; }
+  h1 { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { details.fold summary::before { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot"></span>slyy mailr</div>
+    <h1>Mailr Backlog</h1>
+    <p class="sub">Mac app and the new iPhone &amp; iPad app on one list. Open items come first, by priority. Implemented items are struck through and folded at the end of each section. Current release: <b>0.2.4</b>, updated 27 Nov 2026.</p>
+    <div class="meters" id="meters"></div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Platform">
+        <button type="button" id="pf-all" data-pf="all">Both apps</button>
+        <button type="button" id="pf-mac" data-pf="mac">Mac</button>
+        <button type="button" id="pf-ios" data-pf="ios">iPhone &amp; iPad</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="only-p1"> Only iOS 1.0 must-haves (P1)</label>
+    </div>
+    <div class="legend">
+      <span><i class="tag done">Mac ✓</i> shipped</span>
+      <span><i class="tag built">iOS ✓</i> in the iOS build, not yet tested on a device</span>
+      <span><i class="tag partial">part</i> partly there</span>
+      <span><i class="tag p1">P1</i> needed for iOS 1.0</span>
+      <span><i class="tag p2">P2</i> soon after</span>
+      <span><i class="tag">P3</i> later</span>
+    </div>
+  </header>
+  <main id="list"></main>
+  <footer>Numbers are stable; new items get the next free number. The device test pass (#76) is the gate for every “not yet tested” iOS item.</footer>
+</div>
+
+<script>
+// status per platform: done (shipped), built (iOS: compiled, untested), partial, todo, na (not applicable)
+const SECTIONS = [
+  ["acc", "Accounts & settings"], ["read", "Reading mail"], ["org", "Organising mail"], ["write", "Writing mail"],
+  ["cal", "Calendar"], ["vid", "Video calls"], ["bg", "Notifications & background"], ["ios", "iPhone & iPad"],
+  ["mac", "Mac app & delivery"], ["q", "Quality, privacy & accessibility"]
+];
+const D = "done", B = "built", P = "partial", T = "todo", N = "na";
+const ITEMS = [
+  [1, "acc", "Sign in with automatic server discovery", "Autoconfig, MX lookup of the mail domain, then a guess. CalDAV is probed, never assumed.", D, B],
+  [2, "acc", "Manual server settings", "IMAP, SMTP (TLS / STARTTLS), user name, CalDAV and video server.", D, B],
+  [3, "acc", "Password kept in the Keychain", "", D, B],
+  [4, "acc", "Sign-in errors in plain language", "", D, B],
+  [5, "acc", "Sender aliases with their own name and signature", "", D, B, null, "0.2.4"],
+  [6, "acc", "Settings in three tabs: Mail, Calendar, Video Calls", "", D, B, null, "0.2.4"],
+  [7, "acc", "Remove an account and its local data", "", D, B],
+  [8, "acc", "Several accounts with an account switcher", "Accounts are stored as a list; the interface works with one active account.", P, P, 2],
+  [9, "acc", "App lock with Face ID / Touch ID", "", T, T, 2],
+  [10, "acc", "Sync settings between Mac and iPhone", "Via iCloud key-value store; passwords stay on each device.", T, T, 3],
+
+  [11, "read", "Folder list with Inbox, Sent, Drafts, Archive, Junk, Trash recognised", "", D, B],
+  [12, "read", "Message list with unread dot, flag, attachment and invite tags", "", D, B],
+  [13, "read", "New mail arrives live while the app is open (IMAP IDLE)", "", D, B],
+  [14, "read", "Conversation threads in the list", "", D, B, null, "0.2.2"],
+  [15, "read", "Conversations as folded accordions", "", D, B, null, "0.2.4"],
+  [16, "read", "Safe mail view: no scripts, remote images blocked until allowed", "", D, B],
+  [17, "read", "Save and share attachments", "", D, B],
+  [18, "read", "Search on the server", "", D, B],
+  [19, "read", "Load older messages while scrolling", "", D, B],
+  [20, "read", "Offline cache of recent messages", "", D, B],
+  [21, "read", "Mark as unread", "", T, T, 1],
+  [22, "read", "Preview attachments in the app (Quick Look)", "", T, T, 1],
+  [23, "read", "Dark mode", "The app is fixed to light today.", T, T, 2],
+  [24, "read", "Unified inbox across accounts", "Needs #8.", T, T, 3],
+  [25, "read", "Print a message", "AirPrint on iPhone and iPad.", T, T, 3],
+
+  [26, "org", "Flag and unflag", "", D, B],
+  [27, "org", "Archive, delete, move to folder", "", D, B],
+  [28, "org", "Create, rename and delete folders", "", D, B],
+  [29, "org", "Drag messages onto folders", "", D, N],
+  [30, "org", "Swipe actions: archive, delete, flag, read / unread", "", N, T, 1],
+  [31, "org", "Select several messages and act on all of them", "", T, T, 1],
+  [32, "org", "Undo archive, delete and move", "", T, T, 2],
+  [33, "org", "Mark as junk / not junk", "", T, T, 2],
+  [34, "org", "Unsubscribe button for mailing lists", "From the List-Unsubscribe header.", T, T, 3],
+  [35, "org", "Server filters and out-of-office reply (Sieve)", "", T, T, 3],
+
+  [36, "write", "New mail, reply, reply all, forward with correct threading", "", D, B],
+  [37, "write", "Recipient chips with address suggestions", "", D, B],
+  [38, "write", "From picker; replies come from the address the mail was sent to", "", D, B, null, "0.2.4"],
+  [39, "write", "Attach files (picker; drag & drop on Mac)", "", D, B],
+  [40, "write", "Drafts saved automatically to the Drafts folder", "", D, B],
+  [41, "write", "Replies written in blue, quote kept apart", "", D, B, null, "0.2.4"],
+  [42, "write", "Video call link in a mail", "", D, B],
+  [43, "write", "mailto: links open a new mail", "", D, B],
+  [44, "write", "Attach photos from the library or the camera", "", N, T, 1],
+  [45, "write", "Rich text: bold, italic, lists, links", "", T, T, 2],
+  [46, "write", "Undo send (short delay before sending)", "", T, T, 2],
+  [47, "write", "Default mail app on iPhone", "Needs Apple's default-mail-app entitlement.", N, T, 2],
+  [48, "write", "Send later", "", T, T, 3],
+  [49, "write", "S/MIME signing and encryption", "", T, T, 3],
+
+  [50, "cal", "Finds calendars on the server (CalDAV)", "", D, B],
+  [51, "cal", "Day, week and month views", "", D, B],
+  [52, "cal", "Create, edit, delete events; recurring events; time zones", "", D, B],
+  [53, "cal", "Send invitations, updates and cancellations", "Standard iCalendar mails that Outlook, Apple and Gmail understand.", D, B],
+  [54, "cal", "Accept, Maybe, Decline from the mail", "", D, B],
+  [55, "cal", "Incoming answers and cancellations update the calendar", "", D, B],
+  [56, "cal", "Show or hide calendars", "", D, B],
+  [57, "cal", "Meeting reminders as notifications, with Join", "", D, B],
+  [58, "cal", "Agenda list for the phone", "Week and month grids are cramped on an iPhone.", N, T, 1],
+  [59, "cal", "Change a single occurrence of a series", "Today an edit applies to the whole series.", T, T, 2],
+  [60, "cal", "Free / busy and finding a time", "", T, T, 3],
+
+  [61, "vid", "Unguessable Jitsi room for every meeting", "", D, B],
+  [62, "vid", "Meet now, link copied", "", D, B],
+  [63, "vid", "Call inside the app with camera and microphone", "", D, B],
+  [64, "vid", "Join from an event, an invitation or a mail", "", D, B],
+  [65, "vid", "Call the sender of a mail", "", D, B],
+  [66, "vid", "Keep a call going in the background / picture in picture", "", N, T, 2],
+
+  [67, "bg", "Unread count on the app icon", "", D, B],
+  [68, "bg", "New-mail notifications", "", T, T, 1],
+  [69, "bg", "Check mail in the background (iOS background refresh)", "", N, T, 1],
+  [70, "bg", "Share sheet: send a file or link from any app", "Share extension.", T, T, 2],
+  [71, "bg", "Instant push for new mail", "Needs a push relay next to the Slyy mail server.", N, T, 3],
+  [72, "bg", "Widgets: unread mail, next meeting", "", T, T, 3],
+
+  [73, "ios", "iPhone layout: Mail, Calendar, Settings tabs", "", N, B],
+  [74, "ios", "iPad uses the three-pane layout", "", N, B],
+  [75, "ios", "Slyy blue-dot app icon", "", D, B, null, "0.2.2"],
+  [76, "ios", "Device test pass on iPhone and iPad", "Every “not yet tested” iOS item gets checked here.", N, T, 1],
+  [77, "ios", "Signed device builds and TestFlight", "", N, T, 1],
+  [78, "ios", "iPhone screenshots and UI tests in CI", "CI builds for the simulator only today.", N, T, 1],
+  [79, "ios", "Keyboard, haptics and safe-area polish", "", N, T, 2],
+  [80, "ios", "App Store listing: privacy labels, screenshots, review", "", N, T, 2],
+
+  [81, "mac", "Signed and notarized installer", "", D, N, null, "0.1.1"],
+  [82, "mac", "Automatic updates", "", D, N, null, "0.2.1"],
+  [83, "mac", "Old installers and the pre-rename app cleaned up", "", D, N, null, "0.2.3"],
+  [84, "mac", "Keyboard shortcuts and menu commands", "", D, N],
+
+  [85, "q", "German and English interface", "", D, B],
+  [86, "q", "Regression tests against real mail servers in CI", "", D, D],
+  [87, "q", "VoiceOver and Dynamic Type pass", "", T, T, 2],
+  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]
+].map(([n, s, t, d, mac, ios, p, v]) => ({ n, s, t, d, mac, ios, p, v }));
+
+const IMPL = s => s === D || s === B;
+let pf = "all", onlyP1 = false;
+try { pf = localStorage.getItem("mailr.pf") || "all"; onlyP1 = localStorage.getItem("mailr.p1") === "1"; } catch (e) {}
+
+function applies(it, p) { return p === "all" ? (it.mac !== N || it.ios !== N) : it[p] !== N; }
+function implemented(it, p) {
+  if (p === "all") return [it.mac, it.ios].filter(s => s !== N).every(IMPL);
+  return IMPL(it[p]);
+}
+function chip(label, s) {
+  if (s === N) return "";
+  const txt = s === D || s === B ? "✓" : s === P ? "part" : "to do";
+  return `<i class="tag ${s}" title="${label}: ${s === B ? "in the build, not yet tested on a device" : s}">${label} ${txt}</i>`;
+}
+function row(it) {
+  const pri = it.p && !implemented(it, pf) ? `<i class="tag p${it.p}">P${it.p}</i>` : "";
+  const ver = it.v ? `<i class="tag v">${it.v}</i>` : "";
+  const chips = (pf !== "ios" ? chip("Mac", it.mac) : "") + (pf !== "mac" ? chip("iOS", it.ios) : "");
+  return `<li><span class="n">${it.n}</span><div class="t"><b>${it.t}</b>${it.d ? `<p>${it.d}</p>` : ""}</div><div class="tags">${pri}${chips}${ver}</div></li>`;
+}
+function render() {
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.pf === pf));
+  document.getElementById("only-p1").checked = onlyP1;
+  const out = [];
+  for (const [key, name] of SECTIONS) {
+    const all = ITEMS.filter(i => i.s === key && applies(i, pf));
+    if (!all.length) continue;
+    const open = all.filter(i => !implemented(i, pf) && (!onlyP1 || i.p === 1)).sort((a, b) => (a.p || 9) - (b.p || 9) || a.n - b.n);
+    const done = all.filter(i => implemented(i, pf));
+    if (onlyP1 && !open.length) continue;
+    const openCount = all.length - done.length;
+    out.push(`<section><h2>${name}<span class="c">${openCount} open · ${done.length} implemented</span></h2>
+      <ol>${open.map(row).join("") || `<li class="empty" style="display:block">Nothing open here.</li>`}</ol>
+      ${done.length && !onlyP1 ? `<details class="fold"><summary>Implemented · ${done.length}</summary><ol>${done.map(row).join("")}</ol></details>` : ""}</section>`);
+  }
+  document.getElementById("list").innerHTML = out.join("");
+  const m = p => { const a = ITEMS.filter(i => i[p] !== N); const d = a.filter(i => IMPL(i[p])); return [d.length, a.length]; };
+  const p1 = ITEMS.filter(i => i.p === 1 && !implemented(i, "all")).length;
+  const [md, ma] = m("mac"), [id, ia] = m("ios");
+  const meter = (k, d, a, note) => `<div class="meter"><span class="k">${k}</span><span class="v">${d} <small>of ${a} ${note}</small></span><div class="bar"><i style="width:${Math.round(d / a * 100)}%"></i></div></div>`;
+  document.getElementById("meters").innerHTML =
+    meter("Mac app", md, ma, "implemented") +
+    meter("iPhone & iPad", id, ia, "in the build") +
+    `<div class="meter"><span class="k">iOS 1.0 must-haves</span><span class="v">${p1} <small>P1 items open</small></span><div class="bar"><i style="width:0%"></i></div></div>`;
+}
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  pf = b.dataset.pf; try { localStorage.setItem("mailr.pf", pf); } catch (e) {} render();
+}));
+document.getElementById("only-p1").addEventListener("change", e => {
+  onlyP1 = e.target.checked; try { localStorage.setItem("mailr.p1", onlyP1 ? "1" : "0"); } catch (e2) {} render();
+});
+render();
+</script>
