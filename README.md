@@ -6,7 +6,7 @@ Native (Swift/SwiftUI) replacement for Outlook on our own infrastructure:
 - **Calendar** over CalDAV with invitations that work with Outlook, Google and Apple (iTIP/iMIP).
 - **Video calls** on Jitsi Meet at <https://vid.rocket.re-cloud.io>, one click from events, mails and reminders.
 
-Platforms: macOS 14+ (universal DMG) and iOS/iPadOS 17+.
+Platforms: macOS 14+ on Apple Silicon (M1 and newer) and iOS/iPadOS 17+. Intel Macs: the last version is 0.3.4.
 
 ## Layout
 
@@ -40,7 +40,7 @@ Each `v<version>` release also carries `SlyyMailr.dmg` (+ `.sha256`), a byte-ide
 versioned DMG under a fixed name. The slyy.ai download button links to
 <https://github.com/mySlyy/slyy-mailr/releases/latest/download/SlyyMailr.dmg>, which GitHub resolves to the
 newest non-draft, non-prerelease release. Releasing by hand: upload both names, e.g.
-`cp slyy-mailr-<v>-mac-universal.dmg SlyyMailr.dmg && shasum -a 256 SlyyMailr.dmg > SlyyMailr.dmg.sha256 && gh release upload v<v> SlyyMailr.dmg SlyyMailr.dmg.sha256`.
+`cp slyy-mailr-<v>-mac-apple-silicon.dmg SlyyMailr.dmg && shasum -a 256 SlyyMailr.dmg > SlyyMailr.dmg.sha256 && gh release upload v<v> SlyyMailr.dmg SlyyMailr.dmg.sha256`.
 Never mark a release as prerelease if it should reach the download button; mark it prerelease if it should not.
 
 Repository secrets:

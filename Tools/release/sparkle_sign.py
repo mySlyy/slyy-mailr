@@ -62,6 +62,7 @@ def appcast(key: Ed25519PrivateKey, a: argparse.Namespace) -> str:
       <sparkle:version>{escape(a.build)}</sparkle:version>
       <sparkle:shortVersionString>{escape(a.version)}</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>{escape(a.min_os)}</sparkle:minimumSystemVersion>
+      <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
       <description sparkle:format="plain-text"><![CDATA[{notes}]]></description>
       <enclosure url={quoteattr(a.url)} length="{length}" type="application/octet-stream" sparkle:edSignature="{sig}"/>
     </item>

@@ -44,7 +44,7 @@ struct InstallerCleanup {
 
     // MARK: Rules
 
-    /// "slyy-mailr-0.2.1-mac-universal.dmg" → "0.2.1"; nil for names without a version.
+    /// "slyy-mailr-0.2.1-mac-universal.dmg" / "slyy-mailr-0.3.5-mac-apple-silicon.dmg" → the version; nil without one.
     static func version(inInstallerName name: String) -> String? {
         let lower = name.lowercased()
         for prefix in ["slyy-mailr-", "slyy-mail-"] where lower.hasPrefix(prefix) {

@@ -67,17 +67,27 @@ jobs:
           echo "SPARKLE_PUBLIC_KEY=$PUB" >> "$GITHUB_ENV"
           echo "Update public key: $PUB"
 
-      - name: Build macOS app (universal)
+      - name: Build macOS app (Apple Silicon)
         shell: bash
         run: |
           set -o pipefail
           xcodebuild -project SlyyMail.xcodeproj -scheme SlyyMail-macOS -configuration Release \
             -derivedDataPath build -destination 'generic/platform=macOS' \
-            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            ARCHS="arm64" ONLY_ACTIVE_ARCH=NO \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" SPARKLE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY" \
             CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
             build 2>&1 | tee build-macos.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build-macos.log
+          # Apple Silicon only: thin the frameworks that ship universal (Sparkle), then make sure no Intel code is left.
+          APP="build/Build/Products/Release/Slyy Mailr.app"
+          find "$APP" -type f -print0 | while IFS= read -r -d '' f; do
+            if lipo -info "$f" 2>/dev/null | grep -q "Architectures in the fat file"; then
+              lipo "$f" -thin arm64 -output "$f.thin" && mv "$f.thin" "$f" && echo "thinned: ${f#$APP/}"
+            fi
+          done
+          if find "$APP" -type f -exec lipo -info {} \; 2>/dev/null | grep -q x86_64; then
+            echo "::error::x86_64 code left in the app"; exit 1
+          fi
 
       - name: Build iOS app (simulator, compile check)
         shell: bash
@@ -194,10 +204,11 @@ jobs:
           mkdir -p dmg dist
           cp -R "$APP" dmg/
           ln -s /Applications dmg/Applications
-          NAME="slyy-mailr-$VERSION-mac-universal.dmg"
+          NAME="slyy-mailr-$VERSION-mac-apple-silicon.dmg"
           hdiutil create -volname "Slyy Mailr $VERSION" -srcfolder dmg -ov -format UDZO "dist/$NAME"
           (cd dist && shasum -a 256 "$NAME" > "$NAME.sha256")
           ls -la dist
+          echo "DMG size: $(du -k "dist/$NAME" | cut -f1) KB"
 
       - name: Notarize and staple DMG (when ASC_KEY_P8 is set)
         if: ${{ env.MACOS_CERT_P12 != '' && env.ASC_KEY_P8 != '' }}
@@ -228,7 +239,7 @@ jobs:
         run: |
           APP="build/Build/Products/Release/Slyy Mailr.app"
           BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Contents/Info.plist")
-          DMG="dist/slyy-mailr-$VERSION-mac-universal.dmg"
+          DMG="dist/slyy-mailr-$VERSION-mac-apple-silicon.dmg"
           "$RUNNER_TEMP/venv/bin/python" Tools/release/sparkle_sign.py appcast \
             --dmg "$DMG" --version "$VERSION" --build "$BUILD" \
             --url "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/$(basename "$DMG")" \
@@ -268,7 +279,7 @@ jobs:
             # https://github.com/mySlyy/slyy-mailr/releases/latest/download/SlyyMailr.dmg
             # always serves the newest release (download button on slyy.ai/tools/mailr).
             mkdir -p stable
-            cp "dist/slyy-mailr-$VERSION-mac-universal.dmg" stable/SlyyMailr.dmg
+            cp "dist/slyy-mailr-$VERSION-mac-apple-silicon.dmg" stable/SlyyMailr.dmg
             (cd stable && shasum -a 256 SlyyMailr.dmg > SlyyMailr.dmg.sha256)
             gh release create "v$VERSION" dist/* stable/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md

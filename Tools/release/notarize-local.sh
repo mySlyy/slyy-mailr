@@ -4,7 +4,7 @@
 #
 #   Tools/release/notarize-local.sh <input.dmg or Slyy Mailr.app> <DeveloperID.p12> <AuthKey_XXXX.p8> <KEY_ID> <ISSUER_ID>
 #
-# Prompts for the .p12 password. Writes dist/slyy-mailr-<version>-mac-universal.dmg (+ .sha256).
+# Prompts for the .p12 password. Writes dist/slyy-mailr-<version>-mac-apple-silicon.dmg (+ .sha256).
 set -euo pipefail
 
 INPUT=${1:?input .dmg or .app}
@@ -45,7 +45,7 @@ codesign --force --deep --options runtime --timestamp --entitlements "$ENTITLEME
 codesign --verify --deep --strict --verbose=2 "$APP"
 mkdir -p "$WORK/dmg" "$ROOT/dist"
 cp -R "$APP" "$WORK/dmg/"; ln -s /Applications "$WORK/dmg/Applications"
-DMG="$ROOT/dist/slyy-mailr-$VERSION-mac-universal.dmg"
+DMG="$ROOT/dist/slyy-mailr-$VERSION-mac-apple-silicon.dmg"
 hdiutil create -volname "Slyy Mailr $VERSION" -srcfolder "$WORK/dmg" -ov -format UDZO "$DMG" >/dev/null
 codesign --force --timestamp -s "$IDENTITY" "$DMG"
 
