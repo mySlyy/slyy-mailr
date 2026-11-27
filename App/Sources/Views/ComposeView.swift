@@ -61,7 +61,7 @@ struct ComposeView: View {
                     TextEditor(text: $draft.body)
                         .font(Slyy.font(14))
                         .lineSpacing(4)
-                        .foregroundStyle(draft.blueReply ? (Color(hex: draft.replyColor) ?? Slyy.accent) : Slyy.ink)
+                        .foregroundStyle(draft.blueReply ? (Color(sixDigitHex: draft.replyColor) ?? Slyy.accent) : Slyy.ink)
                         .focused($focus, equals: .body)
                         .scrollContentBackground(.hidden)
                         .frame(minHeight: draft.quoted.isEmpty ? 300 : 120)

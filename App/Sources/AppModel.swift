@@ -159,7 +159,7 @@ final class AppModel {
     var replyColorHex: String = UserDefaults.standard.string(forKey: "replyColor").flatMap { Color.isHex($0) ? $0 : nil } ?? Slyy.replyDefaultHex {
         didSet { UserDefaults.standard.set(replyColorHex, forKey: "replyColor") }
     }
-    var replyColor: Color { Color(hex: replyColorHex) ?? Slyy.accent }
+    var replyColor: Color { Color(sixDigitHex: replyColorHex) ?? Slyy.accent }
 
     /// Auto-save: open drafts are kept on disk (crash-safe) and in the server's Drafts folder. Default on.
     var autoSave: Bool = UserDefaults.standard.object(forKey: "autoSave") as? Bool ?? true {

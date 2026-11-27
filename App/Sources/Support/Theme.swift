@@ -67,7 +67,7 @@ extension Color {
     }
 
     /// "#2B3BFF" → colour; nil for anything that is not #RRGGBB.
-    init?(hex: String) {
+    init?(sixDigitHex hex: String) {
         guard Color.isHex(hex), let v = UInt32(hex.dropFirst(), radix: 16) else { return nil }
         self.init(rgb: v)
     }

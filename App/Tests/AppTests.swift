@@ -143,8 +143,9 @@ final class AppLogicTests: XCTestCase {
         var evil = try XCTUnwrap(m.composeDraft)
         evil.replyColor = "red;background:url(x)"
         XCTAssertTrue(evil.message(from: m.account!.address).html!.hasPrefix("<div style=\"color:#2B3BFF\">"), "no raw CSS from settings")
-        XCTAssertEqual(Color(hex: "#2B3BFF")?.hexString, "#2B3BFF")
-        XCTAssertNil(Color(hex: "blue"))
+        XCTAssertEqual(Color(sixDigitHex: "#2B3BFF")?.hexString, "#2B3BFF")
+        XCTAssertNil(Color(sixDigitHex: "blue"))
+        XCTAssertNil(Color(sixDigitHex: "#2B3BFFCC"), "reply colours are #RRGGBB only")
     }
 
     func testAutoSaveKeepsUnsentMailsAcrossACrash() throws {
