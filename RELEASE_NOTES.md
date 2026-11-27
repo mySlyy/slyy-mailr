@@ -1,4 +1,4 @@
-Slyy Mailr 0.3.5 — for Apple Silicon
+Slyy Mailr 0.4.0 — for Apple Silicon
 
 **Half the size**: Slyy Mailr now runs on Macs with Apple Silicon (M1 and newer) only. Without the Intel code the app and
 its download are about half as big.
