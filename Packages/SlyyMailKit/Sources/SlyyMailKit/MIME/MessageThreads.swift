@@ -77,6 +77,17 @@ public enum MessageThreads {
         return (a.references ?? []).count < (b.references ?? []).count
     }
 
+    /// Conversations of a folder, completed with related messages from elsewhere (my replies in Sent):
+    /// a companion joins only a conversation that has at least one message of the folder, and a companion
+    /// that is also in the folder (Bcc to myself) is not shown twice.
+    public static func group(_ messages: [MessageSummary], companions: [MessageSummary]) -> [MessageThread] {
+        guard !companions.isEmpty else { return group(messages) }
+        let own = Set(messages.compactMap { $0.messageID?.lowercased() })
+        let extra = companions.filter { c in c.messageID.map { !own.contains($0.lowercased()) } ?? false }
+        let primary = Set(messages.map(\.id))
+        return group(messages + extra).filter { t in t.messages.contains { primary.contains($0.id) } }
+    }
+
     /// Groups messages into conversations, newest conversation first.
     /// Links come from Message-ID, In-Reply-To and References; a reply without those headers
     /// joins the conversation with the same base subject (as many clients strip them).

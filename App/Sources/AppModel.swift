@@ -165,7 +165,16 @@ final class AppModel {
     var expandedThreads: Set<String> = []
     private var sampleSentReply: MessageSummary?
 
-    var threads: [MessageThread] { MessageThreads.group(messages) }
+    /// My recent replies (first page of Sent), so a conversation in the Inbox also shows what I answered.
+    private(set) var companions: [MessageSummary] = []
+    var threads: [MessageThread] { MessageThreads.group(messages, companions: companions) }
+
+    /// The messages of a conversation that live in the current folder: list actions (archive, delete, move)
+    /// never touch my copies in Sent.
+    func actionable(_ list: [MessageSummary]) -> [MessageSummary] {
+        let own = list.filter { $0.folder == currentFolder }
+        return own.isEmpty ? list : own
+    }
 
     /// Messages of the thread a list row stands for (only those in the current folder).
     func thread(containing m: MessageSummary) -> [MessageSummary] {
@@ -437,9 +446,19 @@ final class AppModel {
                 messages += r.messages.filter { !known.contains($0.id) }
             }
             contacts.add(r.messages.flatMap(\.from))
+            if reset { await loadCompanions(for: folder) }
             if reset, folder == "INBOX", let a = account { await MailNotifier.process(inbox: r.messages, account: a.id) }
         } catch {
             report(error)
+        }
+    }
+
+    private func loadCompanions(for folder: String) async {
+        guard let mail, threaded else { companions = []; return }
+        let use = folders.first { $0.serverPath == folder }?.specialUse
+        guard use != .sent, use != .drafts, let sent = folders.first(where: { $0.specialUse == .sent }) else { companions = []; return }
+        if let r = try? await mail.messages(in: sent.serverPath, page: 0), folder == currentFolder {
+            companions = r.messages
         }
     }
 

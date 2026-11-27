@@ -16,6 +16,8 @@ Without Slyy Haven, Mailr shows no AI features (Settings → Mail → Assistant 
 **Mac and iPhone**:
 - Tap an attachment for a Quick Look preview; Save, Share and Open stay in its menu.
 - Notifications for new mail when Slyy Mailr is in the background (Settings → Mail to switch off). Clicking one opens the message.
+- Conversations in the list include your replies from Sent, so a thread you answered shows its fold arrow and
+  all its mails (archive, delete and move still act only on the mails in the folder you are in).
 - Mac: Shift-click selects a range, Cmd-click adds single messages, and a conversation's menu acts on all selected ones.
 - German texts for everything added since 0.2.4.
 

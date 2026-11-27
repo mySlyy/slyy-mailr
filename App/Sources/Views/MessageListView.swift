@@ -43,7 +43,7 @@ struct MessageListView: View {
                                       expanded: model.expandedThreads.contains(t.id), onToggle: { model.toggleThread(t.id) })
                                 .contentShape(Rectangle())
                                 .onTapGesture { select(t.latest) }
-                                .draggable(t.latest.id)
+                                .draggable(model.actionable(t.messages).last?.id ?? t.latest.id)
                                 .contextMenu { MessageMenu(list: targets(t)) }
                             if t.count > 1 && model.expandedThreads.contains(t.id) {
                                 ForEach(t.messages.reversed()) { m in
@@ -126,8 +126,8 @@ struct MessageListView: View {
     /// A thread's menu acts on every selected conversation when this one is part of the selection.
     func targets(_ t: MessageThread) -> [MessageSummary] {
         let sel = model.selectedMessageIDs
-        guard t.messages.contains(where: { sel.contains($0.id) }) else { return t.messages }
-        return model.threads.filter { $0.messages.contains { sel.contains($0.id) } }.flatMap(\.messages)
+        guard t.messages.contains(where: { sel.contains($0.id) }) else { return model.actionable(t.messages) }
+        return model.actionable(model.threads.filter { $0.messages.contains { sel.contains($0.id) } }.flatMap(\.messages))
     }
 
     func targets(_ m: MessageSummary) -> [MessageSummary] {
@@ -237,7 +237,7 @@ struct PhoneInboxView: View {
 
     var selectedList: [MessageSummary] {
         if model.threaded && model.searchText.isEmpty {
-            return model.threads.filter { selection.contains($0.id) }.flatMap(\.messages)
+            return model.actionable(model.threads.filter { selection.contains($0.id) }.flatMap(\.messages))
         }
         return model.messages.filter { selection.contains($0.id) }
     }
@@ -363,7 +363,7 @@ struct PhoneInboxView: View {
                         NavigationLink(value: t.latest) {
                             ThreadRow(thread: t, me: model.account?.email, mine: model.account?.myAddresses ?? [], phone: true)
                         }
-                        .modifier(PhoneRow(list: t.messages))
+                        .modifier(PhoneRow(list: model.actionable(t.messages)))
                         .tag(t.id)
                     }
                 } else {

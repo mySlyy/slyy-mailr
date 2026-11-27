@@ -8,6 +8,34 @@ final class ThreadTests: XCTestCase {
                        hasAttachments: false, isInvite: false, inReplyTo: inReplyTo, references: refs)
     }
 
+    /// The inbox has only Ashant's latest mail; my two replies are in Sent. The list must still show a
+    /// conversation of 3 (with a fold arrow), but never pull in Sent-only conversations.
+    func testInboxConversationIncludesMyRepliesFromSent() {
+        func sent(_ uid: UInt32, _ subject: String, id: String, inReplyTo: String?, refs: [String], minutes: Double) -> MessageSummary {
+            var m = summary(uid, subject, id: id, inReplyTo: inReplyTo, refs: refs, minutes: minutes, from: "ach@slyy.ai")
+            m.folder = "Sent"
+            return m
+        }
+        let inbox = [
+            summary(10, "Re: Deployed: PR #471", id: "<3@x>", inReplyTo: "<2@x>", refs: ["<1@x>", "<2@x>"], minutes: 30, from: "ach@slyy.ai", seen: false),
+            summary(11, "Slyy.AI Introduction", id: "<r1@x>", minutes: 5, from: "robbie@x.de"),
+        ]
+        let sentBox = [
+            sent(1, "Deployed: PR #471", id: "<1@x>", inReplyTo: nil, refs: [], minutes: 10),
+            sent(2, "Re: Deployed: PR #471", id: "<2@x>", inReplyTo: "<1@x>", refs: ["<1@x>"], minutes: 20),
+            sent(3, "Unrelated", id: "<u@x>", inReplyTo: nil, refs: [], minutes: 25),
+            // A Bcc copy that is in the inbox too: shown once.
+            sent(4, "Re: Deployed: PR #471", id: "<3@x>", inReplyTo: "<2@x>", refs: ["<1@x>", "<2@x>"], minutes: 30),
+        ]
+        let threads = MessageThreads.group(inbox, companions: sentBox)
+        XCTAssertEqual(threads.count, 2, "the Sent-only conversation stays out")
+        let pr = threads.first { $0.subject == "Deployed: PR #471" }
+        XCTAssertEqual(pr?.count, 3)
+        XCTAssertEqual(pr?.messages.map(\.uid), [1, 2, 10])
+        XCTAssertEqual(pr?.messages.filter { $0.folder == "INBOX" }.count, 1)
+        XCTAssertEqual(MessageThreads.group(inbox, companions: []).count, 2)
+    }
+
     func testIDsAndBaseSubject() {
         XCTAssertEqual(MessageThreads.ids(in: "<a@x>  <b@y>\r\n <c@z>"), ["<a@x>", "<b@y>", "<c@z>"])
         XCTAssertEqual(MessageThreads.baseSubject("Re: AW: Fwd: Angebot"), "Angebot")
