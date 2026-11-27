@@ -1,17 +1,16 @@
-Slyy Mailr 0.2.4 — aliases, folded conversations, blue replies, tabbed settings
+Slyy Mailr 0.3.0 — first test round for iPhone & iPad
 
-**Sender aliases**: add extra From addresses (e.g. info@slyy.ai) with their own name and signature in
-Settings → Mail. Pick the sender in the compose window; replies automatically come from the address
-the mail was sent to, Reply All leaves all your addresses out, and invitations are answered as the
-invited alias.
+**iPhone & iPad (TestFlight)**: the first version for testers.
+- Swipe a message: right to mark read / unread, left to delete, archive or flag.
+- "Select" several messages and read, flag, move, archive or delete them together.
+- Attach photos from the library or take one with the camera (sent as JPEG, max 2560 px).
+- Calendar as a list of the next 14 days, with Join buttons for video meetings; switch to the day view any time.
+- New-mail notifications, also when the app is closed (background refresh), and the unread count on the icon.
 
-**Folded conversations**: conversations open as an accordion: older messages are folded to one line,
-the newest is open. Click a header to fold or unfold. In the list, a chevron unfolds a thread in place.
+**Mac and iPhone**:
+- Tap an attachment for a Quick Look preview; Save, Share and Open stay in its menu.
+- Notifications for new mail when Slyy Mailr is in the background (Settings → Mail to switch off). Clicking one opens the message.
+- Mac: Shift-click selects a range, Cmd-click adds single messages, and a conversation's menu acts on all selected ones.
+- German texts for everything added since 0.2.4.
 
-**Blue replies**: what you write in a reply is shown and sent in blue (rgba(0, 0, 255, 1)); the quoted
-original stays in its normal colour below. Switch it off in Settings → Mail.
-
-**Settings in three tabs**: Mail, Calendar and Video Calls. Calendar lists your calendars to show or
-hide; Video Calls has the meeting server, a preview of new room links and a test call.
-
-Installed 0.2.1 or newer? This update arrives by itself. Signed with Developer ID and notarized by Apple.
+Installed 0.2.1 or newer on the Mac? This update arrives by itself. Signed with Developer ID and notarized by Apple.

@@ -151,3 +151,38 @@
 "Remove this account?" = "Dieses Konto entfernen?";
 "Remove" = "Entfernen";
 "Done" = "Fertig";
+
+/* 0.2.4 */
+"Video Calls" = "Videoanrufe";
+"Write replies in" = "Antworten schreiben in";
+"blue" = "Blau";
+"Reading and writing" = "Lesen und Schreiben";
+"Sender addresses" = "Absenderadressen";
+"Use default" = "Standard verwenden";
+"Test call" = "Testanruf";
+"Shown calendars" = "Angezeigte Kalender";
+"Quoted message" = "Zitierte Nachricht";
+"Unfold all" = "Alle aufklappen";
+"Servers" = "Server";
+"Calendar server" = "Kalenderserver";
+"New rooms look like" = "Neue Räume sehen so aus";
+"read-only" = "schreibgeschützt";
+"The calendar is off: no calendar server set." = "Der Kalender ist aus: kein Kalenderserver eingetragen.";
+"No calendars loaded yet." = "Noch keine Kalender geladen.";
+
+/* 0.3.0 */
+"List" = "Liste";
+"Select" = "Auswählen";
+"%lld selected" = "%lld ausgewählt";
+"Move" = "Verschieben";
+"Photo Library" = "Fotomediathek";
+"Take Photo" = "Foto aufnehmen";
+"Files" = "Dateien";
+"Quick Look" = "Vorschau";
+"No events" = "Keine Termine";
+"Next %lld days" = "Nächste %lld Tage";
+"all day" = "ganztägig";
+"New message" = "Neue E-Mail";
+"%lld more new messages" = "%lld weitere neue E-Mails";
+"Notify me about new mail" = "Bei neuer E-Mail benachrichtigen";
+"Opens a preview. Touch and hold for more." = "Öffnet eine Vorschau. Gedrückt halten für mehr.";

@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      testflight:
+        description: "Upload this build to TestFlight even if the version is already released"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -17,7 +22,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 100
     env:
       # Optional secrets; steps that need them are skipped when empty.
       MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
@@ -82,6 +87,30 @@ jobs:
             -derivedDataPath build-ios -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build-ios.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build-ios.log
+
+      - name: App tests and screenshots (iPhone simulator)
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p screens-ios
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)['devices']
+          phones = [x for k, v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone') and 'Pro' not in x['name'] and 'Plus' not in x['name']]
+          print(phones[-1]['udid'] if phones else '')")
+          test -n "$UDID" || { echo "::error::No iPhone simulator on this runner"; exit 1; }
+          xcrun simctl list devices | grep "$UDID"
+          TEST_RUNNER_SLYY_SNAPSHOT_DIR="$PWD" xcodebuild test -project SlyyMail.xcodeproj -scheme SlyyMail-iOS \
+            -destination "id=$UDID" -derivedDataPath build-ios-test CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee test-ios.log | grep -E "error:|Test Case .*(passed|failed)|TEST (SUCCEEDED|FAILED)|Executed" || true
+          grep -q "TEST SUCCEEDED" test-ios.log
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: screens-ios
+          path: screens-ios/*.png
+          if-no-files-found: warn
 
       - name: App tests and screenshots (macOS)
         shell: bash
@@ -233,4 +262,91 @@ jobs:
             (cd stable && shasum -a 256 SlyyMailr.dmg > SlyyMailr.dmg.sha256)
             gh release create "v$VERSION" dist/* stable/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "Slyy Mailr $VERSION" --notes-file RELEASE_NOTES.md
+            echo "NEW_VERSION=1" >> "$GITHUB_ENV"
           fi
+
+      # iPhone & iPad: every new version (or a manual run with "testflight") goes to TestFlight.
+      # Signing is cloud-managed through the App Store Connect API key (no certificates or profiles in the repo).
+      - name: TestFlight - check App Store Connect
+        id: tf
+        if: ${{ env.ASC_KEY_P8 != '' && github.event_name != 'pull_request' && (env.NEW_VERSION == '1' || github.event.inputs.testflight == 'true') }}
+        continue-on-error: true
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          test -n "$VERSION" || VERSION=$(grep -E '^ +MARKETING_VERSION:' project.yml | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/venv/bin/python" Tools/release/testflight.py preflight
+
+      - name: TestFlight - archive and upload iOS app
+        id: tfup
+        if: ${{ steps.tf.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          if echo "$ASC_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then printf '%s\n' "$ASC_KEY_P8" > "$KEY"; else echo "$ASC_KEY_P8" | base64 --decode > "$KEY"; fi
+          # Team id from the Developer ID identity: "Developer ID Application: Name (TEAMID)".
+          TEAM=$(echo "$SIGN_IDENTITY" | sed -E 's/.*\(([A-Z0-9]{10})\)$/\1/')
+          test -n "$TEAM" || { echo "::error::Team id unknown (no Developer ID identity)"; exit 1; }
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          xcodebuild archive -project SlyyMail.xcodeproj -scheme SlyyMail-iOS -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build-ios-release/SlyyMailr.xcarchive \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+            "${AUTH[@]}" 2>&1 | tee archive-ios.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          grep -q "ARCHIVE SUCCEEDED" archive-ios.log
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build-ios-release/SlyyMailr.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath build-ios-release/export \
+            "${AUTH[@]}" 2>&1 | tee upload-ios.log | grep -E "error:|Upload|EXPORT (SUCCEEDED|FAILED)" || true
+          rm -f "$KEY"
+          grep -q "EXPORT SUCCEEDED" upload-ios.log
+
+      - name: TestFlight - publish to testers (public link, 100 max)
+        id: tfdist
+        if: ${{ steps.tfup.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          BETA_FEEDBACK_EMAIL: ${{ secrets.BETA_FEEDBACK_EMAIL }}
+          BETA_CONTACT_FIRST_NAME: ${{ secrets.BETA_CONTACT_FIRST_NAME }}
+          BETA_CONTACT_LAST_NAME: ${{ secrets.BETA_CONTACT_LAST_NAME }}
+          BETA_CONTACT_PHONE: ${{ secrets.BETA_CONTACT_PHONE }}
+          BETA_CONTACT_EMAIL: ${{ secrets.BETA_CONTACT_EMAIL }}
+          BETA_DEMO_USER: ${{ secrets.BETA_DEMO_USER }}
+          BETA_DEMO_PASSWORD: ${{ secrets.BETA_DEMO_PASSWORD }}
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" Tools/release/testflight.py distribute \
+            --build "$GITHUB_RUN_NUMBER" --version "$VERSION" --group "Slyy Testers" --limit 100 --notes RELEASE_NOTES.md
+
+      - uses: actions/upload-artifact@v5
+        if: ${{ always() && (steps.tf.outcome == 'failure' || steps.tfup.outcome == 'failure' || steps.tfdist.outcome == 'failure') }}
+        with:
+          name: testflight-logs
+          path: "*-ios.log"
+          if-no-files-found: ignore
+
+      - name: TestFlight result
+        if: ${{ always() && (steps.tf.outcome == 'failure' || steps.tfup.outcome == 'failure' || steps.tfdist.outcome == 'failure') }}
+        run: |
+          echo "::error::TestFlight did not complete (check: ${{ steps.tf.outcome }}, upload: ${{ steps.tfup.outcome }}, publish: ${{ steps.tfdist.outcome }}). The Mac release above is not affected."
+          exit 1

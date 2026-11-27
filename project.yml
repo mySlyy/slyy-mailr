@@ -14,7 +14,7 @@ packages:
     from: "2.6.4"
 settings:
   base:
-    MARKETING_VERSION: "0.2.4"
+    MARKETING_VERSION: "0.3.0"
     # CI sets this to the run number so every release has a higher CFBundleVersion (Sparkle compares it).
     CURRENT_PROJECT_VERSION: "1"
     # Filled by CI from the SPARKLE_PRIVATE_KEY secret; empty = updater off.
@@ -94,7 +94,8 @@ targets:
   SlyyMail-iOS:
     type: application
     platform: iOS
-    scheme: {}
+    scheme:
+      testTargets: [SlyyMailrTests-iOS]
     sources:
       - path: App/Sources
       - path: App/Resources
@@ -122,7 +123,11 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: Email Address URL
             CFBundleURLSchemes: [mailto]
-        UIBackgroundModes: [audio]
+        UIBackgroundModes: [audio, fetch]
+        BGTaskSchedulerPermittedIdentifiers: [ai.slyy.mailr.refresh]
+        # Only standard TLS (exempt): skips the export-compliance question for every TestFlight build.
+        ITSAppUsesNonExemptEncryption: false
+        NSPhotoLibraryAddUsageDescription: Slyy Mailr saves attachments you choose to your photo library.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr
@@ -143,4 +148,18 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Slyy Mailr.app/Contents/MacOS/Slyy Mailr"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+  SlyyMailrTests-iOS:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: App/Tests
+    dependencies:
+      - target: SlyyMail-iOS
+      - package: SlyyMailKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.slyy.mailr.tests-ios
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Slyy Mailr.app/Slyy Mailr"
         BUNDLE_LOADER: "$(TEST_HOST)"

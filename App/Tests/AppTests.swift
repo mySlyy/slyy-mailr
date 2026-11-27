@@ -1,6 +1,10 @@
 import XCTest
 import SwiftUI
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import SlyyMailKit
 @testable import SlyyMailr
 
@@ -9,7 +13,11 @@ final class AppLogicTests: XCTestCase {
     func testFontsAreBundledAndLoad() {
         Slyy.registerFonts()
         for name in ["HankenGrotesk-Regular", "HankenGrotesk-Medium", "HankenGrotesk-SemiBold", "HankenGrotesk-Bold", "MartianMono-Regular", "MartianMono-Medium"] {
+            #if os(macOS)
             XCTAssertNotNil(NSFont(name: name, size: 14), "\(name) missing from the app bundle")
+            #else
+            XCTAssertNotNil(UIFont(name: name, size: 14), "\(name) missing from the app bundle")
+            #endif
         }
     }
 
@@ -107,6 +115,56 @@ final class AppLogicTests: XCTestCase {
         m.threaded = true
     }
 
+    func testNewMailIsAnnouncedOnceAndNotOnFirstSync() async {
+        func msg(_ uid: UInt32, seen: Bool = false) -> MessageSummary {
+            MessageSummary(uid: uid, folder: "INBOX", flags: seen ? ["\\Seen"] : [], date: Date(), size: 1, from: [EmailAddress(name: "K", address: "k@x.de")], to: [], cc: [], subject: "S\(uid)", messageID: nil, hasAttachments: false, isInvite: false)
+        }
+        XCTAssertNil(MailNotifier.arrivals(in: [msg(5), msg(4)], after: nil), "first sync only sets the baseline")
+        let r = MailNotifier.arrivals(in: [msg(8), msg(7, seen: true), msg(6), msg(5)], after: 5)
+        XCTAssertEqual(r?.messages.map(\.uid), [8, 6], "new and unread only, newest first")
+        XCTAssertEqual(r?.highestUID, 8)
+        XCTAssertEqual(MailNotifier.arrivals(in: [msg(8), msg(6)], after: 8)?.messages.count, 0, "nothing twice")
+        XCTAssertEqual(MailNotifier.arrivals(in: [], after: 8)?.highestUID, 8, "an empty inbox keeps the mark")
+
+        let store = UserDefaults(suiteName: "notifier-test")!
+        store.removePersistentDomain(forName: "notifier-test")
+        store.set(false, forKey: "notifyNewMail") // no real notifications from the test host
+        let id = UUID()
+        await MailNotifier.process(inbox: [msg(3), msg(2)], account: id, store: store)
+        XCTAssertEqual(MailNotifier.lastUID(account: id, store: store), 3, "first sync: baseline")
+        await MailNotifier.process(inbox: [msg(4), msg(3)], account: id, store: store)
+        XCTAssertEqual(MailNotifier.lastUID(account: id, store: store), 4)
+    }
+
+    func testAgendaGroupsByDayAndAlwaysShowsToday() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let t9 = cal.date(byAdding: .hour, value: 9, to: today)!
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: today)!
+        let in3 = cal.date(byAdding: .day, value: 3, to: today)!
+        let meeting = CalendarEvent(summary: "Standup", start: cal.date(byAdding: .hour, value: 10, to: in3)!, end: cal.date(byAdding: .hour, value: 11, to: in3)!)
+        var allDay = CalendarEvent(summary: "Messe", start: tomorrow, end: cal.date(byAdding: .day, value: 2, to: tomorrow)!)
+        allDay.isAllDay = true
+        let late = CalendarEvent(summary: "Call", start: cal.date(byAdding: .hour, value: 15, to: in3)!, end: cal.date(byAdding: .hour, value: 16, to: in3)!)
+        let days = AgendaListView.days(from: t9, count: 14, events: [late, meeting, allDay], today: t9)
+        XCTAssertEqual(days.map(\.date), [today, tomorrow, cal.date(byAdding: .day, value: 2, to: today)!, in3], "empty days are skipped, today stays")
+        XCTAssertTrue(days[0].events.isEmpty)
+        XCTAssertEqual(days[1].events.map(\.summary), ["Messe"])
+        XCTAssertEqual(days[2].events.map(\.summary), ["Messe"], "a two-day event shows on both days")
+        XCTAssertEqual(days[3].events.map(\.summary), ["Standup", "Call"])
+        XCTAssertEqual(CalendarMode.available(compact: true), [.agenda, .day, .month])
+        XCTAssertFalse(CalendarMode.available(compact: false).contains(.agenda))
+
+        let m = AppModel.sample()
+        let r = m.range(for: t9, mode: .agenda)
+        XCTAssertEqual(r.0, today)
+        XCTAssertEqual(cal.dateComponents([.day], from: r.0, to: r.1).day, CalendarMode.agendaDays)
+        m.calendarMode = .agenda
+        m.calendarDate = t9
+        m.moveCalendar(by: 1)
+        XCTAssertEqual(cal.dateComponents([.day], from: t9, to: m.calendarDate).day, CalendarMode.agendaDays)
+    }
+
     func testSampleModelMatchesWireframe() {
         let m = AppModel.sample()
         XCTAssertEqual(m.folders.first?.unseen, 12)
@@ -115,6 +173,7 @@ final class AppLogicTests: XCTestCase {
     }
 }
 
+#if os(macOS)
 @MainActor
 final class CleanupTests: XCTestCase {
     var root: URL!
@@ -276,3 +335,4 @@ final class ScreenshotTests: XCTestCase {
         try render(EventEditorView(event: e).environment(m), "5-new-meeting", width: 640, height: 800)
     }
 }
+#endif

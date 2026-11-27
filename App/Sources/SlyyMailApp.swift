@@ -10,6 +10,7 @@ struct SlyyMailApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
     @State private var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         Slyy.registerFonts()
@@ -24,7 +25,15 @@ struct SlyyMailApp: App {
             RootView()
                 .environment(model)
                 .onOpenURL { model.handle(url: $0) }
+                #if os(iOS)
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .background { BackgroundRefresh.schedule() }
+                }
+                #endif
         }
+        #if os(iOS)
+        .backgroundTask(.appRefresh(BackgroundRefresh.id)) { await BackgroundRefresh.run() }
+        #endif
         #if os(macOS)
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 800)
@@ -82,6 +91,12 @@ final class AppDelegate: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
+        // New-mail notification: open that message.
+        if let folder = info["folder"] as? String {
+            let uid = (info["uid"] as? Int).map { UInt32($0) }
+            await AppModel.shared.openFromNotification(folder: folder, uid: uid)
+            return
+        }
         guard let link = info["videoURL"] as? String, let url = URL(string: link) else { return }
         if response.actionIdentifier == ReminderScheduler.joinAction || response.actionIdentifier == UNNotificationDefaultActionIdentifier {
             await MainActor.run { AppModel.shared.join(url) }

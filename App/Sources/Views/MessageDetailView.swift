@@ -1,6 +1,7 @@
 import SwiftUI
 import SlyyMailKit
 import UniformTypeIdentifiers
+import QuickLook
 
 struct MessageDetailView: View {
     @Environment(AppModel.self) private var model
@@ -172,33 +173,7 @@ struct MessageDetailView: View {
     }
 
     func attachments(_ m: ParsedMessage) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(visibleAttachments(m)) { a in
-                    Menu {
-                        Button("Save…") { exporting = a }
-                        ShareLink(item: AttachmentFile(attachment: a), preview: SharePreview(a.filename))
-                        #if os(macOS)
-                        Button("Open") { openAttachment(a) }
-                        #endif
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: SlyyIcon.doc).imageScale(.small)
-                            Text("\(a.filename) · \(ByteCountFormatter.string(fromByteCount: Int64(a.data.count), countStyle: .file))")
-                                .lineLimit(1)
-                        }
-                        .font(Slyy.font(13))
-                        .foregroundStyle(Slyy.ink)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Slyy.panel)
-                    }
-                    .menuStyle(.button)
-                    .buttonStyle(.plain)
-                    .fixedSize()
-                }
-            }
-        }
+        AttachmentChips(attachments: visibleAttachments(m))
     }
 
     #if os(macOS)
@@ -590,14 +565,20 @@ struct AccordionSection: View {
 struct AttachmentChips: View {
     let attachments: [Attachment]
     @State private var exporting: Attachment?
+    /// File shown in Quick Look (tap a chip).
+    @State private var previewURL: URL?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(attachments) { a in
                     Menu {
+                        Button("Quick Look") { preview(a) }
                         Button("Save…") { exporting = a }
                         ShareLink(item: AttachmentFile(attachment: a), preview: SharePreview(a.filename))
+                        #if os(macOS)
+                        Button("Open") { if let url = Self.temporaryFile(a) { NSWorkspace.shared.open(url) } }
+                        #endif
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: SlyyIcon.doc).imageScale(.small)
@@ -608,16 +589,35 @@ struct AttachmentChips: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(Slyy.panel)
+                    } primaryAction: {
+                        preview(a)
                     }
                     .menuStyle(.button)
                     .buttonStyle(.plain)
                     .fixedSize()
+                    .accessibilityHint("Opens a preview. Touch and hold for more.")
                 }
             }
         }
+        .quickLookPreview($previewURL)
         .fileExporter(isPresented: Binding(get: { exporting != nil }, set: { if !$0 { exporting = nil } }),
                       document: exporting.map { AttachmentDocument(data: $0.data) },
                       contentType: .data,
                       defaultFilename: exporting?.filename) { _ in exporting = nil }
+    }
+
+    func preview(_ a: Attachment) {
+        previewURL = Self.temporaryFile(a)
+    }
+
+    /// Writes the attachment to a private temporary folder under its own name (Quick Look and Open need a file).
+    static func temporaryFile(_ a: Attachment) -> URL? {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("attachments", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var name = a.filename.replacingOccurrences(of: "/", with: "_").trimmingCharacters(in: .whitespaces)
+        if name.isEmpty { name = "attachment" }
+        let url = dir.appendingPathComponent(name)
+        return (try? a.data.write(to: url, options: .atomic)) != nil ? url : nil
     }
 }

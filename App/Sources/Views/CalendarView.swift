@@ -4,6 +4,8 @@ import SlyyMailKit
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// iPhone: the list (agenda) or the day grid.
+    @AppStorage("phoneCalendarMode") private var phoneMode: CalendarMode = .agenda
 
     var phone: Bool { sizeClass == .compact }
 
@@ -11,6 +13,8 @@ struct CalendarView: View {
         VStack(spacing: 0) {
             if phone { phoneHeader } else { header }
             switch effectiveMode {
+            case .agenda:
+                AgendaListView()
             case .month:
                 MonthGridView()
             case .week, .day:
@@ -34,7 +38,7 @@ struct CalendarView: View {
     }
 
     var effectiveMode: CalendarMode {
-        phone ? .day : model.calendarMode
+        phone ? (phoneMode == .agenda ? .agenda : .day) : (model.calendarMode == .agenda ? .week : model.calendarMode)
     }
 
     var days: [Date] {
@@ -74,7 +78,7 @@ struct CalendarView: View {
                 .padding(.leading, 8)
             Spacer(minLength: 8)
             HStack(spacing: 0) {
-                ForEach(CalendarMode.allCases) { m in
+                ForEach(CalendarMode.available(compact: false)) { m in
                     Button { model.calendarMode = m; Task { await model.loadEvents(force: false) } } label: {
                         Text(m.title)
                             .lineLimit(1)
@@ -114,6 +118,23 @@ struct CalendarView: View {
             HStack {
                 Text(model.calendarDate.formatted(.dateTime.month(.wide))).font(Slyy.font(20, .bold))
                 Spacer()
+                HStack(spacing: 0) {
+                    ForEach([CalendarMode.agenda, .day]) { m in
+                        Button { phoneMode = m } label: {
+                            Text(m.title)
+                                .lineLimit(1)
+                                .fixedSize()
+                                .font(Slyy.font(14, phoneMode == m ? .semibold : .regular))
+                                .foregroundStyle(phoneMode == m ? Color.white : Slyy.ink)
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 44)
+                                .background(phoneMode == m ? Slyy.ink : Color.white)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(phoneMode == m ? .isSelected : [])
+                    }
+                }
+                .hairlineBorder(Slyy.lineStrong)
                 Button { model.newEvent(at: nil) } label: {
                     Image(systemName: "plus").foregroundStyle(.white).frame(width: 44, height: 44).background(Slyy.ink)
                 }
@@ -452,5 +473,113 @@ struct MonthGridView: View {
             model.calendarDate = day
             model.calendarMode = .day
         }
+    }
+}
+
+/// iPhone agenda: the next two weeks as a list, grouped by day. Today always shows, even when empty.
+struct AgendaListView: View {
+    @Environment(AppModel.self) private var model
+
+    struct Day: Identifiable {
+        var date: Date
+        var events: [CalendarEvent]
+        var id: Date { date }
+    }
+
+    static func days(from start: Date, count: Int, events: [CalendarEvent], today: Date = Date()) -> [Day] {
+        let cal = Calendar.current
+        let first = cal.startOfDay(for: start)
+        return (0..<count).compactMap { i in
+            let d = cal.date(byAdding: .day, value: i, to: first)!
+            let end = cal.date(byAdding: .day, value: 1, to: d)!
+            let list = events.filter { $0.start < end && $0.end > d && !($0.isAllDay && $0.end == d) }
+                .sorted { ($0.isAllDay ? 0 : 1, $0.start) < ($1.isAllDay ? 0 : 1, $1.start) }
+            return list.isEmpty && !cal.isDate(d, inSameDayAs: today) ? nil : Day(date: d, events: list)
+        }
+    }
+
+    var body: some View {
+        let days = Self.days(from: model.calendarDate, count: CalendarMode.agendaDays, events: model.visibleEvents)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                ForEach(days) { day in
+                    Section {
+                        if day.events.isEmpty {
+                            Text("No events").font(Slyy.font(14)).foregroundStyle(Slyy.muted)
+                                .padding(.horizontal, 18).padding(.vertical, 12)
+                        }
+                        ForEach(day.events) { e in
+                            AgendaRow(event: e, day: day.date)
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.selectedEvent = e }
+                        }
+                    } header: {
+                        dayHeader(day.date)
+                    }
+                }
+                Button("Next \(CalendarMode.agendaDays) days") { model.moveCalendar(by: 1) }
+                    .buttonStyle(.slyyOutline)
+                    .padding(18)
+            }
+        }
+    }
+
+    func dayHeader(_ d: Date) -> some View {
+        let today = Calendar.current.isDateInToday(d)
+        return HStack(spacing: 8) {
+            Text(today ? String(localized: "Today") : d.formatted(.dateTime.weekday(.wide)))
+                .font(Slyy.font(13, .semibold))
+                .foregroundStyle(today ? Slyy.accent : Slyy.ink)
+            Text(d.formatted(.dateTime.day().month(.wide)))
+                .font(Slyy.font(13))
+                .foregroundStyle(Slyy.muted)
+            Spacer()
+        }
+        .textCase(nil)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .background(Slyy.panel)
+        .bottomHairline()
+    }
+}
+
+struct AgendaRow: View {
+    @Environment(AppModel.self) private var model
+    let event: CalendarEvent
+    let day: Date
+
+    var body: some View {
+        let declined = model.iDeclined(event)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .trailing, spacing: 2) {
+                if event.isAllDay {
+                    Text("all day").font(Slyy.mono(11))
+                } else {
+                    Text(event.start.formatted(date: .omitted, time: .shortened)).font(Slyy.mono(11))
+                    Text(event.end.formatted(date: .omitted, time: .shortened)).font(Slyy.mono(11)).foregroundStyle(Slyy.muted)
+                }
+            }
+            .frame(width: 58, alignment: .trailing)
+            Rectangle().fill(model.color(of: event)).frame(width: 3)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(event.summary.isEmpty ? String(localized: "New event") : event.summary)
+                    .font(Slyy.font(15, .semibold))
+                    .strikethrough(declined)
+                    .lineLimit(2)
+                if !event.location.isEmpty && event.location != event.videoURL?.absoluteString {
+                    Text(event.location).font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            if let v = event.videoURL, !event.isAllDay, event.end > Date() {
+                Button("Join") { model.join(v) }
+                    .buttonStyle(SlyyAccentButtonStyle(height: 32))
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .opacity(declined ? 0.55 : 1)
+        .bottomHairline()
+        .accessibilityElement(children: .combine)
     }
 }

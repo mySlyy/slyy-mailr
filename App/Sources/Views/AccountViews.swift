@@ -309,6 +309,7 @@ struct SettingsView: View {
     @State private var saved = false
     @State private var confirmRemove = false
     @State var tab: SettingsTab = .mail
+    @AppStorage("notifyNewMail") private var notifyNewMail = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -414,6 +415,8 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("Reading and writing")
             Toggle("Group messages by conversation", isOn: Binding(get: { model.threaded }, set: { model.threaded = $0 }))
+                .toggleStyle(SlyyCheckboxStyle())
+            Toggle("Notify me about new mail", isOn: $notifyNewMail)
                 .toggleStyle(SlyyCheckboxStyle())
             Toggle(isOn: Binding(get: { model.blueReplies }, set: { model.blueReplies = $0 })) {
                 HStack(spacing: 6) {

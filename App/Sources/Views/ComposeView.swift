@@ -1,6 +1,9 @@
 import SwiftUI
 import SlyyMailKit
 import UniformTypeIdentifiers
+#if os(iOS)
+import PhotosUI
+#endif
 
 struct ComposeView: View {
     @Environment(AppModel.self) private var model
@@ -8,6 +11,12 @@ struct ComposeView: View {
     @State var draft: ComposeDraft
     @State private var sending = false
     @State private var importing = false
+    #if os(iOS)
+    @State private var pickingPhotos = false
+    @State private var photoItems: [PhotosPickerItem] = []
+    @State private var takingPhoto = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
     @State private var confirmClose = false
     @State private var lastSaved: String = ""
     @FocusState private var focus: Field?
@@ -97,8 +106,59 @@ struct ComposeView: View {
             }
             return true
         }
+        #if os(iOS)
+        .photosPicker(isPresented: $pickingPhotos, selection: $photoItems, maxSelectionCount: 10, matching: .images)
+        .onChange(of: photoItems) { _, items in
+            guard !items.isEmpty else { return }
+            photoItems = []
+            Task { await addPhotos(items) }
+        }
+        .fullScreenCover(isPresented: $takingPhoto) {
+            CameraPicker { image in
+                if let data = PhotoAttachment.jpeg(image) { addPhoto(data) }
+            }
+            .ignoresSafeArea()
+        }
+        #endif
         .task { await autosave() }
         .onAppear { focus = draft.to.isEmpty ? .to : .body }
+    }
+
+    #if os(iOS)
+    func addPhotos(_ items: [PhotosPickerItem]) async {
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            if let jpeg = UIImage(data: data).flatMap(PhotoAttachment.jpeg) { addPhoto(jpeg) }
+        }
+    }
+
+    func addPhoto(_ jpeg: Data) {
+        let n = draft.attachments.filter { $0.filename.hasPrefix("Photo ") }.count + 1
+        draft.attachments.append(OutgoingAttachment(filename: "Photo \(n).jpg", mimeType: "image/jpeg", data: jpeg))
+    }
+
+    var compact: Bool { sizeClass == .compact }
+    #else
+    var compact: Bool { false }
+    #endif
+
+    @ViewBuilder var attachButton: some View {
+        #if os(iOS)
+        Menu {
+            Button { pickingPhotos = true } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button { takingPhoto = true } label: { Label("Take Photo", systemImage: "camera") }
+            }
+            Button { importing = true } label: { Label("Files", systemImage: "folder") }
+        } label: {
+            Image(systemName: SlyyIcon.attach).frame(width: 34, height: 34).hairlineBorder()
+        }
+        .accessibilityLabel("Attach")
+        #else
+        Button { importing = true } label: { Image(systemName: SlyyIcon.attach).frame(width: 34, height: 34).hairlineBorder() }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Attach file")
+        #endif
     }
 
     var topBar: some View {
@@ -110,12 +170,17 @@ struct ComposeView: View {
                 .font(Slyy.font(15, .semibold))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
-            Button { importing = true } label: { Image(systemName: SlyyIcon.attach).frame(width: 34, height: 34).hairlineBorder() }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Attach file")
-            Button { addVideo() } label: { Label("Add video link", systemImage: SlyyIcon.video) }
-                .buttonStyle(.slyyOutline)
-                .disabled(draft.videoURL != nil)
+            attachButton
+            if compact {
+                Button { addVideo() } label: { Image(systemName: SlyyIcon.video).frame(width: 34, height: 34).hairlineBorder() }
+                    .buttonStyle(.plain)
+                    .disabled(draft.videoURL != nil)
+                    .accessibilityLabel("Add video link")
+            } else {
+                Button { addVideo() } label: { Label("Add video link", systemImage: SlyyIcon.video) }
+                    .buttonStyle(.slyyOutline)
+                    .disabled(draft.videoURL != nil)
+            }
             Button {
                 Task { await send() }
             } label: {
@@ -384,3 +449,49 @@ struct AddressField<Trailing: View>: View {
         text = t.filter { !$0.isEmpty }.joined(separator: ", ") + ", "
     }
 }
+
+#if os(iOS)
+/// Photos are sent as JPEG, at most 2560 px on the long side (a 12 MP original would make mails of 5 MB and more).
+enum PhotoAttachment {
+    static let maxSide: CGFloat = 2560
+
+    static func jpeg(_ image: UIImage) -> Data? {
+        let size = image.size
+        let scale = min(1, maxSide / max(size.width, size.height, 1))
+        let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let resized = UIGraphicsImageRenderer(size: target, format: format).image { _ in image.draw(in: CGRect(origin: .zero, size: target)) }
+        return resized.jpegData(compressionQuality: 0.82)
+    }
+}
+
+/// System camera for "Take Photo".
+struct CameraPicker: UIViewControllerRepresentable {
+    var onImage: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraPicker
+        init(_ parent: CameraPicker) { self.parent = parent }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage { parent.onImage(image) }
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { parent.dismiss() }
+    }
+}
+#endif

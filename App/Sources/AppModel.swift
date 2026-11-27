@@ -13,15 +13,20 @@ enum SidebarItem: Hashable {
 }
 
 enum CalendarMode: String, CaseIterable, Identifiable {
-    case day, week, month
+    case agenda, day, week, month
     var id: String { rawValue }
     var title: LocalizedStringKey {
         switch self {
+        case .agenda: return "List"
         case .day: return "Day"
         case .week: return "Week"
         case .month: return "Month"
         }
     }
+    /// Modes offered in the switcher: the list is for narrow screens.
+    static func available(compact: Bool) -> [CalendarMode] { compact ? [.agenda, .day, .month] : [.day, .week, .month] }
+    /// Days shown by the agenda list.
+    static let agendaDays = 14
 }
 
 enum ComposeKind {
@@ -173,6 +178,8 @@ final class AppModel {
     private(set) var events: [CalendarEvent] = []
     var calendarDate = Date()
     var calendarMode: CalendarMode = .week
+    /// iPhone navigation stack (lets notifications open a message).
+    var phonePath: [MessageSummary] = []
     var editingEvent: CalendarEvent?
     var selectedEvent: CalendarEvent?
     private var loadedRange: (Date, Date)?
@@ -301,7 +308,47 @@ final class AppModel {
     func mailChanged() async {
         guard let mail else { return }
         if let f = try? await mail.folders() { folders = f; updateBadge() }
-        if currentFolder == "INBOX" && searchText.isEmpty { await loadMessages(reset: true) }
+        if currentFolder == "INBOX" && searchText.isEmpty {
+            await loadMessages(reset: true)
+        } else if let a = account, let r = try? await mail.messages(in: "INBOX", page: 0) {
+            await MailNotifier.process(inbox: r.messages, account: a.id)
+        }
+    }
+
+    /// Background refresh (iOS): checks the Inbox, announces new mail and updates the badge.
+    func backgroundCheck() async {
+        let service: MailService
+        let a: AccountSettings
+        var temporary = false
+        if let mail, let account {
+            service = mail
+            a = account
+        } else {
+            guard let stored = storedAccounts().first, let pw = Keychain.password(for: stored.id) else { return }
+            service = MailService(account: stored, password: pw, cache: cache)
+            a = stored
+            temporary = true
+        }
+        if let r = try? await service.messages(in: "INBOX", page: 0) {
+            await MailNotifier.process(inbox: r.messages, account: a.id, force: true)
+        }
+        if let f = try? await service.folders() {
+            if !temporary { folders = f }
+            setBadge(f.first { $0.specialUse == .inbox }?.unseen ?? 0)
+        }
+        if temporary { await service.disconnect() }
+    }
+
+    /// Opens the message a "new mail" notification points to.
+    func openFromNotification(folder: String, uid: UInt32?) async {
+        select(.folder(folder))
+        await loadMessages(reset: true)
+        guard let uid, let m = messages.first(where: { $0.uid == uid }) else { return }
+        selectedMessageIDs = [m.id]
+        #if os(iOS)
+        phonePath = [m]
+        #endif
+        await open(m)
     }
 
     func select(_ item: SidebarItem?) {
@@ -334,6 +381,7 @@ final class AppModel {
                 messages += r.messages.filter { !known.contains($0.id) }
             }
             contacts.add(r.messages.flatMap(\.from))
+            if reset, folder == "INBOX", let a = account { await MailNotifier.process(inbox: r.messages, account: a.id) }
         } catch {
             report(error)
         }
@@ -519,7 +567,10 @@ final class AppModel {
     }
 
     private func updateBadge() {
-        let unread = folders.first { $0.specialUse == .inbox }?.unseen ?? 0
+        setBadge(folders.first { $0.specialUse == .inbox }?.unseen ?? 0)
+    }
+
+    private func setBadge(_ unread: Int) {
         #if os(macOS)
         NSApp?.dockTile.badgeLabel = unread > 0 ? String(unread) : nil
         #else
@@ -658,6 +709,9 @@ final class AppModel {
         case .week:
             let s = cal.dateInterval(of: .weekOfYear, for: date)!.start
             return (s, cal.date(byAdding: .day, value: 7, to: s)!)
+        case .agenda:
+            let s = cal.startOfDay(for: date)
+            return (s, cal.date(byAdding: .day, value: CalendarMode.agendaDays, to: s)!)
         case .month:
             let m = cal.dateInterval(of: .month, for: date)!
             let s = cal.dateInterval(of: .weekOfYear, for: m.start)!.start
@@ -683,8 +737,9 @@ final class AppModel {
     }
 
     func moveCalendar(by step: Int) {
-        let comp: Calendar.Component = calendarMode == .day ? .day : calendarMode == .week ? .weekOfYear : .month
-        calendarDate = Calendar.current.date(byAdding: comp, value: step, to: calendarDate) ?? calendarDate
+        let comp: Calendar.Component = calendarMode == .day ? .day : calendarMode == .week ? .weekOfYear : calendarMode == .agenda ? .day : .month
+        let amount = calendarMode == .agenda ? step * CalendarMode.agendaDays : step
+        calendarDate = Calendar.current.date(byAdding: comp, value: amount, to: calendarDate) ?? calendarDate
         Task { await loadEvents(force: false) }
     }
 

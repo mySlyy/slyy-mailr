@@ -93,8 +93,9 @@ struct PhoneShell: View {
     @State private var tab = 0
 
     var body: some View {
+        @Bindable var model = model
         TabView(selection: $tab) {
-            NavigationStack {
+            NavigationStack(path: $model.phonePath) {
                 PhoneInboxView()
             }
             .tabItem { Label("Mail", systemImage: "envelope") }
