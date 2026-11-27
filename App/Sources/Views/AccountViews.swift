@@ -436,6 +436,7 @@ struct SettingsView: View {
                             .padding(.vertical, 8)
                         Spacer(minLength: 0)
                     }
+                    .fixedSize(horizontal: false, vertical: true) // rows keep their height; the list sits at the top
                     .background(section == s ? Slyy.panel : Color.clear)
                     .contentShape(Rectangle())
                 }
