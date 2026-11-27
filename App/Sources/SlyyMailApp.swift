@@ -54,12 +54,29 @@ struct SlyyMailApp: App {
                     .keyboardShortcut("j", modifiers: [.command, .shift])
             }
             CommandGroup(after: .toolbar) {
-                Button("Refresh") { Task { await model.refresh() } }
+                Button("Fetch Mail") { Task { await model.refresh() } }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
+                Divider()
+                Button("Bigger Text") { model.zoomIn() }
+                    .keyboardShortcut("+", modifiers: .command)
+                Button("Smaller Text") { model.zoomOut() }
+                    .keyboardShortcut("-", modifiers: .command)
+                Button("Actual Text Size") { model.zoomReset() }
+                    .keyboardShortcut("0", modifiers: .command)
             }
         }
 
         #if os(macOS)
+        // Double-click a message: the whole conversation in its own window.
+        WindowGroup("Conversation", for: MessageSummary.self) { $summary in
+            if let summary {
+                ThreadWindow(summary: summary)
+                    .environment(model)
+                    .frame(minWidth: 560, minHeight: 480)
+            }
+        }
+        .defaultSize(width: 900, height: 820)
+
         WindowGroup("Video Call", for: URL.self) { $url in
             if let url {
                 VideoCallView(url: url)

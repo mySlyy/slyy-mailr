@@ -264,3 +264,14 @@
 "Install update" = "Update installieren";
 "When I quit" = "Beim Beenden";
 "Restart now" = "Jetzt neu starten";
+
+/* 0.5.0 fetch, thread window, text size */
+"Fetch mail" = "Mails abrufen";
+"Fetch Mail" = "Mails abrufen";
+"Fetch mail now (⇧⌘N)" = "Jetzt Mails abrufen (⇧⌘N)";
+"Bigger Text" = "Text größer";
+"Smaller Text" = "Text kleiner";
+"Actual Text Size" = "Originalgröße";
+"Conversation" = "Konversation";
+"%lld messages" = "%lld Nachrichten";
+"Me" = "Ich";

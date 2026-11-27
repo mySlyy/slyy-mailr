@@ -51,6 +51,7 @@ struct AskHavenBar: View {
                 .font(Slyy.font(13))
                 .lineLimit(1...4)
                 .focused($focused)
+                .onChange(of: focused) { _, f in model.typingInField = f }
                 .onSubmit(send)
                 .disabled(running)
                 .accessibilityLabel("Ask Haven")

@@ -155,6 +155,18 @@ final class AppModel {
     var threaded: Bool = UserDefaults.standard.object(forKey: "threaded") as? Bool ?? true {
         didSet { UserDefaults.standard.set(threaded, forKey: "threaded") }
     }
+    /// Text size of mail bodies (⌘+ / ⌘− / ⌘0), kept between launches.
+    var bodyZoom: Double = UserDefaults.standard.object(forKey: "bodyZoom") as? Double ?? 1 {
+        didSet { UserDefaults.standard.set(bodyZoom, forKey: "bodyZoom") }
+    }
+    static let zoomSteps: [Double] = [0.75, 0.85, 1, 1.15, 1.3, 1.5, 1.75, 2]
+    func zoomIn() { bodyZoom = Self.zoomSteps.first { $0 > bodyZoom + 0.001 } ?? bodyZoom }
+    func zoomOut() { bodyZoom = Self.zoomSteps.last { $0 < bodyZoom - 0.001 } ?? bodyZoom }
+    func zoomReset() { bodyZoom = 1 }
+
+    /// A text field has the keyboard: single-key shortcuts like ⌘A (Reply all) step aside for Select All.
+    var typingInField = false
+
     /// My reply colour (#RRGGBB); default the Slyy dot blue.
     var replyColorHex: String = UserDefaults.standard.string(forKey: "replyColor").flatMap { Color.isHex($0) ? $0 : nil } ?? Slyy.replyDefaultHex {
         didSet { UserDefaults.standard.set(replyColorHex, forKey: "replyColor") }
@@ -424,6 +436,20 @@ final class AppModel {
         return dict[kSecCodeInfoTeamIdentifier as String] as? String
     }()
     #endif
+
+    /// A whole conversation for its own window (double-click in the list); the main reader is not touched.
+    func conversationForWindow(_ s: MessageSummary) async -> (messages: [MessageSummary], bodies: [String: ParsedMessage]) {
+        guard let mail else { return ([s], [:]) }
+        let list = (try? await mail.conversation(of: s)) ?? [s]
+        var bodies: [String: ParsedMessage] = [:]
+        for m in list {
+            if let p = try? await mail.message(m, markSeen: true) { bodies[m.id] = p }
+        }
+        // Read now: the list shows them as read too (and the unread count goes down).
+        let unread = Set(list.filter { !$0.isSeen }.map(\.id))
+        if !unread.isEmpty { setLocalFlag("\\Seen", on: true, ids: unread) }
+        return (list, bodies)
+    }
 
     /// Background refresh (iOS): checks the Inbox, announces new mail and updates the badge.
     func backgroundCheck() async {

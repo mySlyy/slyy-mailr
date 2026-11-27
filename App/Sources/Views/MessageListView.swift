@@ -7,6 +7,10 @@ import AppKit
 /// Desktop message list (middle column).
 struct MessageListView: View {
     @Environment(AppModel.self) private var model
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         @Bindable var model = model
@@ -16,7 +20,20 @@ struct MessageListView: View {
                     Text(model.currentFolderInfo?.name ?? String(localized: "Mail"))
                         .font(Slyy.font(20, .semibold))
                     Spacer()
-                    if model.isRefreshing || model.isSearching {
+                    Button { Task { await model.refresh() } } label: {
+                        HStack(spacing: 5) {
+                            if model.isRefreshing { ProgressView().controlSize(.mini) } else { Image(systemName: "arrow.down.circle").imageScale(.small) }
+                            Text("Fetch mail")
+                        }
+                        .font(Slyy.font(12))
+                        .padding(.horizontal, 8)
+                        .frame(height: 24)
+                        .hairlineBorder(Slyy.lineStrong)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.isRefreshing)
+                    .help("Fetch mail now (⇧⌘N)")
+                    if model.isSearching {
                         ProgressView().controlSize(.small)
                     } else {
                         Text(statusLine).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
@@ -24,6 +41,8 @@ struct MessageListView: View {
                 }
                 TextField("Search subject, sender, text", text: $model.searchText)
                     .textFieldStyle(SlyyFieldStyle(padding: 8))
+                    .focused($searchFocused)
+                    .onChange(of: searchFocused) { _, f in model.typingInField = f }
                     .onSubmit { Task { await model.search() } }
                     .onChange(of: model.searchText) { _, q in
                         if q.isEmpty { Task { await model.loadMessages(reset: true) } }
@@ -43,6 +62,7 @@ struct MessageListView: View {
                                       expanded: model.expandedThreads.contains(t.id), onToggle: { model.toggleThread(t.id) })
                                 .contentShape(Rectangle())
                                 .onTapGesture { select(t.latest) }
+                                .simultaneousGesture(TapGesture(count: 2).onEnded { openThread(t.latest) })
                                 .draggable(model.actionable(t.messages).last?.id ?? t.latest.id)
                                 .contextMenu { MessageMenu(list: targets(t)) }
                             if t.count > 1 && model.expandedThreads.contains(t.id) {
@@ -50,6 +70,7 @@ struct MessageListView: View {
                                     ThreadChildRow(message: m, mine: model.isMine(m.from.first?.address ?? ""), selected: model.selectedMessageIDs.contains(m.id))
                                         .contentShape(Rectangle())
                                         .onTapGesture { select(m) }
+                                        .simultaneousGesture(TapGesture(count: 2).onEnded { openThread(m) })
                                         .draggable(m.id)
                                         .contextMenu { MessageMenu(list: [m]) }
                                 }
@@ -60,6 +81,7 @@ struct MessageListView: View {
                             MessageRow(message: m, showRecipients: isSentLike, selected: model.selectedMessageIDs.contains(m.id))
                                 .contentShape(Rectangle())
                                 .onTapGesture { select(m) }
+                                .simultaneousGesture(TapGesture(count: 2).onEnded { openThread(m) })
                                 .draggable(m.id)
                                 .contextMenu { MessageMenu(list: targets(m)) }
                         }
@@ -102,6 +124,13 @@ struct MessageListView: View {
     var isSentLike: Bool {
         let u = model.currentFolderInfo?.specialUse
         return u == .sent || u == .drafts
+    }
+
+    /// Double-click: the conversation in its own window (Mac).
+    func openThread(_ m: MessageSummary) {
+        #if os(macOS)
+        openWindow(value: m)
+        #endif
     }
 
     func select(_ m: MessageSummary) {

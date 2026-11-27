@@ -47,7 +47,7 @@ struct MessageDetailView: View {
                         .padding(.top, 20)
                         .padding(.bottom, 8)
                         .frame(maxWidth: 760, alignment: .leading)
-                        MailHTMLView(html: MessageBody.html(m), allowRemoteContent: allowImages, onMailto: { url in
+                        MailHTMLView(html: MessageBody.html(m), allowRemoteContent: allowImages, zoom: model.bodyZoom, onMailto: { url in
                             model.compose(.mailto(url))
                         })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -106,10 +106,11 @@ struct MessageDetailView: View {
         HStack(spacing: 4) {
             Button("Reply") { model.compose(.reply(m)) }
                 .keyboardShortcut("r", modifiers: [.command])
+            // ⌘A while no text field has the keyboard (there it stays Select All).
             Button("Reply all") { model.compose(.replyAll(m)) }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .keyboardShortcut(model.typingInField ? nil : KeyboardShortcut("a", modifiers: .command))
             Button("Forward") { model.compose(.forward(m)) }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .keyboardShortcut("f", modifiers: .command)
             Spacer()
             Button(s.isFlagged ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: [s]) } }
             Button("Archive") { Task { await model.archive([s]) } }
@@ -552,8 +553,8 @@ struct AccordionSection: View {
                             Button("Load images") { allowImages = true }
                                 .buttonStyle(SlyyOutlineButtonStyle(height: 28))
                         }
-                        MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages, onHeight: { h in
-                            bodyHeight = min(max(h, 60), 4000)
+                        MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages, zoom: model.bodyZoom, onHeight: { h in
+                            bodyHeight = min(max(h, 60), 20000)
                         }, onMailto: { url in model.compose(.mailto(url)) })
                         .frame(height: bodyHeight)
                         HStack(spacing: 6) {
