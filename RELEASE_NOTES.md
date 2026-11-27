@@ -1,12 +1,11 @@
-Slyy Mailr 0.2.2 — conversations and a new icon
+Slyy Mailr 0.2.3 — tidies up after itself
 
-**Conversations**: replies are grouped into one row with the participants ("Jürgen, Me") and a message
-count. Opening a conversation shows every message in order, including your own replies from Sent;
-click one to read it. Settings → Reading → "Group messages by conversation" turns it off.
+**Automatic cleanup**: after each install or update, Slyy Mailr moves leftovers to the Trash —
+old Slyy Mailr installer DMGs (and their .sha256 files) in Downloads, and the app from before the
+rename ("Slyy Mail.app") — and ejects mounted Slyy Mailr installer disks. Only files that are
+provably Slyy Mailr's are touched, nothing is deleted outright, and newer installers are kept.
+Settings → Updates shows what was cleaned and has "Clean up now".
 
-**New icon**: the Slyy blue dot with an envelope.
+**Also**: the conversation strip highlights the message you are reading.
 
-Installed 0.2.1? This update arrives by itself (or Slyy Mailr → Check for Updates…).
-Coming from 0.2.0 or older: install once from the DMG.
-
-Signed with Developer ID and notarized by Apple.
+Installed 0.2.1 or newer? This update arrives by itself. Signed with Developer ID and notarized by Apple.

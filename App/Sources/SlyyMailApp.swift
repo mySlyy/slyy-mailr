@@ -94,6 +94,8 @@ import AppKit
 extension AppDelegate: NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setup()
+        // Leftovers of earlier versions and installers, once per installed build.
+        InstallerCleanup.runOncePerVersion { _ in }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

@@ -19,5 +19,17 @@
 		<string>ai.slyy.mailr-spks</string>
 		<string>ai.slyy.mailr-spki</string>
 	</array>
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+	<array>
+		<string>/Applications/Slyy Mail.app/</string>
+	</array>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/Applications/Slyy Mail.app/</string>
+	</array>
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-only</key>
+	<array>
+		<string>/Volumes/</string>
+	</array>
 </dict>
 </plist>

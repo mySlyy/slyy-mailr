@@ -425,6 +425,9 @@ struct UpdatesSection: View {
                 }
                 Text("Updates are signed by Slyy and notarized by Apple; they install when you quit the app.")
                     .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                #if os(macOS)
+                CleanupRow()
+                #endif
             } else {
                 #if os(macOS)
                 Text("Automatic updates are off in this build.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
@@ -435,3 +438,32 @@ struct UpdatesSection: View {
         }
     }
 }
+
+#if os(macOS)
+/// Last automatic cleanup of old installers and the pre-rename app, plus "Clean up now".
+struct CleanupRow: View {
+    @State private var summary = UserDefaults.standard.string(forKey: "cleanup.lastSummary")
+    @State private var running = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Button(running ? "Cleaning…" : "Clean up now") {
+                running = true
+                let cleanup = InstallerCleanup.live()
+                Task.detached(priority: .utility) {
+                    let report = cleanup.run()
+                    await MainActor.run {
+                        UserDefaults.standard.set(report.summary, forKey: "cleanup.lastSummary")
+                        summary = report.summary
+                        running = false
+                    }
+                }
+            }
+            .buttonStyle(SlyyOutlineButtonStyle(strong: true))
+            .disabled(running)
+            Text(summary ?? String(localized: "Old installers and app copies are removed automatically after each update."))
+                .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+        }
+    }
+}
+#endif
