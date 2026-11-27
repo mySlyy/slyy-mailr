@@ -230,3 +230,17 @@
 "Recovered after Mailr quit unexpectedly" = "Wiederhergestellt, nachdem Mailr unerwartet beendet wurde";
 "Remove account…" = "Konto entfernen …";
 "Jitsi Meet server for new meetings and “Meet now”." = "Jitsi-Meet-Server für neue Besprechungen und „Jetzt besprechen“.";
+
+"App password" = "App-Passwort";
+"Gmail needs an app password" = "Gmail braucht ein App-Passwort";
+"Turn on 2-Step Verification in your Google account (app passwords need it)." = "Aktivieren Sie die Bestätigung in zwei Schritten in Ihrem Google-Konto (App-Passwörter setzen sie voraus).";
+"Open Google’s app-password page and create one named “Slyy Mailr”." = "Öffnen Sie Googles Seite für App-Passwörter und erstellen Sie eines mit dem Namen „Slyy Mailr“.";
+"Paste the 16-letter password below. Spaces don’t matter." = "Fügen Sie das 16-stellige Passwort unten ein. Leerzeichen spielen keine Rolle.";
+"Name it “Slyy Mailr” and copy the password." = "Nennen Sie es „Slyy Mailr“ und kopieren Sie das Passwort.";
+"Paste it below." = "Fügen Sie es unten ein.";
+"Open Google app passwords" = "Google-App-Passwörter öffnen";
+"Mail works fully. Google calendars can’t be used with an app password, so the calendar stays off for this account." = "E-Mail funktioniert vollständig. Google-Kalender lassen sich mit einem App-Passwort nicht nutzen, daher bleibt der Kalender für dieses Konto aus.";
+"Sign in again" = "Erneut anmelden";
+"New app password (leave empty to keep)" = "Neues App-Passwort (leer lassen, um es zu behalten)";
+"Google Workspace needs an app password" = "Google Workspace braucht ein App-Passwort";
+"If the page says app passwords are not available, your Google Workspace admin has to allow 2-Step Verification and IMAP access for your account (Admin console → Security and Apps → Gmail → End user access)." = "Wenn die Seite meldet, dass App-Passwörter nicht verfügbar sind, muss Ihr Google-Workspace-Admin die Bestätigung in zwei Schritten und den IMAP-Zugriff für Ihr Konto erlauben (Admin-Konsole → Sicherheit und Apps → Gmail → Zugriff für Endnutzer).";

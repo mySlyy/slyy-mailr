@@ -155,7 +155,8 @@ public actor IMAPClient {
 
     // MARK: Connection
 
-    public func connect(user: String, password: String) async throws {
+    /// Logs in with a password, or with an OAuth access token (`oauth: true`, SASL XOAUTH2).
+    public func connect(user: String, password: String, oauth: Bool = false) async throws {
         let stream = try await Transport.connect(endpoint)
         let io = BufferedStream(stream)
         self.io = io
@@ -172,7 +173,11 @@ public actor IMAPClient {
                 try await refreshCapabilities()
             }
             do {
-                _ = try await command([.text("LOGIN "), .astring(user), .text(" "), .astring(password)], name: "LOGIN")
+                if oauth {
+                    _ = try await command([.text("AUTHENTICATE XOAUTH2 " + XOAUTH2.initialResponse(user: user, accessToken: password))], name: "AUTHENTICATE")
+                } else {
+                    _ = try await command([.text("LOGIN "), .astring(user), .text(" "), .astring(password)], name: "LOGIN")
+                }
             } catch IMAPError.commandFailed(_, _, let text) {
                 throw IMAPError.authenticationFailed(text)
             }
@@ -282,6 +287,8 @@ public actor IMAPClient {
                     untagged.append(values)
                     track(values)
                 case .continuation:
+                    // A failed XOAUTH2 login sends its error as a challenge; an empty answer ends the exchange.
+                    if name == "AUTHENTICATE" { try await io.write(Data("\r\n".utf8)) }
                     continue
                 case .tagged(let t, let status, let code, let text):
                     guard t == tag else { continue }

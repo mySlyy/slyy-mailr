@@ -54,6 +54,17 @@ final class AppLogicTests: XCTestCase {
         XCTAssertNil(Color(hex: "blue"))
     }
 
+    func testGmailAndWorkspacePointToAppPasswords() {
+        let gmail = KnownProvider.google.settings(email: "anna@gmail.com")
+        let text = SignInError.explain(IMAPError.authenticationFailed("[ALERT] Application-specific password required"), settings: gmail)
+        XCTAssertTrue(text.contains("Google") && text.contains("app password"), text)
+        let workspace = KnownProvider.google.settings(email: "anna@firma.de")
+        XCTAssertTrue(SignInError.explain(SMTPError.unexpectedReply(command: "AUTH PLAIN", code: 535, text: "bad"), settings: workspace).contains("Google"),
+                      "a Workspace domain gets the Google hint too")
+        let own = AccountSettings(email: "anna@slyy.ai", imap: ServerEndpoint(host: "mail.slyy.ai", port: 993, security: .tls), smtp: ServerEndpoint(host: "mail.slyy.ai", port: 465, security: .tls))
+        XCTAssertFalse(SignInError.explain(IMAPError.authenticationFailed("no"), settings: own).contains("app password"))
+    }
+
     func testSignInErrorsAreReadable() {
         let s = AccountSettings(email: "anna@slyy.ai", imap: ServerEndpoint(host: "mail.mc1.simplify-erp.de", port: 993, security: .tls), smtp: ServerEndpoint(host: "mail.mc1.simplify-erp.de", port: 587, security: .startTLS))
         XCTAssertTrue(SignInError.explain(IMAPError.authenticationFailed("x"), settings: s).contains("password"))
@@ -431,6 +442,7 @@ final class ScreenshotTests: XCTestCase {
     func testSetup() throws {
         let m = AppModel.sample()
         try render(AccountSetupView().environment(m), "3-setup")
+        try render(AccountSetupView(initialEmail: "anna@gmail.com").environment(m), "3b-setup-gmail", height: 900)
     }
 
     func testCalendar() throws {

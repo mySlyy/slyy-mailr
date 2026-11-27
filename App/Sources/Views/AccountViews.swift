@@ -74,6 +74,8 @@ extension View {
 /// "Add your account" (wireframe 3).
 struct AccountSetupView: View {
     @Environment(AppModel.self) private var model
+    /// Pre-filled address (screenshots, mailto with an unknown account).
+    var initialEmail = ""
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
@@ -84,6 +86,14 @@ struct AccountSetupView: View {
     @State private var error: String?
 
     var emailValid: Bool { EmailAddress(address: email.trimmingCharacters(in: .whitespaces)).isValid }
+    /// Google: known from a gmail.com address at once, or for Workspace domains after the server lookup.
+    var provider: KnownProvider? {
+        guard emailValid else { return nil }
+        let addr = email.trimmingCharacters(in: .whitespaces)
+        if let p = KnownProvider.detect(email: addr) { return p }
+        if let s = settings, s.email == addr { return KnownProvider.forSettings(s) }
+        return nil
+    }
 
     var body: some View {
         ScrollView {
@@ -111,6 +121,7 @@ struct AccountSetupView: View {
         .font(Slyy.body)
         .foregroundStyle(Slyy.ink)
         .background(Slyy.sidebar)
+        .onAppear { if email.isEmpty { email = initialEmail } }
         #if os(macOS)
         .frame(minWidth: 520, minHeight: 640)
         #endif
@@ -132,7 +143,8 @@ struct AccountSetupView: View {
                     .serverField()
                     .onSubmit { Task { await detect() } }
             }
-            labeled("Password") {
+            if let p = provider { AppPasswordGuide(provider: p, workspace: KnownProvider.isWorkspace(email)) }
+            labeled(provider == nil ? "Password" : "App password") {
                 SecureField("", text: $password)
                     .textFieldStyle(SlyyFieldStyle())
                     .onSubmit { Task { await signIn() } }
@@ -228,6 +240,8 @@ struct AccountSetupView: View {
     func signIn() async {
         guard emailValid, !password.isEmpty else { return }
         error = nil
+        // Google shows app passwords in groups of four ("abcd efgh ijkl mnop"): the spaces are not part of it.
+        if provider != nil { password = password.replacingOccurrences(of: " ", with: "") }
         await detect()
         guard var s = settings else { return }
         s.email = email.trimmingCharacters(in: .whitespaces)
@@ -247,8 +261,21 @@ struct AccountSetupView: View {
 
 /// Turns low-level failures into something a person can act on.
 enum SignInError {
-    static func explain(_ error: Error, settings s: AccountSettings) -> String {
+    static func isAuthFailure(_ error: Error) -> Bool {
         switch error {
+        case IMAPError.authenticationFailed: return true
+        case SMTPError.unexpectedReply(let cmd, let code, _) where cmd.hasPrefix("AUTH") && (code == 535 || code == 534): return true
+        default: return false
+        }
+    }
+
+    static func explain(_ error: Error, settings s: AccountSettings) -> String {
+        if let p = KnownProvider.forSettings(s), isAuthFailure(error) {
+            return String(localized: "\(p.name) refused the password. \(p.name) needs an app password here, not your normal password: follow the steps above.")
+        }
+        switch error {
+        case let e as OAuthError:
+            return e.errorDescription ?? "\(e)"
         case IMAPError.authenticationFailed:
             return String(localized: "Email or password is wrong (mail server \(s.imap.host)).")
         case IMAPError.startTLSRequired:
@@ -583,7 +610,9 @@ struct AccountForm: View {
                 .padding(16)
                 .hairlineBorder()
                 settingsField("Your name") { TextField("", text: $name).textFieldStyle(SlyyFieldStyle(padding: 8)) }
-                settingsField("New password (leave empty to keep)") { SecureField("", text: $password).textFieldStyle(SlyyFieldStyle(padding: 8)) }
+                settingsField(KnownProvider.forSettings(a) == nil ? "New password (leave empty to keep)" : "New app password (leave empty to keep)") {
+                    SecureField("", text: $password).textFieldStyle(SlyyFieldStyle(padding: 8))
+                }
                 settingsField("Signature") {
                     TextEditor(text: $signature)
                         .font(Slyy.body)
@@ -994,5 +1023,47 @@ struct HavenSection: View {
         #else
         return String(localized: "Ask Haven is available in Slyy Mailr on the Mac.")
         #endif
+    }
+}
+
+/// Steps for a Google app password, with a link to the right page. Google Workspace adds what the admin must allow.
+struct AppPasswordGuide: View {
+    let provider: KnownProvider
+    var workspace = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(workspace ? "Google Workspace needs an app password" : "Gmail needs an app password")
+                .font(Slyy.font(14, .semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                step(1, "Turn on 2-Step Verification in your Google account (app passwords need it).")
+                step(2, "Open Google\u{2019}s app-password page and create one named \u{201C}Slyy Mailr\u{201D}.")
+                step(3, "Paste the 16-letter password below. Spaces don\u{2019}t matter.")
+            }
+            Button {
+                openExternally(provider.appPasswordURL)
+            } label: {
+                Label("Open Google app passwords", systemImage: "arrow.up.right.square")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Slyy.accent)
+            if workspace {
+                Text("If the page says app passwords are not available, your Google Workspace admin has to allow 2-Step Verification and IMAP access for your account (Admin console \u{2192} Security and Apps \u{2192} Gmail \u{2192} End user access).")
+                    .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            }
+            Text("Mail works fully. Google calendars can\u{2019}t be used with an app password, so the calendar stays off for this account.")
+                .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+        }
+        .font(Slyy.font(13))
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Slyy.tint)
+    }
+
+    func step(_ n: Int, _ text: LocalizedStringKey) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(n)").font(Slyy.mono(11)).foregroundStyle(Slyy.accent)
+            Text(text)
+        }
     }
 }

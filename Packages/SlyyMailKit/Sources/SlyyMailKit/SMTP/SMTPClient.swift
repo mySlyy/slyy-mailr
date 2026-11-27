@@ -35,7 +35,7 @@ public actor SMTPClient {
     }
 
     /// Connects, secures and authenticates.
-    public func connect(user: String?, password: String?) async throws {
+    public func connect(user: String?, password: String?, oauth: Bool = false) async throws {
         let io = BufferedStream(try await Transport.connect(endpoint))
         self.io = io
         do {
@@ -48,7 +48,11 @@ public actor SMTPClient {
                 try await ehlo()
             }
             if let user, let password, !user.isEmpty {
-                try await authenticate(user: user, password: password)
+                if oauth {
+                    try await authenticateXOAUTH2(user: user, token: password)
+                } else {
+                    try await authenticate(user: user, password: password)
+                }
             }
         } catch {
             close()
@@ -69,6 +73,17 @@ public actor SMTPClient {
             guard let k = parts.first?.uppercased() else { continue }
             extensions[k] = parts.count > 1 ? parts[1] : ""
         }
+    }
+
+    private func authenticateXOAUTH2(user: String, token: String) async throws {
+        let r = try await send("AUTH XOAUTH2 " + XOAUTH2.initialResponse(user: user, accessToken: token), redact: true)
+        if r.code == 334 {
+            // Error details come as a challenge; an empty line ends the exchange with the final failure.
+            let final = try await send("")
+            try expect(final, 235, "AUTH XOAUTH2")
+            return
+        }
+        try expect(r, 235, "AUTH XOAUTH2")
     }
 
     private func authenticate(user: String, password: String) async throws {

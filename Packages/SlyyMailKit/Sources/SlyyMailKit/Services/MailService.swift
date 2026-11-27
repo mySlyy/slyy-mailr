@@ -4,30 +4,39 @@ import Foundation
 public actor MailService {
     public let account: AccountSettings
     private let password: String
+    /// OAuth accounts: a fresh access token for every new connection (tokens live about an hour).
+    private let tokenSource: (@Sendable () async throws -> String)?
     private var client: IMAPClient?
     private var folderCache: [IMAPFolder] = []
     public let cache: MessageCache?
 
-    public init(account: AccountSettings, password: String, cache: MessageCache? = nil) {
+    public init(account: AccountSettings, password: String, cache: MessageCache? = nil, tokenSource: (@Sendable () async throws -> String)? = nil) {
         self.account = account
         self.password = password
         self.cache = cache
+        self.tokenSource = tokenSource
     }
 
-    /// Verifies IMAP and SMTP credentials (used by account setup).
+    /// The password, or for OAuth accounts a current access token.
+    func secret() async throws -> String {
+        if let tokenSource { return try await tokenSource() }
+        return password
+    }
+
+    /// Verifies IMAP and SMTP credentials (used by account setup). For OAuth accounts `password` is the access token.
     public static func verify(_ account: AccountSettings, password: String) async throws {
         let imap = IMAPClient(endpoint: account.imap)
-        try await imap.connect(user: account.username, password: password)
+        try await imap.connect(user: account.username, password: password, oauth: account.usesOAuth)
         await imap.logout()
         let smtp = SMTPClient(endpoint: account.smtp)
-        try await smtp.connect(user: account.username, password: password)
+        try await smtp.connect(user: account.username, password: password, oauth: account.usesOAuth)
         await smtp.quit()
     }
 
     func imap() async throws -> IMAPClient {
         if let client, await client.isConnected { return client }
         let c = IMAPClient(endpoint: account.imap)
-        try await c.connect(user: account.username, password: password)
+        try await c.connect(user: account.username, password: try await secret(), oauth: account.usesOAuth)
         client = c
         return c
     }
@@ -165,7 +174,12 @@ public actor MailService {
         }
     }
 
+    /// Archive folder; on Gmail (no \\Archive, but \\All) archiving means moving to All Mail, which removes the Inbox label.
     public func archive(_ messages: [MessageSummary]) async throws {
+        if try await folder(.archive) == nil, let all = try await folder(.all) {
+            try await move(messages, to: all.serverPath)
+            return
+        }
         try await move(messages, to: try await folderPath(.archive))
     }
 
@@ -188,7 +202,7 @@ public actor MailService {
     public func send(_ message: OutgoingMessage, replacingDraft draftUID: UInt32? = nil) async throws {
         let data = message.render()
         let smtp = SMTPClient(endpoint: account.smtp, heloName: account.domain.isEmpty ? "slyy-mail.local" : account.domain)
-        try await smtp.connect(user: account.username, password: password)
+        try await smtp.connect(user: account.username, password: try await secret(), oauth: account.usesOAuth)
         do {
             try await smtp.send(from: message.from.address, recipients: message.envelopeRecipients, data: data)
         } catch {
@@ -196,7 +210,7 @@ public actor MailService {
             throw error
         }
         await smtp.quit()
-        if let sent = try? await folderPath(.sent) {
+        if !account.serverSavesSent, let sent = try? await folderPath(.sent) {
             _ = try? await withIMAP { try await $0.append(folder: sent, message: data, flags: ["\\Seen"]) }
         }
         if let draftUID, let drafts = try? await folderPath(.drafts) {
@@ -219,7 +233,7 @@ public actor MailService {
         msg.calendar = CalendarAttachment(method: method, ics: ics)
         let data = msg.render()
         let smtp = SMTPClient(endpoint: account.smtp, heloName: account.domain.isEmpty ? "slyy-mail.local" : account.domain)
-        try await smtp.connect(user: account.username, password: password)
+        try await smtp.connect(user: account.username, password: try await secret(), oauth: account.usesOAuth)
         defer { Task { await smtp.quit() } }
         try await smtp.send(from: msg.from.address, recipients: msg.envelopeRecipients, data: data)
     }
@@ -229,22 +243,25 @@ public actor MailService {
 public actor MailWatcher {
     private let account: AccountSettings
     private let password: String
+    private let tokenSource: (@Sendable () async throws -> String)?
     private var task: Task<Void, Never>?
     private var client: IMAPClient?
 
-    public init(account: AccountSettings, password: String) {
+    public init(account: AccountSettings, password: String, tokenSource: (@Sendable () async throws -> String)? = nil) {
         self.account = account
         self.password = password
+        self.tokenSource = tokenSource
     }
 
     public func start(folder: String = "INBOX", onChange: @escaping @Sendable () async -> Void) {
         task?.cancel()
-        task = Task { [account, password] in
+        task = Task { [account, password, tokenSource] in
             var backoff: UInt64 = 2
             while !Task.isCancelled {
                 do {
                     let c = IMAPClient(endpoint: account.imap)
-                    try await c.connect(user: account.username, password: password)
+                    let secret = try await tokenSource?() ?? password
+                    try await c.connect(user: account.username, password: secret, oauth: account.usesOAuth)
                     self.setClient(c)
                     backoff = 2
                     while !Task.isCancelled {

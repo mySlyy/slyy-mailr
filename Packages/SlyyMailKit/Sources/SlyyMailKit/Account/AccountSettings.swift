@@ -23,6 +23,22 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
     public var aliases: [SenderIdentity]?
     /// Address new mails start from (the account address or an alias). nil = the account address.
     public var defaultSender: String?
+    /// How Mailr logs in. nil = password (settings saved before 0.3.3).
+    public var authMethod: AuthMethod?
+
+    public enum AuthMethod: String, Codable, Sendable {
+        case password
+        /// Browser sign-in; IMAP/SMTP use XOAUTH2 with a refreshed access token (Microsoft 365 will use this).
+        case oauth
+    }
+
+    public var usesOAuth: Bool { authMethod == .oauth }
+
+    /// Gmail files every mail sent through its SMTP server in Sent by itself; a second copy would be a duplicate.
+    public var serverSavesSent: Bool {
+        let h = smtp.host.lowercased()
+        return h == "smtp.gmail.com" || h.hasSuffix(".gmail.com")
+    }
 
     public init(id: UUID = UUID(), email: String, displayName: String = "", username: String? = nil, imap: ServerEndpoint, smtp: ServerEndpoint, caldavURL: String = "", jitsiURL: String = JitsiRoom.defaultServer, signature: String = "") {
         self.id = id
@@ -85,6 +101,8 @@ public enum AutoConfig {
 
     public static func discover(email: String, session: URLSession = .shared) async -> AccountSettings {
         let domain = EmailAddress(address: email).domain
+        // Gmail addresses: known servers, no lookups.
+        if let known = KnownProvider.detect(email: email) { return known.settings(email: email) }
         let encoded = email.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? email
         var settings = await fetchFirst([
             "https://autoconfig.\(domain)/mail/config-v1.1.xml?emailaddress=\(encoded)",
@@ -92,7 +110,10 @@ public enum AutoConfig {
         ], email: email, session: session)
         var mxHost: String?
         if settings == nil {
-            mxHost = await mxLookup(domain).first
+            let mxHosts = await mxLookup(domain)
+            mxHost = mxHosts.first
+            // Own domains on Google Workspace.
+            if let known = KnownProvider.detect(email: email, mxHosts: mxHosts) { return known.settings(email: email) }
             if let mx = mxHost {
                 settings = await fetchFirst([
                     "https://\(mx)/mail/config-v1.1.xml?emailaddress=\(encoded)",
