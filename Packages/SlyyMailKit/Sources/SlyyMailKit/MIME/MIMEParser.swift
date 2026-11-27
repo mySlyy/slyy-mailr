@@ -38,6 +38,29 @@ public struct MessageHeaders: Sendable, Hashable {
         fields.append((name, value))
     }
 
+    /// Message-IDs in a Message-ID, In-Reply-To or References value, in order, without duplicates.
+    /// Tolerates folding, missing spaces ("<a><b>"), commas and comments; ids without brackets
+    /// ("a@b c@d") are accepted only when no bracketed id is present.
+    public static func messageIDs(_ value: String) -> [String] {
+        var ids: [String] = []
+        var rest = Substring(value)
+        while let open = rest.firstIndex(of: "<") {
+            let after = rest[rest.index(after: open)...]
+            guard let close = after.firstIndex(of: ">") else { break }
+            let id = after[..<close].filter { !$0.isWhitespace }
+            if !id.isEmpty, !id.contains("<") { ids.append("<\(id)>") }
+            rest = after[after.index(after: close)...]
+        }
+        if ids.isEmpty {
+            ids = value.split(whereSeparator: { $0.isWhitespace || $0 == "," })
+                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "<>")) }
+                .filter { $0.contains("@") }
+                .map { "<\($0)>" }
+        }
+        var seen = Set<String>()
+        return ids.filter { seen.insert($0).inserted }
+    }
+
     public static func == (a: MessageHeaders, b: MessageHeaders) -> Bool {
         a.fields.map { "\($0.name):\($0.value)" } == b.fields.map { "\($0.name):\($0.value)" }
     }
@@ -279,7 +302,7 @@ public struct ParsedMessage: Sendable {
         date = root.headers["Date"].flatMap(RFC822Date.parse)
         messageID = root.headers["Message-ID"]?.trimmingCharacters(in: .whitespaces)
         inReplyTo = root.headers["In-Reply-To"]?.trimmingCharacters(in: .whitespaces)
-        references = (root.headers["References"] ?? "").split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+        references = MessageHeaders.messageIDs(root.headers["References"] ?? "")
         var text: String?
         var html: String?
         var atts: [Attachment] = []

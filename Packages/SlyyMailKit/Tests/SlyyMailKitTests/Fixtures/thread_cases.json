@@ -1,0 +1,230 @@
+{
+  "about": "Conversation threading (Threader, MessageHeaders.messageIDs, IMAP summary headers). Run by ThreadingTests. Thread cases: messages[].minutes = minutes after a fixed base date; context = true puts the mail in the context list (Sent folder); references/inReplyTo are raw header values; expected = conversations newest first, each with its messages oldest first.",
+  "subjects": [
+    { "id": "T-THR-001", "title": "Re prefix", "input": "Re: Angebot", "normalized": "angebot", "isReply": true },
+    { "id": "T-THR-002", "title": "German and stacked prefixes", "input": "AW: WG: Re: Angebot Wärmepumpe", "normalized": "angebot wärmepumpe", "isReply": true },
+    { "id": "T-THR-003", "title": "Forward prefix", "input": "Fwd: Rechnung 2026-11", "normalized": "rechnung 2026-11", "isReply": true },
+    { "id": "T-THR-004", "title": "Counted prefix in brackets", "input": "RE[2]: Termin", "normalized": "termin", "isReply": true },
+    { "id": "T-THR-005", "title": "Counted prefix in parentheses", "input": "Re(3): Termin", "normalized": "termin", "isReply": true },
+    { "id": "T-THR-006", "title": "No prefix", "input": "Angebot", "normalized": "angebot", "isReply": false },
+    { "id": "T-THR-007", "title": "Empty subject", "input": "", "normalized": "", "isReply": false },
+    { "id": "T-THR-008", "title": "Only a prefix", "input": "Re:", "normalized": "", "isReply": true },
+    { "id": "T-THR-009", "title": "Word starting with re is not a prefix", "input": "Reminder: Meeting", "normalized": "reminder: meeting", "isReply": false },
+    { "id": "T-THR-010", "title": "Spaces around prefix and inside", "input": "  Re :  Spaces   inside  ", "normalized": "spaces inside", "isReply": true },
+    { "id": "T-THR-011", "title": "Nordic and Outlook prefixes", "input": "Antw: SV: VS: Fw: x", "normalized": "x", "isReply": true },
+    { "id": "T-THR-012", "title": "Prefix in the middle is kept", "input": "Angebot Re: Wärmepumpe", "normalized": "angebot re: wärmepumpe", "isReply": false }
+  ],
+  "messageIDs": [
+    { "id": "T-THR-020", "title": "Space separated", "header": "<a@x> <b@x>", "expected": ["<a@x>", "<b@x>"] },
+    { "id": "T-THR-021", "title": "Folded with tabs", "header": "<a@x>\r\n\t<b@x>", "expected": ["<a@x>", "<b@x>"] },
+    { "id": "T-THR-022", "title": "No separator", "header": "<a@x><b@x>", "expected": ["<a@x>", "<b@x>"] },
+    { "id": "T-THR-023", "title": "Comma separated", "header": "<a@x>,<b@x>", "expected": ["<a@x>", "<b@x>"] },
+    { "id": "T-THR-024", "title": "Comment and noise around the id", "header": "(Anna's message of Monday) <a@x> foo bar", "expected": ["<a@x>"] },
+    { "id": "T-THR-025", "title": "Ids without brackets", "header": "a@x b@x", "expected": ["<a@x>", "<b@x>"] },
+    { "id": "T-THR-026", "title": "Empty", "header": "", "expected": [] },
+    { "id": "T-THR-027", "title": "Duplicates removed", "header": "<a@x> <b@x> <a@x>", "expected": ["<a@x>", "<b@x>"] },
+    { "id": "T-THR-028", "title": "Unterminated bracket", "header": "<a@x", "expected": ["<a@x>"] },
+    { "id": "T-THR-029", "title": "Whitespace inside brackets", "header": "<a@\r\n x>", "expected": ["<a@x>"] },
+    { "id": "T-THR-030", "title": "Garbage only", "header": "none", "expected": [] }
+  ],
+  "threads": [
+    {
+      "id": "T-THR-040", "title": "Single message",
+      "messages": [ { "key": "a", "messageID": "<a@x>", "subject": "Hallo", "minutes": 0, "from": "anna@x" } ],
+      "expected": [ { "messages": ["a"], "unread": false, "senders": ["anna@x"] } ]
+    },
+    {
+      "id": "T-THR-041", "title": "Reply chain via References",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Angebot", "minutes": 0, "from": "anna@x" },
+        { "key": "b", "messageID": "<b@x>", "inReplyTo": "<a@x>", "references": "<a@x>", "subject": "Re: Angebot", "minutes": 10, "from": "bob@x" },
+        { "key": "c", "messageID": "<c@x>", "inReplyTo": "<b@x>", "references": "<a@x> <b@x>", "subject": "AW: Re: Angebot", "minutes": 20, "from": "anna@x" }
+      ],
+      "expected": [ { "messages": ["a", "b", "c"], "unread": false, "senders": ["anna@x", "bob@x"] } ]
+    },
+    {
+      "id": "T-THR-042", "title": "In-Reply-To only, no References",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Lieferavis", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "inReplyTo": "<a@x>", "subject": "Danke", "minutes": 5 }
+      ],
+      "expected": [ { "messages": ["a", "b"] } ]
+    },
+    {
+      "id": "T-THR-043", "title": "Missing References: subject-only match of a reply",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Angebot Wärmepumpe", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "subject": "AW: Angebot  Wärmepumpe", "minutes": 30 },
+        { "key": "c", "messageID": "<c@x>", "subject": "Bescheid", "minutes": 40 }
+      ],
+      "expected": [ { "messages": ["c"] }, { "messages": ["a", "b"] } ]
+    },
+    {
+      "id": "T-THR-044", "title": "Two mails with the same subject, neither a reply: separate",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Rechnung", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "subject": "Rechnung", "minutes": 60 }
+      ],
+      "expected": [ { "messages": ["b"] }, { "messages": ["a"] } ]
+    },
+    {
+      "id": "T-THR-045", "title": "Replies to a deleted message stay together",
+      "messages": [
+        { "key": "b", "messageID": "<b@x>", "inReplyTo": "<gone@x>", "references": "<gone@x>", "subject": "Re: Planung", "minutes": 10 },
+        { "key": "c", "messageID": "<c@x>", "inReplyTo": "<gone@x>", "references": "<gone@x>", "subject": "Re: Planung Q1", "minutes": 20, "seen": false },
+        { "key": "d", "messageID": "<d@x>", "subject": "Sonstiges", "minutes": 5 }
+      ],
+      "expected": [ { "messages": ["b", "c"], "unread": true }, { "messages": ["d"] } ]
+    },
+    {
+      "id": "T-THR-046", "title": "Reference loop does not hang or split",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "references": "<b@x>", "subject": "Loop", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "references": "<a@x>", "subject": "Re: Loop", "minutes": 1 }
+      ],
+      "expected": [ { "messages": ["a", "b"] } ]
+    },
+    {
+      "id": "T-THR-047", "title": "Message referencing itself",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "inReplyTo": "<a@x>", "references": "<a@x>", "subject": "Selbst", "minutes": 0 }
+      ],
+      "expected": [ { "messages": ["a"] } ]
+    },
+    {
+      "id": "T-THR-048", "title": "Garbled References still thread",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Termin", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "subject": "Termin bestätigt", "minutes": 5 },
+        { "key": "c", "messageID": "<c@x>", "references": "<a@x>,<b@x>", "subject": "Ok", "minutes": 9 },
+        { "key": "d", "messageID": "<d@x>", "references": "(see) a@x", "subject": "Noch was", "minutes": 7 }
+      ],
+      "expected": [ { "messages": ["a", "b", "d", "c"] } ]
+    },
+    {
+      "id": "T-THR-049", "title": "Mixed folders: my reply from Sent shows inline",
+      "messages": [
+        { "key": "a", "folder": "INBOX", "messageID": "<a@x>", "subject": "Angebot", "minutes": 0, "from": "kunde@x" },
+        { "key": "b", "folder": "Sent", "context": true, "messageID": "<b@me>", "inReplyTo": "<a@x>", "references": "<a@x>", "subject": "Re: Angebot", "minutes": 15, "from": "me@me" },
+        { "key": "c", "folder": "INBOX", "messageID": "<c@x>", "inReplyTo": "<b@me>", "references": "<a@x> <b@me>", "subject": "Re: Re: Angebot", "minutes": 30, "from": "kunde@x", "seen": false }
+      ],
+      "expected": [ { "messages": ["a", "b", "c"], "unread": true, "senders": ["kunde@x", "me@me"] } ]
+    },
+    {
+      "id": "T-THR-050", "title": "Sent-only conversation is not shown in the inbox",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Inbox", "minutes": 0 },
+        { "key": "s", "folder": "Sent", "context": true, "messageID": "<s@me>", "subject": "Neu", "minutes": 5 }
+      ],
+      "expected": [ { "messages": ["a"] } ]
+    },
+    {
+      "id": "T-THR-051", "title": "Same Message-ID in INBOX and Sent (mail to myself): shown once",
+      "messages": [
+        { "key": "a", "folder": "INBOX", "messageID": "<a@me>", "subject": "Notiz", "minutes": 0 },
+        { "key": "s", "folder": "Sent", "context": true, "messageID": "<a@me>", "subject": "Notiz", "minutes": 0 }
+      ],
+      "expected": [ { "messages": ["a"] } ]
+    },
+    {
+      "id": "T-THR-052", "title": "Same Message-ID twice in one folder: one conversation",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Kopie", "minutes": 0 },
+        { "key": "b", "messageID": "<a@x>", "subject": "Kopie", "minutes": 1 }
+      ],
+      "expected": [ { "messages": ["a", "b"] } ]
+    },
+    {
+      "id": "T-THR-053", "title": "Conversations ordered by latest message; flags and senders",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Alt", "minutes": 0, "from": "anna@x" },
+        { "key": "b", "messageID": "<b@x>", "subject": "Mittel", "minutes": 10, "from": "bob@x" },
+        { "key": "c", "messageID": "<c@x>", "references": "<a@x>", "subject": "Re: Alt", "minutes": 20, "from": "carl@x", "seen": false },
+        { "key": "d", "messageID": "<d@x>", "references": "<a@x> <c@x>", "subject": "Re: Alt", "minutes": 25, "from": "anna@x" }
+      ],
+      "expected": [
+        { "messages": ["a", "c", "d"], "unread": true, "senders": ["anna@x", "carl@x"] },
+        { "messages": ["b"], "unread": false, "senders": ["bob@x"] }
+      ]
+    },
+    {
+      "id": "T-THR-054", "title": "No Message-IDs at all: reply prefix merges, plain subjects do not",
+      "messages": [
+        { "key": "a", "subject": "Frage", "minutes": 0 },
+        { "key": "b", "subject": "Frage", "minutes": 5 },
+        { "key": "c", "subject": "Re: Frage", "minutes": 10 }
+      ],
+      "expected": [ { "messages": ["b", "c"] }, { "messages": ["a"] } ]
+    },
+    {
+      "id": "T-THR-055", "title": "Subject match picks the latest earlier original (weekly mails)",
+      "messages": [
+        { "key": "w1", "messageID": "<w1@x>", "subject": "ERP Wochenfazit", "minutes": 0 },
+        { "key": "w2", "messageID": "<w2@x>", "subject": "ERP Wochenfazit", "minutes": 10080 },
+        { "key": "r", "messageID": "<r@x>", "subject": "AW: ERP Wochenfazit", "minutes": 10100 },
+        { "key": "w3", "messageID": "<w3@x>", "subject": "ERP Wochenfazit", "minutes": 20160 }
+      ],
+      "expected": [ { "messages": ["w3"] }, { "messages": ["w2", "r"] }, { "messages": ["w1"] } ]
+    },
+    {
+      "id": "T-THR-056", "title": "Child listed before its parent",
+      "messages": [
+        { "key": "c", "messageID": "<c@x>", "references": "<a@x> <b@x>", "subject": "Re: Start", "minutes": 20 },
+        { "key": "b", "messageID": "<b@x>", "references": "<a@x>", "subject": "Re: Start", "minutes": 10 },
+        { "key": "a", "messageID": "<a@x>", "subject": "Start", "minutes": 0 }
+      ],
+      "expected": [ { "messages": ["a", "b", "c"] } ]
+    },
+    {
+      "id": "T-THR-057", "title": "A message's own References beat a parent presumed from another mail",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "Eins", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "references": "<a@x> <x@x>", "subject": "Zwei", "minutes": 20 },
+        { "key": "x", "messageID": "<x@x>", "references": "<y@x>", "subject": "Drei", "minutes": 10 }
+      ],
+      "expected": [ { "messages": ["x", "b"] }, { "messages": ["a"] } ]
+    },
+    {
+      "id": "T-THR-058", "title": "Empty reply subject never subject-merges",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "subject": "Re:", "minutes": 5 }
+      ],
+      "expected": [ { "messages": ["b"] }, { "messages": ["a"] } ]
+    },
+    {
+      "id": "T-THR-059", "title": "Two replies whose original is missing, no references: one conversation",
+      "messages": [
+        { "key": "a", "messageID": "<a@x>", "subject": "AW: Rückruf", "minutes": 0 },
+        { "key": "b", "messageID": "<b@x>", "subject": "Re: Rückruf", "minutes": 5 }
+      ],
+      "expected": [ { "messages": ["a", "b"] } ]
+    },
+    {
+      "id": "T-THR-060", "title": "Context reply to a context mail joins via the inbox reply",
+      "messages": [
+        { "key": "s1", "folder": "Sent", "context": true, "messageID": "<s1@me>", "subject": "Anfrage", "minutes": 0, "from": "me@me" },
+        { "key": "a", "folder": "INBOX", "messageID": "<a@x>", "references": "<s1@me>", "subject": "Re: Anfrage", "minutes": 30, "from": "lieferant@x" },
+        { "key": "s2", "folder": "Sent", "context": true, "messageID": "<s2@me>", "references": "<s1@me> <a@x>", "subject": "Re: Anfrage", "minutes": 45, "from": "me@me" }
+      ],
+      "expected": [ { "messages": ["s1", "a", "s2"], "senders": ["me@me", "lieferant@x"] } ]
+    },
+    {
+      "id": "T-THR-061", "title": "Empty input",
+      "messages": [],
+      "expected": []
+    }
+  ],
+  "imapSummaries": [
+    {
+      "id": "T-THR-070", "title": "Summary fetch carries In-Reply-To and garbled References",
+      "headers": "Subject: Re: Angebot\r\nMessage-ID: <c@x>\r\nIn-Reply-To: <b@x> (Bob's message)\r\nReferences: <a@x>\r\n <b@x>\r\n\r\n",
+      "inReplyTo": "<b@x>", "references": ["<a@x>", "<b@x>"]
+    },
+    {
+      "id": "T-THR-071", "title": "Summary without threading headers",
+      "headers": "Subject: Hallo\r\nMessage-ID: <a@x>\r\n\r\n",
+      "inReplyTo": null, "references": []
+    }
+  ]
+}

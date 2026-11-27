@@ -96,8 +96,11 @@ public struct MessageSummary: Codable, Hashable, Sendable, Identifiable {
     public var messageID: String?
     public var hasAttachments: Bool
     public var isInvite: Bool
+    /// Threading headers (normalised "<id>" form); see `Threader`.
+    public var inReplyTo: String?
+    public var references: [String]
 
-    public init(uid: UInt32, folder: String, flags: Set<String>, date: Date, size: Int, from: [EmailAddress], to: [EmailAddress], cc: [EmailAddress], subject: String, messageID: String?, hasAttachments: Bool, isInvite: Bool) {
+    public init(uid: UInt32, folder: String, flags: Set<String>, date: Date, size: Int, from: [EmailAddress], to: [EmailAddress], cc: [EmailAddress], subject: String, messageID: String?, hasAttachments: Bool, isInvite: Bool, inReplyTo: String? = nil, references: [String] = []) {
         self.uid = uid
         self.folder = folder
         self.flags = flags
@@ -110,6 +113,27 @@ public struct MessageSummary: Codable, Hashable, Sendable, Identifiable {
         self.messageID = messageID
         self.hasAttachments = hasAttachments
         self.isInvite = isInvite
+        self.inReplyTo = inReplyTo
+        self.references = references
+    }
+
+    /// Lists cached before threading have no `references`; they still decode.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        uid = try c.decode(UInt32.self, forKey: .uid)
+        folder = try c.decode(String.self, forKey: .folder)
+        flags = try c.decode(Set<String>.self, forKey: .flags)
+        date = try c.decode(Date.self, forKey: .date)
+        size = try c.decode(Int.self, forKey: .size)
+        from = try c.decode([EmailAddress].self, forKey: .from)
+        to = try c.decode([EmailAddress].self, forKey: .to)
+        cc = try c.decode([EmailAddress].self, forKey: .cc)
+        subject = try c.decode(String.self, forKey: .subject)
+        messageID = try c.decodeIfPresent(String.self, forKey: .messageID)
+        hasAttachments = try c.decode(Bool.self, forKey: .hasAttachments)
+        isInvite = try c.decode(Bool.self, forKey: .isInvite)
+        inReplyTo = try c.decodeIfPresent(String.self, forKey: .inReplyTo)
+        references = try c.decodeIfPresent([String].self, forKey: .references) ?? []
     }
 
     public var id: String { "\(folder)#\(uid)" }
@@ -462,7 +486,7 @@ public actor IMAPClient {
         return sel
     }
 
-    static let summaryItems = "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE CONTENT-CLASS)])"
+    static let summaryItems = "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID CONTENT-TYPE CONTENT-CLASS IN-REPLY-TO REFERENCES)])"
 
     /// Newest-first page of summaries. Page 0 = most recent `pageSize` messages.
     public func summaries(folder serverPath: String, page: Int, pageSize: Int = 50) async throws -> (messages: [MessageSummary], total: Int) {
@@ -688,7 +712,9 @@ public actor IMAPClient {
             subject: EncodedWord.decode(headers["Subject"] ?? ""),
             messageID: headers["Message-ID"],
             hasAttachments: ct.value == "multipart/mixed",
-            isInvite: IMAPClient.looksLikeInvite(contentType: ct, contentClass: headers["Content-Class"], subject: EncodedWord.decode(headers["Subject"] ?? ""))
+            isInvite: IMAPClient.looksLikeInvite(contentType: ct, contentClass: headers["Content-Class"], subject: EncodedWord.decode(headers["Subject"] ?? "")),
+            inReplyTo: MessageHeaders.messageIDs(headers["In-Reply-To"] ?? "").first,
+            references: MessageHeaders.messageIDs(headers["References"] ?? "")
         )
     }
 }

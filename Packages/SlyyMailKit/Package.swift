@@ -9,6 +9,6 @@ let package = Package(
     ],
     targets: [
         .target(name: "SlyyMailKit"),
-        .testTarget(name: "SlyyMailKitTests", dependencies: ["SlyyMailKit"]),
+        .testTarget(name: "SlyyMailKitTests", dependencies: ["SlyyMailKit"], resources: [.copy("Fixtures")]),
     ]
 )
