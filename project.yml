@@ -14,7 +14,7 @@ packages:
     from: "2.6.4"
 settings:
   base:
-    MARKETING_VERSION: "0.7.1"
+    MARKETING_VERSION: "0.8.0"
     # CI sets this to the run number so every release has a higher CFBundleVersion (Sparkle compares it).
     CURRENT_PROJECT_VERSION: "1"
     # Filled by CI from the SPARKLE_PRIVATE_KEY secret; empty = updater off.
