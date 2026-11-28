@@ -298,3 +298,46 @@ final class AutoConfigTests: XCTestCase {
         XCTAssertEqual(JitsiRoom.stripDescriptionBlock(desc), "Agenda")
     }
 }
+
+final class HTMLTextTests: XCTestCase {
+    let newsletter = """
+    <!DOCTYPE html><html><head><title>Hi</title><style>p{color:red}</style>
+    <!--[if mso]><xml><o:OfficeDocumentSettings></o:OfficeDocumentSettings></xml><![endif]--></head>
+    <body style="margin:0">
+      <div>
+        <p>Hallo&nbsp;Frau   Scheible,</p>
+        <p>wir freuen uns&#8230; Ihr Team&#x2019;s Angebot<br>ist   da.</p>
+        <ul><li>Punkt 1</li><li>Punkt&zwnj; 2</li></ul>
+        <script>alert(1)</script>
+        <table><tr><td>A</td><td>B</td></tr></table>
+      </div>
+    </body></html>
+    """
+
+    func testToPlainDropsCodeAndKeepsParagraphs() {
+        let t = HTMLText.toPlain(newsletter)
+        XCTAssertEqual(t, "Hallo Frau Scheible,\n\nwir freuen uns… Ihr Team’s Angebot\nist da.\n\n- Punkt 1\n- Punkt 2\n\nA B")
+        for junk in ["color:red", "mso", "OfficeDocument", "alert", "<", "&", "Hi\n"] { XCTAssertFalse(t.contains(junk), junk) }
+    }
+
+    func testQuoteBlockKeepsHTMLWithoutActiveContent() {
+        let q = HTMLText.quoteBlock(newsletter)
+        XCTAssertTrue(q.hasPrefix("<blockquote type=\"cite\""))
+        XCTAssertTrue(q.contains("<p>Hallo&nbsp;Frau"))
+        for bad in ["<script", "alert", "<style", "<head", "<html", "<body", "mso"] { XCTAssertFalse(q.contains(bad), bad) }
+        XCTAssertFalse(HTMLText.quoteBlock("<p onclick=\"x()\">a</p>").contains("onclick"))
+    }
+
+    func testReplyCarriesHTMLQuoteAndCleanText() {
+        let raw = "From: Anna <anna@example.com>\r\nTo: me@example.com\r\nSubject: Hi\r\nDate: Mon, 7 Dec 2026 10:00:00 +0100\r\nMessage-ID: <x@y>\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\(newsletter)"
+        let p = ParsedMessage(data: Data(raw.utf8))
+        let html = p.htmlQuote(.reply)
+        XCTAssertNotNil(html)
+        XCTAssertTrue(html!.contains("wrote:"))
+        XCTAssertTrue(html!.contains("<blockquote"))
+        let d = p.draft(.reply, me: EmailAddress(name: "", address: "me@example.com"))
+        XCTAssertTrue(d.text.contains("> Hallo Frau Scheible,"))
+        XCTAssertFalse(d.text.contains("color:red"))
+        XCTAssertNil(p.quoting("Punkt 1").htmlQuote(.reply), "a quoted selection stays plain")
+    }
+}

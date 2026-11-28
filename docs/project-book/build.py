@@ -77,6 +77,10 @@ new_items = '''
   [124, "vid", "Your own meeting link (e.g. vid.rocket.re-cloud.io/YourName) for mails, meetings and Meet now", "Only a server address: a private room per meeting, as before.", D, B],
   [130, "read", "Snooze & remind: dates in a mail (e.g. “back on Monday December 7th”) offer a reminder", "A quick on-device check of the text (English and German) shows “Back on …” under the header; pick the date and time, the mail is hidden until then and comes back unread with a notification. Also Snooze… in the … and list menus; kept on this device.", D, B],
   [131, "org", "Delete one message of a conversation; the rest stays open", "Delete in the reader, the Delete key and Move to Trash in the … menu act on the current message.", D, B],
+  [132, "org", "⌘⌫ moves the current message to the Trash; ⌘Z brings it back", "", D, B],
+  [133, "write", "Replies and forwards of HTML mail quote the HTML; the text part is clean text", "No code or styles in quotes; <br> is one line break, a paragraph two.", D, B],
+  [134, "write", "Replies start with the cursor on the first line", "", D, N],
+  [135, "write", "Reply from the first sender address of the domain the mail was sent to", "When no sender address matches exactly.", D, B],
 '''
 bl_js = bl_js.replace('  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]', '  [88, "q", "Privacy-friendly crash reports", "", T, T, 3],' + new_items.rstrip().rstrip(','))
 assert '[109,' in bl_js

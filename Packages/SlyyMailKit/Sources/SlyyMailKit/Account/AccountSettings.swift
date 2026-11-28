@@ -85,6 +85,12 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
         // Aliases first: the account address is a delivery target of every mail, so it only counts when the sender wrote to it.
         if let alias = match(Array(identities.dropFirst()), in: delivered + visible) { return alias }
         if let primary = match([identities[0]], in: visible) { return primary }
+        // Sent to another address of one of my domains (e.g. sales@ when I have anna@ and info@): the first of my
+        // sender addresses with that domain. Only To/Cc count here — a list's delivery header names no domain I wrote to.
+        for c in visible {
+            let d = c.split(separator: "@").last.map { $0.lowercased() } ?? ""
+            if !d.isEmpty, let id = identities.first(where: { $0.email.split(separator: "@").last.map({ $0.lowercased() }) == d }) { return id }
+        }
         return defaultIdentity
     }
     public var domain: String { address.domain }

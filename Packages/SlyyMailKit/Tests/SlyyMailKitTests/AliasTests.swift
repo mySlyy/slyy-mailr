@@ -25,6 +25,12 @@ final class AliasTests: XCTestCase {
         XCTAssertEqual(a.identity(forReplyTo: toRechnung).email, "rechnung@slyy.ai", "the addressed alias beats the default")
         let list = ParsedMessage(data: Data("From: k@x.de\r\nTo: team@lists.x.de\r\nDelivered-To: anna@slyy.ai\r\nSubject: R\r\n\r\nx\r\n".utf8))
         XCTAssertEqual(a.identity(forReplyTo: list).email, "info@slyy.ai", "list mail that names none of my addresses: the default")
+        let toSales = ParsedMessage(data: Data("From: k@x.de\r\nTo: sales@SLYY.ai\r\nSubject: R\r\n\r\nx\r\n".utf8))
+        XCTAssertEqual(a.identity(forReplyTo: toSales).email, "anna@slyy.ai", "another address of my domain: the first sender address of that domain")
+        var b = a
+        b.email = "ach@mc1.simplify-erp.de"
+        let toOther = ParsedMessage(data: Data("From: k@x.de\r\nTo: team@slyy.ai\r\nDelivered-To: ach@mc1.simplify-erp.de\r\nSubject: R\r\n\r\nx\r\n".utf8))
+        XCTAssertEqual(b.identity(forReplyTo: toOther).email, "info@slyy.ai", "login on another domain: the first alias of the domain written to")
 
         // Settings saved before 0.3.1 have no defaultSender.
         let old = try! JSONDecoder().decode(AccountSettings.self, from: JSONEncoder().encode(account))

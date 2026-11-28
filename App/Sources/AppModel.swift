@@ -66,6 +66,8 @@ struct ComposeDraft: Identifiable, Codable {
     var from: SenderIdentity?
     /// Quoted original of a reply, kept below the new text (shown and sent in the normal colour).
     var quoted = ""
+    /// The original as HTML for the HTML part of a reply/forward (plain `quoted` stays for the text part and the editor).
+    var quotedHTML: String?
     /// Reopened after a crash (the editor says so).
     var recovered = false
     /// My reply text is written and sent in blue (Settings → Mail).
@@ -85,6 +87,7 @@ struct ComposeDraft: Identifiable, Codable {
         let mine = HTMLText.fromPlain(fullBody)
         let colour = Color.isHex(replyColor) ? replyColor : Slyy.replyDefaultHex // never raw text in the CSS
         let top = blueReply ? "<div style=\"color:\(colour)\">\(mine)</div>" : mine
+        if let quotedHTML { return top + quotedHTML }
         guard !quoted.isEmpty else { return top }
         return top + HTMLText.fromPlain(quoted)
     }
@@ -1046,6 +1049,7 @@ final class AppModel {
             d.from = id
             d.blueReply = kindOf != .forward && blueReplies
             d.replyColor = replyColorHex
+            d.quotedHTML = m.htmlQuote(kindOf) // an HTML mail is quoted as HTML, not as its source
             present(d)
         case .mailto(let url):
             var d = newDraft(a)

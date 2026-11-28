@@ -161,7 +161,17 @@ struct ComposeView: View {
             guard !Task.isCancelled else { return }
             DraftJournal.standard.save(draft)
         }
-        .onAppear { focus = draft.to.isEmpty ? .to : .body }
+        .onAppear {
+            focus = draft.to.isEmpty ? .to : .body
+            #if os(macOS)
+            // Replies and forwards start on the first line (above the signature and quote), not at the end.
+            if draft.inReplyTo != nil || !draft.quoted.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    NSApp.sendAction(#selector(NSTextView.moveToBeginningOfDocument(_:)), to: nil, from: nil)
+                }
+            }
+            #endif
+        }
     }
 
     #if os(iOS)
