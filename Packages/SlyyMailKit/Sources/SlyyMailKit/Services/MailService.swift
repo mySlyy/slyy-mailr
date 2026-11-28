@@ -102,6 +102,11 @@ public actor MailService {
         return r
     }
 
+    /// Unread messages of a folder (the "n unread" filter), newest first, each once.
+    public func unread(in folder: String) async throws -> [MessageSummary] {
+        try await withIMAP { try await $0.unread(folder: folder) }
+    }
+
     public func search(in folder: String, text: String) async throws -> [MessageSummary] {
         try await withIMAP { try await $0.search(folder: folder, text: text) }
     }

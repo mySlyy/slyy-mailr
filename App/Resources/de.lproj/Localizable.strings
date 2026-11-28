@@ -360,3 +360,6 @@
 "Edit as New Message" = "Als neue Nachricht bearbeiten";
 "The folder “%@” no longer exists on the server. It was probably renamed or deleted in another mail app; the folder list is up to date again." = "Den Ordner „%@“ gibt es auf dem Server nicht mehr. Er wurde wohl in einem anderen Mailprogramm umbenannt oder gelöscht; die Ordnerliste ist wieder aktuell.";
 "A folder could not be found on the server. The folder list is up to date again; please try once more." = "Ein Ordner wurde auf dem Server nicht gefunden. Die Ordnerliste ist wieder aktuell; bitte noch einmal versuchen.";
+"Unread only · show all" = "Nur ungelesene · alle zeigen";
+"Show all mail" = "Alle Mails zeigen";
+"Show only unread mail" = "Nur ungelesene Mails zeigen";

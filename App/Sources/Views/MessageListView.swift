@@ -37,7 +37,20 @@ struct MessageListView: View {
                     if model.isSearching {
                         ProgressView().controlSize(.small)
                     } else {
-                        Text(statusLine).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                        let unread = model.currentFolderInfo?.unseen ?? 0
+                        if unread > 0 || model.unreadOnly {
+                            // Click: only the unread mail of this folder; again: all.
+                            Button { model.toggleUnreadOnly() } label: {
+                                Text(model.unreadOnly ? String(localized: "Unread only · show all") : statusLine)
+                                    .font(Slyy.font(12))
+                                    .foregroundStyle(model.unreadOnly ? Slyy.accent : Slyy.muted)
+                                    .underline(model.unreadOnly)
+                            }
+                            .buttonStyle(.plain)
+                            .help(model.unreadOnly ? String(localized: "Show all mail") : String(localized: "Show only unread mail"))
+                        } else {
+                            Text(statusLine).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                        }
                     }
                 }
                 TextField("Search subject, sender, text", text: $model.searchText)

@@ -178,6 +178,15 @@ final class AppModel {
     private(set) var searchMentionIDs: Set<String> = []
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     var isSearchActive: Bool { activeSearch != nil }
+    /// The list shows only unread mail of the folder (click on "n unread"); fetched from the server, so older unread
+    /// mail beyond the loaded pages shows too. Mail read meanwhile stays until the next refresh.
+    private(set) var unreadOnly = false
+
+    func toggleUnreadOnly() {
+        unreadOnly.toggle()
+        selectedMessageIDs = []
+        Task { await loadMessages(reset: true) }
+    }
     /// Conversations in the list (not while showing search results, which are single messages).
     var showsThreads: Bool { threaded && !isSearchActive }
     /// The first "mentioned in the text" result, where the list shows its divider.
@@ -613,6 +622,7 @@ final class AppModel {
         selectedMessageIDs = []
         searchText = ""
         endSearch()
+        unreadOnly = false
         Task {
             if item == .calendar {
                 await loadEvents(force: false)
@@ -628,6 +638,16 @@ final class AppModel {
         // While search results are shown, a refresh (push, Fetch mail, a due snooze) searches again.
         if activeSearch != nil {
             if reset { await search() }
+            return
+        }
+        if unreadOnly {
+            guard reset else { return }
+            do {
+                let list = SearchResults(query: "", hits: unsnoozed(try await mail.unread(in: folder))).all
+                guard folder == currentFolder, unreadOnly else { return }
+                messages = list
+                totalMessages = list.count
+            } catch { report(error) }
             return
         }
         if reset {
@@ -664,7 +684,7 @@ final class AppModel {
         }
     }
 
-    var canLoadMore: Bool { !isSearchActive && messages.count < totalMessages }
+    var canLoadMore: Bool { !isSearchActive && !unreadOnly && messages.count < totalMessages }
 
     // MARK: Snooze
 
@@ -825,7 +845,7 @@ final class AppModel {
         do {
             let hits = try await mail.search(in: folder, text: q)
             guard q == searchText.trimmingCharacters(in: .whitespaces), folder == currentFolder, activeSearch == q else { return }
-            let r = SearchResults(query: q, hits: unsnoozed(hits))
+            let r = SearchResults(query: q, hits: unsnoozed(unreadOnly ? hits.filter { !$0.isSeen } : hits))
             searchMentionIDs = Set(r.mentions.map(\.id))
             messages = r.all
         } catch {

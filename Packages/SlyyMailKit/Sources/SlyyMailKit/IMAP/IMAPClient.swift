@@ -518,6 +518,17 @@ public actor IMAPClient {
         return r.untagged.compactMap { IMAPClient.summary(from: $0, folder: serverPath) }.sorted { $0.date > $1.date }
     }
 
+    /// Unread messages of a folder (UID SEARCH UNSEEN), newest `limit`.
+    public func unread(folder serverPath: String, limit: Int = 300) async throws -> [MessageSummary] {
+        try await select(serverPath)
+        let r = try await command("UID SEARCH UNSEEN")
+        var uids: [UInt32] = []
+        for line in r.untagged where line.first?.text?.uppercased() == "SEARCH" {
+            uids += line.dropFirst().compactMap { $0.text.flatMap { UInt32($0) } }
+        }
+        return try await summaries(folder: serverPath, uids: Array(uids.sorted().suffix(limit)))
+    }
+
     /// Server-side search in subject, from, to and body. Returns newest `limit` matches.
     public func search(folder serverPath: String, text: String, limit: Int = 100) async throws -> [MessageSummary] {
         try await select(serverPath)

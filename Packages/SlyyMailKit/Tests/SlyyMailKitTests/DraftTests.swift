@@ -258,3 +258,20 @@ final class TrashUndoIntegrationTests: XCTestCase {
         await mail.disconnect()
     }
 }
+
+final class UnreadFilterIntegrationTests: XCTestCase {
+    func testUnreadReturnsOnlyUnseen() async throws {
+        let acc = try TestAccount.local("r9@example.com")
+        let mail = acc.mail()
+        let imap = try await acc.imap()
+        let a = OutgoingMessage(from: acc.address, to: [acc.address], subject: acc.tagged("unread one"), text: "x")
+        let b = OutgoingMessage(from: acc.address, to: [acc.address], subject: acc.tagged("read one"), text: "y")
+        _ = try await imap.append(folder: "INBOX", message: a.render())
+        _ = try await imap.append(folder: "INBOX", message: b.render(), flags: ["\\Seen"])
+        await imap.logout()
+        let unread = try await mail.unread(in: "INBOX").filter { $0.subject.contains(acc.token) }
+        XCTAssertEqual(unread.map(\.subject), [a.subject])
+        await acc.cleanUp(mail)
+        await mail.disconnect()
+    }
+}
