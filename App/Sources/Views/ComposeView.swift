@@ -82,15 +82,17 @@ struct ComposeView: View {
                     .foregroundStyle(draft.blueReply ? (Color(sixDigitHex: draft.replyColor) ?? Slyy.accent) : Slyy.ink)
                     .focused($focus, equals: .body)
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 120, maxHeight: .infinity)
-                    .layoutPriority(1)
+                    // With a quote: only as tall as my text (it grows while I write), the quote gets the rest.
+                    .frame(minHeight: draft.quoted.isEmpty ? 120 : bodyHeight, maxHeight: draft.quoted.isEmpty ? .infinity : bodyHeight)
+                    .layoutPriority(draft.quoted.isEmpty ? 1 : 0)
                 if !draft.quoted.isEmpty {
                     TextEditor(text: $draft.quoted)
                         .font(Slyy.font(14))
                         .lineSpacing(4)
                         .foregroundStyle(Slyy.ink2)
                         .scrollContentBackground(.hidden)
-                        .frame(minHeight: 100, idealHeight: 220, maxHeight: 260)
+                        .frame(minHeight: 120, maxHeight: .infinity)
+                        .layoutPriority(1)
                         .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
                         .accessibilityLabel("Quoted message")
                 }
@@ -554,6 +556,12 @@ struct ComposeView: View {
     }
 
     /// Normal close (sent, saved to Drafts, discarded): the crash copy is no longer needed.
+    /// Height for my text above a quote: its lines (long ones wrap at ~90 characters), 4 to 14 lines.
+    var bodyHeight: CGFloat {
+        let lines = draft.body.components(separatedBy: "\n").reduce(0) { $0 + max(1, ($1.count + 89) / 90) }
+        return CGFloat(min(max(lines, 4), 14)) * 22 + 16
+    }
+
     var currentKey: String { draft.contentKey(signature: currentIdentity.map { model.signature(for: $0) } ?? "") }
 
     /// Empty, or exactly as opened (a new mail with only the signature, an unanswered reply): closes without asking.
