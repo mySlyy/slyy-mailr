@@ -288,7 +288,7 @@ final class IMAPIdleSerializationTests: XCTestCase {
         return (c, server, state)
     }
 
-    func waitUntil(_ condition: () -> Bool) async throws {
+    func waitUntil(_ condition: @escaping () -> Bool) async throws {
         let deadline = Date().addingTimeInterval(5)
         while !condition(), Date() < deadline { try await Task.sleep(nanoseconds: 2_000_000) }
         let met = condition()
