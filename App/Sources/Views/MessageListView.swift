@@ -65,10 +65,7 @@ struct MessageListView: View {
                     .keyboardShortcut(.return, modifiers: .command)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, topInset)
-            .padding(.bottom, 10)
-            .bottomHairline()
+            .headerBar(iOSTop: 14, bottom: 10)
 
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -122,14 +119,6 @@ struct MessageListView: View {
         .background(Color.white)
         #if os(macOS)
         .onDeleteCommand { Task { await model.delete(model.selectedMessages) } }
-        #endif
-    }
-
-    var topInset: CGFloat {
-        #if os(macOS)
-        return 30
-        #else
-        return 14
         #endif
     }
 
@@ -394,7 +383,7 @@ struct PhoneInboxView: View {
                     Spacer()
                     if let v = e.videoURL {
                         Button("Join") { model.join(v) }
-                            .buttonStyle(SlyyAccentButtonStyle(height: 32))
+                            .buttonStyle(.slyyAccent(height: 32))
                     }
                 }
                 .padding(.horizontal, 14)

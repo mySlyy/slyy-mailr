@@ -323,7 +323,7 @@ struct HavenResultBody: View {
                 HStack(spacing: 8) {
                     ForEach(Array(draftButtons.enumerated()), id: \.offset) { i, b in
                         if i == 0 {
-                            Button(b.title) { b.action(d); run.dismiss(p) }.buttonStyle(SlyyAccentButtonStyle(height: 28))
+                            Button(b.title) { b.action(d); run.dismiss(p) }.buttonStyle(.slyyAccent(height: 28))
                         } else {
                             Button(b.title) { b.action(d); run.dismiss(p) }.buttonStyle(.slyyOutline)
                         }
@@ -346,7 +346,7 @@ struct HavenResultBody: View {
                 }
                 Spacer()
                 Button("Review event") { onReview(e); run.dismiss(p) }
-                    .buttonStyle(SlyyAccentButtonStyle(height: 28))
+                    .buttonStyle(.slyyAccent(height: 28))
                 Button { run.dismiss(p) } label: { Image(systemName: "xmark").font(.system(size: 10)) }
                     .buttonStyle(.plain)
                     .foregroundStyle(Slyy.muted)
@@ -368,7 +368,7 @@ struct HavenResultBody: View {
                     Text("Haven will write this to \(a.source). OK?").font(Slyy.font(12))
                     HStack(spacing: 8) {
                         Button("Do it") { confirming = nil; Task { await run.perform(a, id: p.id) } }
-                            .buttonStyle(SlyyPrimaryButtonStyle(height: 28))
+                            .buttonStyle(.slyyPrimary(height: 28))
                         Button("Cancel") { confirming = nil }.buttonStyle(.slyyOutline)
                     }
                 } else {
@@ -470,7 +470,7 @@ struct HavenAnswerView: View {
                     if !run.running && !run.sources.isEmpty {
                         HStack(spacing: 8) {
                             Button("Draft a follow-up") { Task { await followUpMail() } }
-                                .buttonStyle(SlyyAccentButtonStyle(height: 34))
+                                .buttonStyle(.slyyAccent(height: 34))
                             Button("Open all \(run.sources.count) mails") { for s in run.sources.prefix(6) { open(s.mail) } }
                                 .buttonStyle(.slyyOutline)
                             Button("Copy answer") { model.copyToClipboard(run.answer) }

@@ -2,11 +2,9 @@ import Foundation
 #if os(macOS)
 import AppKit
 
-// CLEANUP(C3): remove the pre-rename "Slyy Mail.app" and universal-DMG cleanup (and its two temporary-exception entitlements) once 0.2.x installs are gone.
-/// Removes what earlier versions and their installers leave behind, once per installed version:
+/// Removes what earlier installers leave behind, once per installed version:
 /// - Slyy Mailr installer DMGs (and .sha256 files) in Downloads that are older than the running version,
-/// - mounted "Slyy Mailr …" / "Slyy Mail …" installer volumes (unless the app runs from one),
-/// - the pre-rename app "Slyy Mail.app" (bundle id ai.slyy.mail) in /Applications or ~/Applications.
+/// - mounted "Slyy Mailr …" installer volumes (unless the app runs from one).
 /// Everything goes to the Trash, never deleted outright, and only items that are provably ours.
 struct InstallerCleanup {
     struct Report: Equatable {
@@ -26,40 +24,33 @@ struct InstallerCleanup {
     var currentVersion: String
     var appBundle: URL
     var downloads: URL?
-    var applicationsFolders: [URL]
     var volumes: URL = URL(fileURLWithPath: "/Volumes")
     /// Replaced in tests.
     var trash: (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
     var eject: (URL) throws -> Void = { try NSWorkspace.shared.unmountAndEjectDevice(at: $0) }
 
     static func live() -> InstallerCleanup {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        return InstallerCleanup(
+        InstallerCleanup(
             currentVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0",
             appBundle: Bundle.main.bundleURL,
-            downloads: fm.urls(for: .downloadsDirectory, in: .userDomainMask).first,
-            applicationsFolders: [URL(fileURLWithPath: "/Applications"), home.appendingPathComponent("Applications")]
+            downloads: FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         )
     }
 
     // MARK: Rules
 
-    /// "slyy-mailr-0.2.1-mac-universal.dmg" / "slyy-mailr-0.3.5-mac-apple-silicon.dmg" → the version; nil without one.
+    /// "slyy-mailr-0.3.5-mac-apple-silicon.dmg" → "0.3.5"; nil without a version.
     static func version(inInstallerName name: String) -> String? {
         let lower = name.lowercased()
-        for prefix in ["slyy-mailr-", "slyy-mail-"] where lower.hasPrefix(prefix) {
-            let rest = lower.dropFirst(prefix.count)
-            let v = rest.prefix { $0.isNumber || $0 == "." }
-            return v.isEmpty ? nil : String(v)
-        }
-        return nil
+        guard lower.hasPrefix("slyy-mailr-") else { return nil }
+        let v = lower.dropFirst("slyy-mailr-".count).prefix { $0.isNumber || $0 == "." }
+        return v.isEmpty ? nil : String(v)
     }
 
     static func isOurInstaller(_ name: String) -> Bool {
         let lower = name.lowercased()
         guard lower.hasSuffix(".dmg") || lower.hasSuffix(".dmg.sha256") else { return false }
-        return lower.hasPrefix("slyy-mailr-") || lower.hasPrefix("slyy-mail-") || lower.hasPrefix("slyymailr")
+        return lower.hasPrefix("slyy-mailr-") || lower.hasPrefix("slyymailr")
     }
 
     /// Semantic-ish comparison: "0.10.0" > "0.9.2".
@@ -105,20 +96,11 @@ struct InstallerCleanup {
 
         // 2. Mounted installer volumes.
         if let vols = try? fm.contentsOfDirectory(at: volumes, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-            for v in vols where v.lastPathComponent.hasPrefix("Slyy Mailr") || v.lastPathComponent.hasPrefix("Slyy Mail ") {
+            for v in vols where v.lastPathComponent.hasPrefix("Slyy Mailr") {
                 guard v.standardizedFileURL != runningFromVolume?.standardizedFileURL else { continue }
-                guard fm.fileExists(atPath: v.appendingPathComponent("Slyy Mailr.app").path) || fm.fileExists(atPath: v.appendingPathComponent("Slyy Mail.app").path) else { continue }
+                guard fm.fileExists(atPath: v.appendingPathComponent("Slyy Mailr.app").path) else { continue }
                 do { try eject(v); report.ejected.append(v.lastPathComponent) } catch { report.failed.append(v.lastPathComponent) }
             }
-        }
-
-        // 3. The app from before the rename (only if its bundle id proves it is ours).
-        for folder in applicationsFolders {
-            let old = folder.appendingPathComponent("Slyy Mail.app")
-            guard old.standardizedFileURL != appBundle.standardizedFileURL, fm.fileExists(atPath: old.path) else { continue }
-            let id = Bundle(url: old)?.bundleIdentifier
-            guard id == "ai.slyy.mail" else { continue }
-            do { try trash(old); report.trashed.append(old.lastPathComponent) } catch { report.failed.append(old.path) }
         }
         return report
     }

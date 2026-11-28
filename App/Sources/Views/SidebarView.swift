@@ -28,12 +28,12 @@ struct SidebarView: View {
                 Button { model.newEvent(at: nil) } label: {
                     Label("New event", systemImage: "plus")
                 }
-                .buttonStyle(SlyyPrimaryButtonStyle(fullWidth: true))
+                .buttonStyle(.slyyPrimary(fullWidth: true))
             } else {
                 Button { model.compose(.new) } label: {
                     Label("New message", systemImage: SlyyIcon.compose)
                 }
-                .buttonStyle(SlyyPrimaryButtonStyle(fullWidth: true))
+                .buttonStyle(.slyyPrimary(fullWidth: true))
             }
             Button { model.meetNow() } label: {
                 Label("Meet now", systemImage: SlyyIcon.video)
@@ -65,18 +65,13 @@ struct SidebarView: View {
                         }
                         .buttonStyle(SlyyRowButtonStyle(selected: model.sidebarSelection == .calendar))
                         if model.sidebarSelection == .calendar {
-                            // CLEANUP(C7): same calendar on/off toggle as AccountViews; one CalendarToggle view.
                             ForEach(model.calendars) { c in
-                                Toggle(isOn: Binding(
-                                    get: { !model.hiddenCalendars.contains(c.url) },
-                                    set: { on in if on { model.hiddenCalendars.remove(c.url) } else { model.hiddenCalendars.insert(c.url) } }
-                                )) {
+                                CalendarToggle(calendar: c) {
                                     HStack(spacing: 8) {
                                         Rectangle().fill(Color(hex: c.color) ?? Slyy.accent).frame(width: 10, height: 10)
                                         Text(c.name).lineLimit(1)
                                     }
                                 }
-                                .toggleStyle(SlyyCheckboxStyle())
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
                             }

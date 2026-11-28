@@ -119,19 +119,7 @@ struct MessageDetailView: View {
             Button("Delete") { Task { await model.delete([s]) } }
         }
         .buttonStyle(.slyyOutline)
-        .padding(.horizontal, 16)
-        .padding(.top, topInset)
-        .padding(.bottom, 10)
-        .bottomHairline()
-    }
-
-    // CLEANUP(C6): same header-bar padding as CalendarView; one shared modifier.
-    var topInset: CGFloat {
-        #if os(macOS)
-        return 30
-        #else
-        return 10
-        #endif
+        .headerBar(iOSTop: 10, bottom: 10)
     }
 
     func phoneReplyBar(_ m: ParsedMessage) -> some View {
@@ -216,17 +204,6 @@ struct MessageDetailView: View {
         AttachmentChips(attachments: visibleAttachments(m))
     }
 
-    #if os(macOS)
-    // CLEANUP(C10): unused; AttachmentChips opens files through temporaryFile(_:) instead. Remove.
-    func openAttachment(_ a: Attachment) {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent(a.filename.replacingOccurrences(of: "/", with: "_"))
-        guard (try? a.data.write(to: url)) != nil else { return }
-        NSWorkspace.shared.open(url)
-    }
-    #endif
-
     // MARK: Body
 
     func hasRemoteContent(_ m: ParsedMessage) -> Bool { MessageBody.hasRemoteContent(m) }
@@ -255,7 +232,7 @@ struct InviteCard: View {
                 .padding(14)
                 if let v = invite.videoURL {
                     Button { model.join(v) } label: { Label("Join video call", systemImage: SlyyIcon.video) }
-                        .buttonStyle(SlyyAccentButtonStyle(fullWidth: true, height: 44))
+                        .buttonStyle(.slyyAccent(fullWidth: true, height: 44))
                         .padding(.horizontal, 14)
                         .padding(.bottom, 14)
                 }
@@ -271,7 +248,7 @@ struct InviteCard: View {
                     Spacer(minLength: 8)
                     if let v = invite.videoURL, method != "CANCEL" {
                         Button { model.join(v) } label: { Label("Join", systemImage: SlyyIcon.video) }
-                            .buttonStyle(.slyyAccent)
+                            .buttonStyle(.slyyAccent())
                     }
                 }
                 .padding(16)

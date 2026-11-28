@@ -63,6 +63,11 @@ final class AppLogicTests: XCTestCase {
                       "a Workspace domain gets the Google hint too")
         let own = AccountSettings(email: "anna@slyy.ai", imap: ServerEndpoint(host: "mail.slyy.ai", port: 993, security: .tls), smtp: ServerEndpoint(host: "mail.slyy.ai", port: 465, security: .tls))
         XCTAssertFalse(SignInError.explain(IMAPError.authenticationFailed("no"), settings: own).contains("app password"))
+        // The settings offer Google's app-password guide when a login is refused for that reason.
+        XCTAssertEqual(SignInError.appPasswordProvider(IMAPError.authenticationFailed("[ALERT] Application-specific password required"), settings: gmail), KnownProvider.google)
+        XCTAssertNil(SignInError.appPasswordProvider(IMAPError.authenticationFailed("Mailbox full"), settings: gmail))
+        XCTAssertNil(SignInError.appPasswordProvider(IMAPError.authenticationFailed("[AUTHENTICATIONFAILED] Invalid credentials"), settings: own))
+        XCTAssertNil(SignInError.appPasswordProvider(TransportError.timeout, settings: gmail))
     }
 
     func testSignInErrorsAreReadable() {
@@ -306,27 +311,18 @@ final class CleanupTests: XCTestCase {
         try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
     }
 
-    func makeApp(_ path: String, bundleID: String) throws {
-        let contents = root.appendingPathComponent(path).appendingPathComponent("Contents")
-        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
-        let plist: [String: Any] = ["CFBundleIdentifier": bundleID, "CFBundlePackageType": "APPL", "CFBundleExecutable": "x"]
-        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
-    }
-
-    func testRemovesOnlyOurOldInstallersAndThePreRenameApp() throws {
+    func testRemovesOnlyOurOldInstallers() throws {
         let installed = Date()
-        try makeApp("Applications/Slyy Mailr.app", bundleID: "ai.slyy.mailr")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Applications/Slyy Mailr.app/Contents"), withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.modificationDate: installed], ofItemAtPath: root.appendingPathComponent("Applications/Slyy Mailr.app").path)
-        try touch("Downloads/slyy-mailr-0.2.1-mac-universal.dmg")
-        try touch("Downloads/slyy-mailr-0.2.1-mac-universal.dmg.sha256")
-        try touch("Downloads/slyy-mailr-0.2.2-mac-universal.dmg")             // = running version → old installer
-        try touch("Downloads/slyy-mailr-0.3.0-mac-universal.dmg")             // newer → keep
+        try touch("Downloads/slyy-mailr-0.2.1-mac-apple-silicon.dmg")
+        try touch("Downloads/slyy-mailr-0.2.1-mac-apple-silicon.dmg.sha256")
+        try touch("Downloads/slyy-mailr-0.2.2-mac-apple-silicon.dmg")         // = running version → old installer
+        try touch("Downloads/slyy-mailr-0.3.0-mac-apple-silicon.dmg")         // newer → keep
         try touch("Downloads/SlyyMailr.dmg", modified: installed.addingTimeInterval(-3600)) // before install → old
         try touch("Downloads/SlyyMailr (1).dmg", modified: installed.addingTimeInterval(3600)) // after install → keep
         try touch("Downloads/slyy-desktop-1.0.dmg")                            // other product → keep
         try touch("Downloads/Rechnung.pdf")
-        try makeApp("Applications/Slyy Mail.app", bundleID: "ai.slyy.mail")   // pre-rename app → trash
-        try makeApp("OtherApps/Slyy Mail.app", bundleID: "com.someone.else")   // same name, not ours → keep
         try FileManager.default.createDirectory(at: root.appendingPathComponent("Volumes/Slyy Mailr 0.2.1/Slyy Mailr.app"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: root.appendingPathComponent("Volumes/Backup"), withIntermediateDirectories: true)
 
@@ -334,27 +330,26 @@ final class CleanupTests: XCTestCase {
         var ejected: [String] = []
         var c = InstallerCleanup(currentVersion: "0.2.2",
                                  appBundle: root.appendingPathComponent("Applications/Slyy Mailr.app"),
-                                 downloads: root.appendingPathComponent("Downloads"),
-                                 applicationsFolders: [root.appendingPathComponent("Applications"), root.appendingPathComponent("OtherApps")])
+                                 downloads: root.appendingPathComponent("Downloads"))
         c.volumes = root.appendingPathComponent("Volumes")
         c.trash = { trashed.append($0.lastPathComponent) }
         c.eject = { ejected.append($0.lastPathComponent) }
         let report = c.run()
 
-        XCTAssertEqual(Set(trashed), ["slyy-mailr-0.2.1-mac-universal.dmg", "slyy-mailr-0.2.1-mac-universal.dmg.sha256", "slyy-mailr-0.2.2-mac-universal.dmg", "SlyyMailr.dmg", "Slyy Mail.app"])
+        XCTAssertEqual(Set(trashed), ["slyy-mailr-0.2.1-mac-apple-silicon.dmg", "slyy-mailr-0.2.1-mac-apple-silicon.dmg.sha256", "slyy-mailr-0.2.2-mac-apple-silicon.dmg", "SlyyMailr.dmg"])
         XCTAssertEqual(ejected, ["Slyy Mailr 0.2.1"])
         XCTAssertTrue(report.failed.isEmpty)
-        XCTAssertTrue(report.summary.contains("5"))
+        XCTAssertTrue(report.summary.contains("4"))
     }
 
     func testNeverTouchesTheVolumeItRunsFrom() {
-        var c = InstallerCleanup(currentVersion: "0.2.2", appBundle: URL(fileURLWithPath: "/Volumes/Slyy Mailr 0.2.2/Slyy Mailr.app"), downloads: nil, applicationsFolders: [])
+        var c = InstallerCleanup(currentVersion: "0.2.2", appBundle: URL(fileURLWithPath: "/Volumes/Slyy Mailr 0.2.2/Slyy Mailr.app"), downloads: nil)
         c.eject = { _ in XCTFail("must not eject the running app's disk") }
         XCTAssertEqual(c.runningFromVolume?.lastPathComponent, "Slyy Mailr 0.2.2")
     }
 
     func testVersionParsing() {
-        XCTAssertEqual(InstallerCleanup.version(inInstallerName: "slyy-mailr-0.2.1-mac-universal.dmg"), "0.2.1")
+        XCTAssertEqual(InstallerCleanup.version(inInstallerName: "slyy-mailr-0.3.5-mac-apple-silicon.dmg"), "0.3.5")
         XCTAssertNil(InstallerCleanup.version(inInstallerName: "SlyyMailr.dmg"))
         XCTAssertTrue(InstallerCleanup.isOlder("0.9.2", than: "0.10.0"))
         XCTAssertFalse(InstallerCleanup.isOlder("0.2.2", than: "0.2.2"))

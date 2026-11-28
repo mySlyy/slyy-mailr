@@ -205,7 +205,7 @@ struct ComposeView: View {
                     Label("Send", systemImage: SlyyIcon.send)
                 }
             }
-            .buttonStyle(SlyyAccentButtonStyle(height: 34))
+            .buttonStyle(.slyyAccent(height: 34))
             .keyboardShortcut(.return, modifiers: .command)
             .disabled(sending || (draft.to.trimmingCharacters(in: .whitespaces).isEmpty && draft.cc.isEmpty && draft.bcc.isEmpty))
         }

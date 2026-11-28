@@ -79,11 +79,7 @@ targets:
         com.apple.security.temporary-exception.mach-lookup.global-name:
           - ai.slyy.mailr-spks
           - ai.slyy.mailr-spki
-        # Cleanup: the app from before the rename, and mounted installer disks.
-        com.apple.security.temporary-exception.files.absolute-path.read-write:
-          - "/Applications/Slyy Mail.app/"
-        com.apple.security.temporary-exception.files.home-relative-path.read-write:
-          - "/Applications/Slyy Mail.app/"
+        # Cleanup: mounted installer disks.
         com.apple.security.temporary-exception.files.absolute-path.read-only:
           - "/Volumes/"
     settings:

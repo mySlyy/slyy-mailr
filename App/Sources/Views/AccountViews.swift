@@ -158,7 +158,7 @@ struct AccountSetupView: View {
                     Text(working ? status : String(localized: "Sign in"))
                 }
             }
-            .buttonStyle(SlyyPrimaryButtonStyle(fullWidth: true, height: 44))
+            .buttonStyle(.slyyPrimary(fullWidth: true, height: 44))
             .disabled(working || !emailValid || password.isEmpty)
             .keyboardShortcut(.defaultAction)
 
@@ -267,6 +267,13 @@ enum SignInError {
         case SMTPError.unexpectedReply(let cmd, let code, _) where cmd.hasPrefix("AUTH") && (code == 535 || code == 534): return true
         default: return false
         }
+    }
+
+    /// The provider whose app-password guide to offer when it refused a normal password (Gmail), else nil.
+    static func appPasswordProvider(_ error: Error, settings s: AccountSettings) -> KnownProvider? {
+        guard let p = KnownProvider.forSettings(s), isAuthFailure(error) else { return nil }
+        if case IMAPError.authenticationFailed(let text) = error, !KnownProvider.needsAppPassword(text) { return nil }
+        return p
     }
 
     static func explain(_ error: Error, settings s: AccountSettings) -> String {
@@ -536,7 +543,7 @@ struct SectionSaveBar: View {
                         Text(title)
                     }
                 }
-                .buttonStyle(SlyyPrimaryButtonStyle(height: 40))
+                .buttonStyle(.slyyPrimary(height: 40))
                 .disabled(!changed || state.saving)
                 if state.saved && !changed {
                     Label("Saved", systemImage: "checkmark").font(Slyy.font(13)).foregroundStyle(Slyy.muted)
@@ -552,6 +559,8 @@ struct SaveState {
     var saving = false
     var saved = false
     var error: String?
+    /// Set when a login failed because the provider wants an app password: its guide is shown.
+    var appPasswordGuide: KnownProvider?
 }
 
 /// Saves one section: only the fields `apply` writes are taken over into the current settings,
@@ -570,7 +579,7 @@ func saveSection(_ model: AppModel, state: Binding<SaveState>, reconnect: Bool, 
         state.wrappedValue = SaveState(saved: true)
         return true
     } catch {
-        state.wrappedValue = SaveState(error: SignInError.explain(error, settings: s))
+        state.wrappedValue = SaveState(error: SignInError.explain(error, settings: s), appPasswordGuide: SignInError.appPasswordProvider(error, settings: s))
         return false
     }
 }
@@ -613,6 +622,7 @@ struct AccountForm: View {
                 settingsField(KnownProvider.forSettings(a) == nil ? "New password (leave empty to keep)" : "New app password (leave empty to keep)") {
                     SecureField("", text: $password).textFieldStyle(SlyyFieldStyle(padding: 8))
                 }
+                if let p = state.appPasswordGuide { AppPasswordGuide(provider: p, workspace: KnownProvider.isWorkspace(a.email)) }
                 settingsField("Signature") {
                     TextEditor(text: $signature)
                         .font(Slyy.body)
@@ -763,21 +773,31 @@ struct ShownCalendarsForm: View {
                 Text((model.account?.caldavURL ?? "").isEmpty ? "The calendar is off: no calendar server set." : "No calendars loaded yet.")
                     .font(Slyy.font(13)).foregroundStyle(Slyy.muted)
             }
-            // CLEANUP(C7): same calendar on/off toggle as SidebarView; one CalendarToggle view.
             ForEach(model.calendars) { c in
-                Toggle(isOn: Binding(
-                    get: { !model.hiddenCalendars.contains(c.url) },
-                    set: { on in if on { model.hiddenCalendars.remove(c.url) } else { model.hiddenCalendars.insert(c.url) } }
-                )) {
+                CalendarToggle(calendar: c) {
                     HStack(spacing: 8) {
                         Text(c.name)
                         if c.isReadOnly { MonoTag(text: "read-only", background: Slyy.muted) }
                     }
                 }
-                .toggleStyle(SlyyCheckboxStyle())
             }
             Text("These apply right away.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
         }
+    }
+}
+
+/// Shows or hides one calendar in the calendar view (sidebar and settings).
+struct CalendarToggle<Content: View>: View {
+    @Environment(AppModel.self) private var model
+    let calendar: CalDAVCalendar
+    @ViewBuilder var label: () -> Content
+
+    var body: some View {
+        Toggle(isOn: Binding(
+            get: { !model.hiddenCalendars.contains(calendar.url) },
+            set: { on in if on { model.hiddenCalendars.remove(calendar.url) } else { model.hiddenCalendars.insert(calendar.url) } }
+        ), label: label)
+        .toggleStyle(SlyyCheckboxStyle())
     }
 }
 
@@ -875,7 +895,7 @@ struct UpdatesSection: View {
 }
 
 #if os(macOS)
-/// Last automatic cleanup of old installers and the pre-rename app, plus "Clean up now".
+/// Last automatic cleanup of old installers, plus "Clean up now".
 struct CleanupRow: View {
     @State private var summary = UserDefaults.standard.string(forKey: "cleanup.lastSummary")
     @State private var running = false
@@ -896,7 +916,7 @@ struct CleanupRow: View {
             }
             .buttonStyle(SlyyOutlineButtonStyle(strong: true))
             .disabled(running)
-            Text(summary ?? String(localized: "Old installers and app copies are removed automatically after each update."))
+            Text(summary ?? String(localized: "Old installers are removed automatically after each update."))
                 .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
         }
     }

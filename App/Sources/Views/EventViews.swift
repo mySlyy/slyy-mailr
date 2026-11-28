@@ -29,7 +29,7 @@ struct EventDetailView: View {
                     .foregroundStyle(Slyy.ink2)
                 if let v = event.videoURL {
                     Button { model.join(v) } label: { Label("Join video call", systemImage: SlyyIcon.video) }
-                        .buttonStyle(SlyyAccentButtonStyle(fullWidth: true, height: 44))
+                        .buttonStyle(.slyyAccent(fullWidth: true, height: 44))
                     Text(v.absoluteString.replacingOccurrences(of: "https://", with: ""))
                         .font(Slyy.mono(11))
                         .foregroundStyle(Slyy.ink2)
@@ -194,7 +194,7 @@ struct EventEditorView: View {
                 } label: {
                     if saving { ProgressView().controlSize(.small).tint(.white) } else { Text(sendsInvites ? (isNew ? "Send invitations" : "Send update") : "Save") }
                 }
-                .buttonStyle(SlyyAccentButtonStyle(height: 36))
+                .buttonStyle(.slyyAccent(height: 36))
                 .disabled(saving || event.summary.trimmingCharacters(in: .whitespaces).isEmpty)
                 .keyboardShortcut(.return, modifiers: .command)
             }
@@ -213,18 +213,13 @@ struct EventEditorView: View {
                     dateTimeSection
 
                     HStack(spacing: 10) {
-                        labeled("Repeat") {
+                        fieldRow("Repeat") {
                             Picker("Repeat", selection: $repeatOption) {
                                 ForEach(RepeatOption.allCases) { Text($0.label).tag($0) }
                             }
-                            // CLEANUP(C9): labelled form rows repeat the same label/picker layout four times; one FieldRow helper.
-                            .labelsHidden()
                             .pickerStyle(.menu)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(4)
-                            .hairlineBorder(Slyy.lineStrong)
                         }
-                        labeled("Reminder") {
+                        fieldRow("Reminder") {
                             Picker("Reminder", selection: $event.alarmMinutes) {
                                 Text("None").tag(Int?.none)
                                 Text("At start").tag(Int?.some(0))
@@ -232,11 +227,7 @@ struct EventEditorView: View {
                                     Text(m >= 1440 ? String(localized: "1 day before") : String(localized: "\(m) minutes before")).tag(Int?.some(m))
                                 }
                             }
-                            .labelsHidden()
                             .pickerStyle(.menu)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(4)
-                            .hairlineBorder(Slyy.lineStrong)
                         }
                     }
                     if event.isRecurring && event.recurrenceID != nil {
@@ -251,15 +242,11 @@ struct EventEditorView: View {
                             TextField("Optional", text: $event.location).textFieldStyle(SlyyFieldStyle(padding: 9))
                         }
                         if model.calendars.filter({ !$0.isReadOnly }).count > 1 && isNew {
-                            labeled("Calendar") {
+                            fieldRow("Calendar") {
                                 Picker("Calendar", selection: Binding(get: { event.calendarURL ?? "" }, set: { event.calendarURL = $0 })) {
                                     ForEach(model.calendars.filter { !$0.isReadOnly }) { Text($0.name).tag($0.url) }
                                 }
-                                .labelsHidden()
                                 .pickerStyle(.menu)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(4)
-                                .hairlineBorder(Slyy.lineStrong)
                             }
                         }
                     }
@@ -297,38 +284,33 @@ struct EventEditorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// A labelled control (picker, date) in a square box, its own label hidden.
+    func fieldRow<Content: View>(_ title: LocalizedStringKey, @ViewBuilder control: () -> Content) -> some View {
+        labeled(title) {
+            control()
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(4)
+                .hairlineBorder(Slyy.lineStrong)
+        }
+    }
+
     var dateTimeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                labeled("Date") {
+                fieldRow("Date") {
                     DatePicker("Date", selection: startBinding, displayedComponents: [.date])
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(4)
-                        .hairlineBorder(Slyy.lineStrong)
                 }
                 if !event.isAllDay {
-                    labeled("Starts") {
+                    fieldRow("Starts") {
                         DatePicker("Starts", selection: startBinding, displayedComponents: [.hourAndMinute])
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(4)
-                            .hairlineBorder(Slyy.lineStrong)
                     }
-                    labeled("Ends") {
+                    fieldRow("Ends") {
                         DatePicker("Ends", selection: endBinding, in: event.start..., displayedComponents: [.date, .hourAndMinute])
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(4)
-                            .hairlineBorder(Slyy.lineStrong)
                     }
                 } else {
-                    labeled("Until") {
+                    fieldRow("Until") {
                         DatePicker("Until", selection: endBinding, in: event.start..., displayedComponents: [.date])
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(4)
-                            .hairlineBorder(Slyy.lineStrong)
                     }
                 }
             }

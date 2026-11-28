@@ -261,7 +261,7 @@ struct UpdateView: View {
                     .buttonStyle(.slyyOutline)
                     .keyboardShortcut(.cancelAction)
                 Button(downloaded ? "Restart and update" : "Install update") { prompt.choose(.install) }
-                    .buttonStyle(SlyyPrimaryButtonStyle(height: 36))
+                    .buttonStyle(.slyyPrimary(height: 36))
                     .keyboardShortcut(.defaultAction)
             case .ready:
                 Spacer()
@@ -269,7 +269,7 @@ struct UpdateView: View {
                     .buttonStyle(.slyyOutline)
                     .keyboardShortcut(.cancelAction)
                 Button("Restart now") { prompt.choose(.install) }
-                    .buttonStyle(SlyyPrimaryButtonStyle(height: 36))
+                    .buttonStyle(.slyyPrimary(height: 36))
                     .keyboardShortcut(.defaultAction)
             case .checking, .downloading, .extracting:
                 Spacer()
@@ -279,7 +279,7 @@ struct UpdateView: View {
             case .upToDate, .failed:
                 Spacer()
                 Button("OK") { prompt.acknowledge() }
-                    .buttonStyle(SlyyPrimaryButtonStyle(height: 36))
+                    .buttonStyle(.slyyPrimary(height: 36))
                     .keyboardShortcut(.defaultAction)
             case .installing:
                 EmptyView()

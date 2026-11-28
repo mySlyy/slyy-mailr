@@ -96,19 +96,7 @@ struct CalendarView: View {
             Button { model.meetNow() } label: { Label("Meet now", systemImage: SlyyIcon.video) }
                 .buttonStyle(SlyyOutlineButtonStyle(strong: true))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, topInset)
-        .padding(.bottom, 12)
-        .bottomHairline()
-    }
-
-    // CLEANUP(C6): same header-bar padding as MessageDetailView/MessageListView; one shared modifier.
-    var topInset: CGFloat {
-        #if os(macOS)
-        return 30
-        #else
-        return 12
-        #endif
+        .headerBar(iOSTop: 12, bottom: 12)
     }
 
     /// iPhone (M3): month title, new-event button, a strip of this week's days.
@@ -574,7 +562,7 @@ struct AgendaRow: View {
             Spacer(minLength: 8)
             if let v = event.videoURL, !event.isAllDay, event.end > Date() {
                 Button("Join") { model.join(v) }
-                    .buttonStyle(SlyyAccentButtonStyle(height: 32))
+                    .buttonStyle(.slyyAccent(height: 32))
             }
         }
         .padding(.horizontal, 18)

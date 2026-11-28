@@ -92,9 +92,10 @@ extension Color {
 
 // MARK: Buttons
 
-/// Black fill, white text (New message, Sign in, selected RSVP).
-// CLEANUP(C5): Primary and Accent styles differ only in colours; make one filled style with fill/pressed colours.
-struct SlyyPrimaryButtonStyle: ButtonStyle {
+/// Filled, white text: black (`.slyyPrimary`: New message, Sign in, selected RSVP) or blue (`.slyyAccent`: Send, Join).
+struct SlyyFilledButtonStyle: ButtonStyle {
+    var fill: Color
+    var pressed: Color
     var fullWidth = false
     var height: CGFloat = 40
 
@@ -106,25 +107,7 @@ struct SlyyPrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
             .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: height)
-            .background(configuration.isPressed ? Slyy.ink2 : Slyy.ink)
-            .contentShape(Rectangle())
-    }
-}
-
-/// Blue fill (Send, Join).
-struct SlyyAccentButtonStyle: ButtonStyle {
-    var fullWidth = false
-    var height: CGFloat = 40
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .font(Slyy.font(14, .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: height)
-            .background(configuration.isPressed ? Slyy.accentPressed : Slyy.accent)
+            .background(configuration.isPressed ? pressed : fill)
             .contentShape(Rectangle())
     }
 }
@@ -164,13 +147,14 @@ struct SlyyRowButtonStyle: ButtonStyle {
     }
 }
 
-extension ButtonStyle where Self == SlyyPrimaryButtonStyle {
-    // CLEANUP(C5): unused shortcut; every caller spells SlyyPrimaryButtonStyle(...).
-    static var slyyPrimary: SlyyPrimaryButtonStyle { SlyyPrimaryButtonStyle() }
-}
+extension ButtonStyle where Self == SlyyFilledButtonStyle {
+    static func slyyPrimary(fullWidth: Bool = false, height: CGFloat = 40) -> SlyyFilledButtonStyle {
+        SlyyFilledButtonStyle(fill: Slyy.ink, pressed: Slyy.ink2, fullWidth: fullWidth, height: height)
+    }
 
-extension ButtonStyle where Self == SlyyAccentButtonStyle {
-    static var slyyAccent: SlyyAccentButtonStyle { SlyyAccentButtonStyle() }
+    static func slyyAccent(fullWidth: Bool = false, height: CGFloat = 40) -> SlyyFilledButtonStyle {
+        SlyyFilledButtonStyle(fill: Slyy.accent, pressed: Slyy.accentPressed, fullWidth: fullWidth, height: height)
+    }
 }
 
 extension ButtonStyle where Self == SlyyOutlineButtonStyle {
@@ -322,6 +306,19 @@ extension View {
     /// Hairline bottom border.
     func bottomHairline() -> some View {
         overlay(alignment: .bottom) { Rectangle().fill(Slyy.line).frame(height: 1) }
+    }
+
+    /// The bar at the top of a pane: room for the macOS title bar above, a hairline below.
+    func headerBar(iOSTop: CGFloat, bottom: CGFloat) -> some View {
+        #if os(macOS)
+        let top: CGFloat = 30
+        #else
+        let top = iOSTop
+        #endif
+        return padding(.horizontal, 16)
+            .padding(.top, top)
+            .padding(.bottom, bottom)
+            .bottomHairline()
     }
 
     /// Hairline trailing border.

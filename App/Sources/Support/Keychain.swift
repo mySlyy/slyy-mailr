@@ -6,13 +6,16 @@ import Security
 enum Keychain {
     static let service = "ai.slyy.mailr"
 
-    // CLEANUP(C8): the base query is built three times; one baseQuery(account).
-    static func setPassword(_ password: String, for account: UUID) throws {
-        let query: [String: Any] = [
+    private static func baseQuery(_ account: UUID) -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account.uuidString,
         ]
+    }
+
+    static func setPassword(_ password: String, for account: UUID) throws {
+        let query = baseQuery(account)
         SecItemDelete(query as CFDictionary)
         var add = query
         add[kSecValueData as String] = Data(password.utf8)
@@ -22,25 +25,16 @@ enum Keychain {
     }
 
     static func password(for account: UUID) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account.uuidString,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        var query = baseQuery(account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
     static func delete(for account: UUID) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account.uuidString,
-        ]
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(baseQuery(account) as CFDictionary)
     }
 
     struct KeychainError: LocalizedError {
