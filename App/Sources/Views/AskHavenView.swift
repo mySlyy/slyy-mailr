@@ -448,6 +448,7 @@ struct HavenAnswerView: View {
     let question: String
     @State private var run = HavenRun()
     @State private var followUp = ""
+    @FocusState private var followUpFocused: Bool
     @State private var confirming: String?
     @State private var asked: [String] = []
 
@@ -489,6 +490,8 @@ struct HavenAnswerView: View {
                 TextField("Ask a follow-up…", text: $followUp)
                     .textFieldStyle(.plain)
                     .font(Slyy.font(13))
+                    .focused($followUpFocused)
+                    .onChange(of: followUpFocused) { _, f in model.typingInField = f } // letters are text here, not shortcuts
                     .onSubmit(askFollowUp)
                     .disabled(run.running)
             }

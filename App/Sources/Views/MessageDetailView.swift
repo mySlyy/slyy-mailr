@@ -117,6 +117,13 @@ struct MessageDetailView: View {
             Button("Forward") { model.compose(.forward(model.quoted(m, id: s.id))) }
                 .keyboardShortcut("f", modifiers: .command)
             Spacer()
+            // U (no modifier, not while typing): read ↔ unread for the current message, or the selected ones.
+            Button(s.isSeen ? "Mark as Unread" : "Mark as Read") {
+                let list = model.selectedMessages.count > 1 ? model.selectedMessages : [s]
+                Task { await model.toggleFlag("\\Seen", for: list) }
+            }
+            .keyboardShortcut(model.typingInField ? nil : KeyboardShortcut("u", modifiers: []))
+            .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
             Button(s.isFlagged ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: [s]) } }
             Button("Archive") { Task { await model.archive([s]) } }
             Button("Delete") { Task { await model.delete([s], undo: undoManager) } }
