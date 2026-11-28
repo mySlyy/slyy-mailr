@@ -113,3 +113,27 @@ final class MeetingInviteTests: XCTestCase {
         }
     }
 }
+
+final class DraftExtrasTests: XCTestCase {
+    func testDraftKeepsMeetingAndVideoThroughSaveAndReopen() throws {
+        let video = URL(string: "https://vid.rocket.re-cloud.io/MeetAshant")!
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let meeting = MeetingInvite(title: "Abstimmung", start: start, minutes: 45, videoURL: video, timeZoneID: "Europe/Berlin")
+        var m = OutgoingMessage(from: EmailAddress(name: "A", address: "a@example.com"), to: [EmailAddress(name: "", address: "b@example.com")],
+                                subject: "Termin", text: JitsiRoom.descriptionBlock(video) + "\nHallo")
+        m.extraHeaders = DraftExtras.headers(meeting: meeting, video: video)
+        let parsed = ParsedMessage(data: m.render())
+        XCTAssertEqual(DraftExtras.meeting(in: parsed.headers), meeting)
+        XCTAssertEqual(DraftExtras.video(in: parsed.headers), video)
+        XCTAssertEqual(JitsiRoom.stripDescriptionBlock(parsed.textBody ?? "").trimmingCharacters(in: .whitespacesAndNewlines), "Hallo")
+    }
+
+    func testNoExtrasWithoutMeetingOrVideo() {
+        XCTAssertTrue(DraftExtras.headers(meeting: nil, video: nil).isEmpty)
+        let m = OutgoingMessage(from: EmailAddress(name: "", address: "a@example.com"), to: [], subject: "x", text: "y")
+        let parsed = ParsedMessage(data: m.render())
+        XCTAssertNil(DraftExtras.meeting(in: parsed.headers))
+        XCTAssertNil(DraftExtras.video(in: parsed.headers))
+        XCTAssertFalse(String(decoding: m.render(), as: UTF8.self).contains("X-Slyy"))
+    }
+}

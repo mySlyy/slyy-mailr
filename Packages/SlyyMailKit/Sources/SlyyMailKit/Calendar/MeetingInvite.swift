@@ -56,3 +56,34 @@ extension OutgoingMessage {
         return m
     }
 }
+
+/// What a draft in the Drafts folder needs to reopen with its meeting and video link (Slyy's own headers, drafts only).
+public enum DraftExtras {
+    public static let meetingHeader = "X-Slyy-Meeting"
+    public static let videoHeader = "X-Slyy-Video"
+
+    /// Header fields for a saved draft.
+    public static func headers(meeting: MeetingInvite?, video: URL?) -> [String: String] {
+        var h: [String: String] = [:]
+        let enc = JSONEncoder()
+        enc.dateEncodingStrategy = .iso8601
+        if let meeting, let data = try? enc.encode(meeting) { h[meetingHeader] = data.base64EncodedString() }
+        if let video { h[videoHeader] = video.absoluteString }
+        return h
+    }
+
+    /// The meeting stored in a reopened draft, if any.
+    public static func meeting(in headers: MessageHeaders) -> MeetingInvite? {
+        guard let raw = headers[meetingHeader], let data = Data(base64Encoded: raw.replacingOccurrences(of: " ", with: "")) else { return nil }
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        return try? dec.decode(MeetingInvite.self, from: data)
+    }
+
+    /// The video link stored in a reopened draft, if any (http/https only).
+    public static func video(in headers: MessageHeaders) -> URL? {
+        guard let raw = headers[videoHeader]?.trimmingCharacters(in: .whitespaces), let url = URL(string: raw),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else { return nil }
+        return url
+    }
+}

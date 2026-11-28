@@ -37,6 +37,8 @@ public struct OutgoingMessage: Sendable {
     public var references: [String]
     public var messageID: String
     public var date: Date
+    /// Extra header fields (name → value), e.g. what a saved draft needs to reopen as it was; plain ASCII values.
+    public var extraHeaders: [String: String] = [:]
 
     public init(from: EmailAddress, to: [EmailAddress], cc: [EmailAddress] = [], bcc: [EmailAddress] = [], subject: String, text: String, html: String? = nil, attachments: [OutgoingAttachment] = [], calendar: CalendarAttachment? = nil, inReplyTo: String? = nil, references: [String] = [], messageID: String? = nil, date: Date = Date()) {
         self.from = from
@@ -77,6 +79,9 @@ public struct OutgoingMessage: Sendable {
         if !references.isEmpty { h.append("References: \(references.joined(separator: "\r\n "))") }
         h.append("MIME-Version: 1.0")
         h.append("User-Agent: Slyy Mailr")
+        for (name, value) in extraHeaders.sorted(by: { $0.key < $1.key }) where !value.contains("\r") && !value.contains("\n") {
+            h.append("\(name): \(value)")
+        }
 
         let body = renderBody()
         return Data((h.joined(separator: "\r\n") + "\r\n" + body).utf8)

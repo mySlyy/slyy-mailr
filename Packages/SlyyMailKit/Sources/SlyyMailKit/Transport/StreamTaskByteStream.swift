@@ -19,14 +19,23 @@ final class StreamTaskByteStream: ByteStream, @unchecked Sendable {
     }
 
     func read(maxLength: Int) async throws -> Data {
-        let (data, eof) = try await task.readData(ofMinLength: 1, maxLength: maxLength, timeout: readTimeout)
+        let (data, eof): (Data?, Bool)
+        do {
+            (data, eof) = try await task.readData(ofMinLength: 1, maxLength: maxLength, timeout: readTimeout)
+        } catch {
+            throw TransportError.wrap(error) // e.g. "Socket is not connected" after sleep: reconnect, don't alert
+        }
         if let data, !data.isEmpty { return data }
         if eof { throw TransportError.closed }
         throw TransportError.timeout
     }
 
     func write(_ data: Data) async throws {
-        try await task.write(data, timeout: timeout)
+        do {
+            try await task.write(data, timeout: timeout)
+        } catch {
+            throw TransportError.wrap(error)
+        }
     }
 
     func startTLS() async throws {

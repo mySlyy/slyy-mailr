@@ -383,3 +383,24 @@ final class IMAPIdleSerializationTests: XCTestCase {
         await c.logout()
     }
 }
+
+final class TransportErrorWrapTests: XCTestCase {
+    func testSystemConnectionErrorsBecomeTransportErrors() {
+        // "Socket is not connected" (ENOTCONN 57 on Darwin), connection reset (54), broken pipe (32)
+        for code in [57, 54, 32] {
+            XCTAssertEqual(TransportError.wrap(NSError(domain: NSPOSIXErrorDomain, code: code)) as? TransportError, .closed)
+        }
+        XCTAssertEqual(TransportError.wrap(NSError(domain: NSPOSIXErrorDomain, code: 60)) as? TransportError, .timeout)
+        XCTAssertEqual(TransportError.wrap(NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)) as? TransportError, .closed)
+        XCTAssertEqual(TransportError.wrap(NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut)) as? TransportError, .timeout)
+        let wrapped = NSError(domain: "kNWErrorDomainPOSIX", code: 57, userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: 57)])
+        XCTAssertEqual(TransportError.wrap(wrapped) as? TransportError, .closed)
+    }
+
+    func testOtherErrorsPassThrough() {
+        let cert = NSError(domain: NSURLErrorDomain, code: NSURLErrorServerCertificateUntrusted)
+        XCTAssertFalse(TransportError.wrap(cert) is TransportError)
+        XCTAssertTrue(TransportError.wrap(CancellationError()) is CancellationError)
+        XCTAssertEqual(TransportError.wrap(TransportError.tlsUnavailable) as? TransportError, .tlsUnavailable)
+    }
+}

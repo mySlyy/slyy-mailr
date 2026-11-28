@@ -875,6 +875,11 @@ final class AppModel {
                     d.cc = m.cc.map(\.headerValue).joined(separator: ", ")
                     d.subject = m.subject
                     d.body = m.textBody ?? m.htmlBody.map(HTMLText.toPlain) ?? ""
+                    d.meeting = DraftExtras.meeting(in: m.headers)
+                    if let video = DraftExtras.video(in: m.headers) {
+                        d.videoURL = video
+                        d.body = JitsiRoom.stripDescriptionBlock(d.body) // the card shows the link again
+                    }
                     d.attachments = m.attachments.map { OutgoingAttachment(filename: $0.filename, mimeType: $0.mimeType, data: $0.data) }
                     d.inReplyTo = m.inReplyTo
                     d.references = m.references
@@ -973,7 +978,10 @@ final class AppModel {
         guard let mail, let a = account, !draft.isEmpty else { return draft }
         var d = draft
         do {
-            d.draftUID = try await mail.saveDraft(d.message(from: a.address), replacing: d.draftUID)
+            var m = d.message(from: a.address)
+            // So the draft reopens from the Drafts folder with its meeting and video link (not on sent mail).
+            m.extraHeaders = DraftExtras.headers(meeting: d.meeting, video: d.videoURL)
+            d.draftUID = try await mail.saveDraft(m, replacing: d.draftUID)
         } catch {
             // Autosave failures are not worth an alert; the user can still send.
         }

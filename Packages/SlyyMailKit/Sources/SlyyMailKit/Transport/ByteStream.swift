@@ -23,6 +23,32 @@ public struct ServerEndpoint: Codable, Hashable, Sendable {
 }
 
 public enum TransportError: Error, LocalizedError, Equatable {
+    /// A system networking error (socket not connected, connection reset or lost, broken pipe, network down,
+    /// timeout) as a TransportError, so callers reconnect instead of showing the raw message. Others pass through.
+    public static func wrap(_ error: Error) -> Error {
+        if error is TransportError || error is CancellationError { return error }
+        let e = error as NSError
+        if e.domain == NSPOSIXErrorDomain {
+            // ETIMEDOUT 60 (Darwin) / 110 (Linux); everything else at socket level means the connection is gone.
+            return e.code == 60 || e.code == 110 ? TransportError.timeout : TransportError.closed
+        }
+        if e.domain == NSURLErrorDomain {
+            switch e.code {
+            case NSURLErrorTimedOut: return TransportError.timeout
+            case NSURLErrorNetworkConnectionLost, NSURLErrorNotConnectedToInternet, NSURLErrorCannotConnectToHost,
+                 NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed, NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff:
+                return TransportError.closed
+            default: return error // e.g. certificate problems stay visible as such
+            }
+        }
+        if let underlying = e.userInfo[NSUnderlyingErrorKey] as? Error { 
+            let mapped = wrap(underlying)
+            if mapped is TransportError { return mapped }
+        }
+        return error
+    }
+
+
     case connectionFailed(String)
     case closed
     case timeout
@@ -31,7 +57,7 @@ public enum TransportError: Error, LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .connectionFailed(let m): return "Connection failed: \(m)"
-        case .closed: return "The server closed the connection."
+        case .closed: return "The connection to the server was lost. Please try again."
         case .timeout: return "The server did not answer in time."
         case .tlsUnavailable: return "TLS is not available on this platform."
         }

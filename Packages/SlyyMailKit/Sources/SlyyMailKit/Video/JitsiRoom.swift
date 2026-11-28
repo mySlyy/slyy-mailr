@@ -68,7 +68,8 @@ public enum JitsiRoom {
 
     public static func stripDescriptionBlock(_ text: String) -> String {
         guard text.hasPrefix("Join video call") else { return text }
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        // "\r\n" is one Character in Swift, so split on it explicitly (parsed mail has CRLF line ends).
+        let lines = text.replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false)
         return lines.dropFirst(2).joined(separator: "\n").trimmingCharacters(in: .newlines)
     }
 }
