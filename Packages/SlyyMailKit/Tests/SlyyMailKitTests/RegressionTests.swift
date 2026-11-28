@@ -404,3 +404,12 @@ final class TransportErrorWrapTests: XCTestCase {
         XCTAssertEqual(TransportError.wrap(TransportError.tlsUnavailable) as? TransportError, .tlsUnavailable)
     }
 }
+
+final class MissingMailboxTests: XCTestCase {
+    func testRecognisesAMissingFolder() {
+        XCTAssertTrue(IMAPError.commandFailed(command: "SELECT", status: "NO", text: "Mailbox doesn't exist: re-cloud.io (Gmail) (0.001 + 0.000 secs).").isMissingMailbox)
+        XCTAssertTrue(IMAPError.commandFailed(command: "SELECT", status: "NO", text: "[NONEXISTENT] Unknown Mailbox: x").isMissingMailbox)
+        XCTAssertFalse(IMAPError.commandFailed(command: "SELECT", status: "NO", text: "[INUSE] Mailbox is locked").isMissingMailbox)
+        XCTAssertFalse(IMAPError.commandFailed(command: "LOGIN", status: "NO", text: "does not exist").isMissingMailbox)
+    }
+}

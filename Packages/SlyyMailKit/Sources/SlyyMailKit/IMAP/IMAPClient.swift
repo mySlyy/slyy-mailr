@@ -16,6 +16,15 @@ public enum IMAPError: Error, LocalizedError, Equatable {
         case .protocolError(let t): return "IMAP protocol error: \(t)"
         }
     }
+
+    /// The server says the folder isn't there (renamed or deleted elsewhere): [NONEXISTENT] or the usual wordings.
+    public var isMissingMailbox: Bool {
+        guard case .commandFailed(let c, let status, let text) = self, status.uppercased() == "NO",
+              ["SELECT", "EXAMINE", "STATUS", "APPEND", "COPY", "MOVE"].contains(c.uppercased()) else { return false }
+        let t = text.lowercased()
+        return ["nonexistent", "doesn't exist", "does not exist", "not exist", "no such mailbox", "unknown mailbox", "mailbox not found"]
+            .contains { t.contains($0) }
+    }
 }
 
 public enum SpecialUse: String, Codable, Sendable, CaseIterable {

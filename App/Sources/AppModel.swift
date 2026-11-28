@@ -325,7 +325,25 @@ final class AppModel {
     }
 
     func report(_ error: Error) {
+        if let e = error as? IMAPError, e.isMissingMailbox {
+            Task { await folderVanished() }
+            return
+        }
         errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    }
+
+    /// A folder was renamed or deleted on the server (e.g. in webmail): reload the folder list; if the open folder
+    /// is gone, go to the Inbox and say so plainly instead of showing the server's raw answer.
+    private func folderVanished() async {
+        guard let mail else { return }
+        let missing = currentFolder
+        if let f = try? await mail.folders() { folders = f; updateBadge() }
+        if let missing, !folders.contains(where: { $0.serverPath == missing }) {
+            select(.folder("INBOX"))
+            errorMessage = String(localized: "The folder \u{201C}\(missing)\u{201D} no longer exists on the server. It was probably renamed or deleted in another mail app; the folder list is up to date again.")
+        } else {
+            errorMessage = String(localized: "A folder could not be found on the server. The folder list is up to date again; please try once more.")
+        }
     }
 
     // MARK: Accounts
