@@ -26,6 +26,18 @@ struct MailHTMLView: PlatformViewRepresentable {
     /// Reports the document height (accordion sections size themselves to their mail).
     var onHeight: ((CGFloat) -> Void)? = nil
     var onMailto: (URL) -> Void = { _ in }
+    /// Reports the selected text whenever the selection changes ("" when nothing is selected),
+    /// so Reply / Forward can quote just that part.
+    var onSelection: ((String) -> Void)? = nil
+
+    /// Name of the script message handler that receives the selection.
+    static let selectionHandler = "slyySelection"
+    /// App-side script in its own content world (page scripts stay disabled and cannot see it).
+    static let selectionScript = """
+    document.addEventListener('selectionchange', function () {
+        window.webkit.messageHandlers.\(MailHTMLView.selectionHandler).postMessage(String(window.getSelection() || ''));
+    });
+    """
 
     static func document(_ body: String, allowRemote: Bool) -> String {
         let img = allowRemote ? "data: cid: https: http:" : "data: cid:"
@@ -51,6 +63,12 @@ struct MailHTMLView: PlatformViewRepresentable {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.defaultWebpagePreferences.allowsContentJavaScript = false
+        if onSelection != nil {
+            let scripts = config.userContentController
+            scripts.addUserScript(WKUserScript(source: Self.selectionScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+            // Through a weak proxy: the content controller keeps its handlers alive.
+            scripts.add(WeakScriptMessageHandler(context.coordinator), contentWorld: .defaultClient, name: Self.selectionHandler)
+        }
         let web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = context.coordinator
         load(web, context: context)
@@ -60,10 +78,18 @@ struct MailHTMLView: PlatformViewRepresentable {
     #if os(macOS)
     func makeNSView(context: Context) -> WKWebView { makeWebView(context) }
     func updateNSView(_ web: WKWebView, context: Context) { load(web, context: context) }
+    static func dismantleNSView(_ web: WKWebView, coordinator: Coordinator) { dismantle(web, coordinator) }
     #else
     func makeUIView(context: Context) -> WKWebView { makeWebView(context) }
     func updateUIView(_ web: WKWebView, context: Context) { load(web, context: context) }
+    static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) { dismantle(web, coordinator) }
     #endif
+
+    /// A mail that is no longer shown has no selection to quote.
+    static func dismantle(_ web: WKWebView, _ coordinator: Coordinator) {
+        web.configuration.userContentController.removeAllScriptMessageHandlers()
+        if let report = coordinator.parent.onSelection { DispatchQueue.main.async { report("") } }
+    }
 
     private func load(_ web: WKWebView, context: Context) {
         context.coordinator.parent = self
@@ -77,7 +103,7 @@ struct MailHTMLView: PlatformViewRepresentable {
         web.loadHTMLString(doc, baseURL: nil)
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: MailHTMLView
         var loaded: String?
 
@@ -85,8 +111,16 @@ struct MailHTMLView: PlatformViewRepresentable {
             self.parent = parent
         }
 
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == MailHTMLView.selectionHandler else { return }
+            let text = message.body as? String ?? ""
+            DispatchQueue.main.async { [weak self] in self?.parent.onSelection?(text) }
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             measure(webView)
+            // A freshly loaded mail has nothing selected.
+            if let report = parent.onSelection { DispatchQueue.main.async { report("") } }
         }
 
         /// Height of the mail at the current text size (CSS height × zoom).
@@ -114,6 +148,20 @@ struct MailHTMLView: PlatformViewRepresentable {
             }
             decisionHandler(url.scheme == "about" ? .allow : .cancel)
         }
+    }
+}
+
+/// Forwards script messages to a delegate it does not keep alive
+/// (WKUserContentController holds its handlers strongly).
+final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
     }
 }
 

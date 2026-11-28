@@ -1,11 +1,18 @@
 import SwiftUI
 import SlyyMailKit
 
+/// Value of the "Message" window: one message on its own (double-click a message's header, or "Open in New Window").
+struct SingleMessage: Codable, Hashable {
+    let summary: MessageSummary
+}
+
 /// A conversation in its own window (double-click a message in the list): every message open, oldest first,
 /// each with Reply / Reply all / Forward. ⌘R, ⌘A, ⌘F answer the newest message; ⌘+ / ⌘− change the text size.
+/// With `single`, just that one message.
 struct ThreadWindow: View {
     @Environment(AppModel.self) private var model
     let summary: MessageSummary
+    var single = false
     @State private var messages: [MessageSummary] = []
     @State private var bodies: [String: ParsedMessage] = [:]
     @State private var loading = true
@@ -19,18 +26,22 @@ struct ThreadWindow: View {
     }
 
     var latest: ParsedMessage? { messages.last.flatMap { bodies[$0.id] } }
+    /// The newest message, or just the text selected in it.
+    var latestQuoted: ParsedMessage? { latest.map { model.quoted($0, id: messages.last?.id) } }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
-                Button("Reply") { if let m = latest { compose(.reply(m)) } }
+                Button("Reply") { if let m = latestQuoted { compose(.reply(m)) } }
                     .keyboardShortcut("r", modifiers: .command)
-                Button("Reply all") { if let m = latest { compose(.replyAll(m)) } }
+                Button("Reply all") { if let m = latestQuoted { compose(.replyAll(m)) } }
                     .keyboardShortcut("a", modifiers: .command)
-                Button("Forward") { if let m = latest { compose(.forward(m)) } }
+                Button("Forward") { if let m = latestQuoted { compose(.forward(m)) } }
                     .keyboardShortcut("f", modifiers: .command)
                 Spacer()
-                Text("\(messages.count) messages").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                if !single {
+                    Text("\(messages.count) messages").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                }
             }
             .buttonStyle(.slyyOutline)
             .disabled(latest == nil)
@@ -48,7 +59,7 @@ struct ThreadWindow: View {
                         ProgressView().controlSize(.small)
                     }
                     ForEach(messages) { m in
-                        ThreadMessage(summary: m, parsed: bodies[m.id], onCompose: compose)
+                        ThreadMessage(summary: m, parsed: bodies[m.id], onCompose: compose, single: single)
                     }
                 }
                 .padding(24)
@@ -65,9 +76,14 @@ struct ThreadWindow: View {
         }
         .task(id: summary.id) {
             loading = true
-            let r = await model.conversationForWindow(summary)
-            messages = r.messages
-            bodies = r.bodies
+            if single {
+                messages = [summary]
+                if let p = await model.body(of: summary) { bodies = [summary.id: p] }
+            } else {
+                let r = await model.conversationForWindow(summary)
+                messages = r.messages
+                bodies = r.bodies
+            }
             loading = false
         }
     }
@@ -76,9 +92,14 @@ struct ThreadWindow: View {
 /// One message in the thread window: header, invite, attachments, the mail at its own height.
 struct ThreadMessage: View {
     @Environment(AppModel.self) private var model
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     let summary: MessageSummary
     let parsed: ParsedMessage?
     var onCompose: (ComposeKind) -> Void = { _ in }
+    /// Shown in a window of its own already (no "Open in New Window", no double-click).
+    var single = false
     @State private var height: CGFloat = 80
     @State private var allowImages = false
 
@@ -94,7 +115,15 @@ struct ThreadMessage: View {
                 Text(summary.to.map(\.display).joined(separator: ", ")).font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
                 Spacer()
                 Text(summary.date.formatted(date: .abbreviated, time: .shortened)).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                MessageMoreMenu(summary: summary, parsed: parsed, onCompose: onCompose, showsOpenInWindow: !single)
             }
+            .contentShape(Rectangle())
+            #if os(macOS)
+            // Double-click the header: just this message in its own window.
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
+                if !single { openWindow(value: SingleMessage(summary: summary)) }
+            })
+            #endif
             if let p = parsed {
                 if let inv = MessageBody.invite(in: p) {
                     InviteCard(invite: inv.event, method: inv.method, phone: false)
@@ -107,12 +136,13 @@ struct ThreadMessage: View {
                 }
                 MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages, zoom: model.bodyZoom, onHeight: { h in
                     height = min(max(h, 40), 20000)
-                }, onMailto: { url in onCompose(.mailto(url)) })
+                }, onMailto: { url in onCompose(.mailto(url)) },
+                onSelection: { text in model.setQuoteSelection(text, for: summary.id) })
                 .frame(height: height)
                 HStack(spacing: 6) {
-                    Button("Reply") { onCompose(.reply(p)) }
-                    Button("Reply all") { onCompose(.replyAll(p)) }
-                    Button("Forward") { onCompose(.forward(p)) }
+                    Button("Reply") { onCompose(.reply(model.quoted(p, id: summary.id))) }
+                    Button("Reply all") { onCompose(.replyAll(model.quoted(p, id: summary.id))) }
+                    Button("Forward") { onCompose(.forward(model.quoted(p, id: summary.id))) }
                 }
                 .buttonStyle(SlyyOutlineButtonStyle(height: 30))
             } else {

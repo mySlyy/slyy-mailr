@@ -156,6 +156,43 @@ final class MIMETests: XCTestCase {
         XCTAssertEqual(m.draft(.forward, me: me).subject, "Fwd: Plan")
     }
 
+    func testQuotingSelection() {
+        var out = OutgoingMessage(from: EmailAddress(address: "bob@example.com"), to: [EmailAddress(address: "alice@example.com")],
+                                  subject: "Plan", text: "First line\nSecond line\nThird line", html: "<p>First line</p><p>Second line</p>",
+                                  attachments: [OutgoingAttachment(filename: "plan.pdf", mimeType: "application/pdf", data: Data("PDF".utf8))])
+        out.messageID = "<m2@x>"
+        out.calendar = CalendarAttachment(method: "REQUEST", ics: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n")
+        let m = ParsedMessage(data: out.render())
+        let me = EmailAddress(address: "alice@example.com")
+        XCTAssertFalse(m.attachments.isEmpty)
+        XCTAssertFalse(m.calendarParts.isEmpty)
+
+        // Empty / whitespace selection: the whole message.
+        let whole = m.quoting("  \n ")
+        XCTAssertEqual(whole.textBody, m.textBody)
+        XCTAssertEqual(whole.htmlBody, m.htmlBody)
+        XCTAssertTrue(whole.draft(.forward, me: me).attachments.contains { $0.filename == "plan.pdf" })
+
+        // A selection: only that text is quoted, threading kept.
+        let part = m.quoting("  Second line\n")
+        XCTAssertNil(part.htmlBody)
+        XCTAssertTrue(part.attachments.isEmpty)
+        XCTAssertTrue(part.calendarParts.isEmpty)
+        let reply = part.draft(.reply, me: me)
+        XCTAssertTrue(reply.text.contains("> Second line"))
+        XCTAssertFalse(reply.text.contains("First line"))
+        XCTAssertFalse(reply.text.contains("Third line"))
+        XCTAssertEqual(reply.inReplyTo, "<m2@x>")
+        XCTAssertEqual(reply.subject, "Re: Plan")
+
+        // Forward of a selection: just the text, no attachments.
+        let fwd = part.draft(.forward, me: me)
+        XCTAssertTrue(fwd.text.contains("Second line"))
+        XCTAssertFalse(fwd.text.contains("First line"))
+        XCTAssertTrue(fwd.attachments.isEmpty)
+        XCTAssertEqual(fwd.subject, "Fwd: Plan")
+    }
+
     func testDotStuffing() {
         let out = SMTPClient.dotStuff(Data("a\n.b\r\n..c".utf8))
         XCTAssertEqual(String(decoding: out, as: UTF8.self), "a\r\n..b\r\n...c\r\n")

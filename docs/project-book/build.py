@@ -67,6 +67,9 @@ new_items = '''
   [107, "q", "Shared test setup; manual calendar test on the real SOGo server", "", D, D],
   [108, "q", "Fix the 9 bugs from the code review", "Done 28 Nov, each with a regression test. See Code analytics.", D, D],
   [109, "q", "Remove the redundant code C1–C11", "Done 28 Nov: 474 lines of production code removed.", D, D],
+  [110, "read", "… menu on every message: reply, reply all or forward just that one", "In conversations, the thread window and a single mail; a folded message loads first.", D, B],
+  [111, "read", "Reply or forward only the selected text", "Selected text in a mail is all that is quoted; a forward of a selection carries no attachments.", D, B],
+  [112, "read", "Double-click a message header opens just that message in its own window", "Also … → Open in New Window.", D, N],
 '''
 bl_js = bl_js.replace('  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]', '  [88, "q", "Privacy-friendly crash reports", "", T, T, 3],' + new_items.rstrip().rstrip(','))
 assert '[109,' in bl_js

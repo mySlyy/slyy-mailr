@@ -196,6 +196,22 @@ public extension ParsedMessage {
     }
 }
 
+public extension ParsedMessage {
+    /// The message reduced to a text selection, for a reply or forward of just that part:
+    /// the selection becomes the whole text, with no HTML, attachments or invitations.
+    /// An empty (or whitespace-only) selection leaves the message as it is.
+    func quoting(_ selection: String) -> ParsedMessage {
+        let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return self }
+        var copy = self
+        copy.textBody = trimmed
+        copy.htmlBody = nil
+        copy.attachments = []
+        copy.calendarParts = []
+        return copy
+    }
+}
+
 public enum HTMLText {
     /// Rough HTML → text for quoting and plain alternatives.
     public static func toPlain(_ html: String) -> String {

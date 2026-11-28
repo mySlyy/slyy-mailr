@@ -655,6 +655,42 @@ final class AppModel {
         if let body = conversationBodies[m.id] { openMessage = body }
     }
 
+    // MARK: Reply to a selection / one message
+
+    /// Text selected in a shown message, by MessageSummary.id: Reply / Forward of that message quote only this.
+    var quoteSelection: [String: String] = [:]
+
+    /// Remembers (or, when empty, forgets) the selection in one message.
+    func setQuoteSelection(_ text: String, for id: String) {
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if quoteSelection[id] != nil { quoteSelection[id] = nil }
+        } else if quoteSelection[id] != text {
+            quoteSelection[id] = text
+        }
+    }
+
+    /// The message to answer or forward: just the selected text when some is selected in it.
+    func quoted(_ p: ParsedMessage, id: String?) -> ParsedMessage {
+        guard let id, let selection = quoteSelection[id] else { return p }
+        return p.quoting(selection)
+    }
+
+    /// The body of one message, loaded (and kept) if it is not shown yet, e.g. a folded section.
+    func body(of s: MessageSummary) async -> ParsedMessage? {
+        if let p = conversationBodies[s.id] { return p }
+        if openSummary?.id == s.id, let p = openMessage { return p }
+        guard let mail else { return nil }
+        do {
+            let p = try await mail.message(s)
+            conversationBodies[s.id] = p
+            if !s.isSeen { setLocalFlag("\\Seen", on: true, ids: [s.id]) }
+            return p
+        } catch {
+            report(error)
+            return nil
+        }
+    }
+
     func toggleThread(_ id: String) {
         if expandedThreads.contains(id) { expandedThreads.remove(id) } else { expandedThreads.insert(id) }
     }

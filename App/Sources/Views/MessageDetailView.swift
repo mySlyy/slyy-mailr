@@ -51,7 +51,7 @@ struct MessageDetailView: View {
                         .frame(maxWidth: 760, alignment: .leading)
                         MailHTMLView(html: MessageBody.html(m), allowRemoteContent: allowImages, zoom: model.bodyZoom, onMailto: { url in
                             model.compose(.mailto(url))
-                        })
+                        }, onSelection: { text in model.setQuoteSelection(text, for: s.id) })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.horizontal, phone ? 2 : 12)
                     }
@@ -106,12 +106,13 @@ struct MessageDetailView: View {
 
     func actionBar(_ m: ParsedMessage, _ s: MessageSummary) -> some View {
         HStack(spacing: 4) {
-            Button("Reply") { model.compose(.reply(m)) }
+            // Selected text in the mail: only that is quoted / forwarded.
+            Button("Reply") { model.compose(.reply(model.quoted(m, id: s.id))) }
                 .keyboardShortcut("r", modifiers: [.command])
             // ⌘A while no text field has the keyboard (there it stays Select All).
-            Button("Reply all") { model.compose(.replyAll(m)) }
+            Button("Reply all") { model.compose(.replyAll(model.quoted(m, id: s.id))) }
                 .keyboardShortcut(model.typingInField ? nil : KeyboardShortcut("a", modifiers: .command))
-            Button("Forward") { model.compose(.forward(m)) }
+            Button("Forward") { model.compose(.forward(model.quoted(m, id: s.id))) }
                 .keyboardShortcut("f", modifiers: .command)
             Spacer()
             Button(s.isFlagged ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: [s]) } }
@@ -124,11 +125,11 @@ struct MessageDetailView: View {
 
     func phoneReplyBar(_ m: ParsedMessage) -> some View {
         HStack(spacing: 8) {
-            Button("Reply") { model.compose(.reply(m)) }
+            Button("Reply") { model.compose(.reply(model.quoted(m, id: model.openSummary?.id))) }
                 .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
-            Button("Reply all") { model.compose(.replyAll(m)) }
+            Button("Reply all") { model.compose(.replyAll(model.quoted(m, id: model.openSummary?.id))) }
                 .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
-            Button("Forward") { model.compose(.forward(m)) }
+            Button("Forward") { model.compose(.forward(model.quoted(m, id: model.openSummary?.id))) }
                 .buttonStyle(SlyyOutlineButtonStyle(strong: true, fullWidth: true, height: 44))
             if model.havenState == .connected {
                 Button { askSheet = true } label: {
@@ -179,6 +180,7 @@ struct MessageDetailView: View {
                 Text((m.date ?? s.date).formatted(date: .abbreviated, time: .shortened))
                     .font(Slyy.font(13))
                     .foregroundStyle(Slyy.muted)
+                MessageMoreMenu(summary: s, parsed: m)
             }
             if !m.to.isEmpty || !m.cc.isEmpty {
                 Text(recipientLine(m))
@@ -491,6 +493,9 @@ struct ConversationAccordion: View {
 
 struct AccordionSection: View {
     @Environment(AppModel.self) private var model
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     let summary: MessageSummary
     var phone = false
     @State private var bodyHeight: CGFloat = 120
@@ -503,35 +508,45 @@ struct AccordionSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button {
-                Task { await model.toggleFold(summary) }
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Image(systemName: open ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Slyy.muted)
-                        .frame(width: 10)
-                    Circle().fill(summary.isSeen ? Color.clear : Slyy.accent).frame(width: 7, height: 7)
-                    Text(mine ? String(localized: "Me") : (summary.from.first?.display ?? "?"))
-                        .font(Slyy.font(14, .semibold))
-                        .lineLimit(1)
-                    if mine { MonoTag(text: "SENT", background: Slyy.ink2) }
-                    if open {
-                        Text(recipients).font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
-                    } else {
-                        Text(parsed.map(MessageBody.preview) ?? summary.subject)
-                            .font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
+            HStack(alignment: .center, spacing: 0) {
+                Button {
+                    Task { await model.toggleFold(summary) }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Image(systemName: open ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Slyy.muted)
+                            .frame(width: 10)
+                        Circle().fill(summary.isSeen ? Color.clear : Slyy.accent).frame(width: 7, height: 7)
+                        Text(mine ? String(localized: "Me") : (summary.from.first?.display ?? "?"))
+                            .font(Slyy.font(14, .semibold))
+                            .lineLimit(1)
+                        if mine { MonoTag(text: "SENT", background: Slyy.ink2) }
+                        if open {
+                            Text(recipients).font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
+                        } else {
+                            Text(parsed.map(MessageBody.preview) ?? summary.subject)
+                                .font(Slyy.font(13)).foregroundStyle(Slyy.muted).lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        if summary.hasAttachments { Image(systemName: "paperclip").imageScale(.small).foregroundStyle(Slyy.muted) }
+                        Text(summary.date.formatted(date: .abbreviated, time: .shortened))
+                            .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
                     }
-                    Spacer(minLength: 8)
-                    if summary.hasAttachments { Image(systemName: "paperclip").imageScale(.small).foregroundStyle(Slyy.muted) }
-                    Text(summary.date.formatted(date: .abbreviated, time: .shortened))
-                        .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                    .padding(.leading, 12)
+                    .padding(.trailing, 4)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                #if os(macOS)
+                // Double-click: just this message in its own window.
+                .simultaneousGesture(TapGesture(count: 2).onEnded { openWindow(value: SingleMessage(summary: summary)) })
+                #endif
+                // Outside the toggle button, so opening the menu does not fold the message.
+                MessageMoreMenu(summary: summary, parsed: parsed)
+                    .padding(.trailing, 8)
             }
-            .buttonStyle(.plain)
             .background(open ? Slyy.sidebar : Color.white)
 
             if open {
@@ -549,12 +564,13 @@ struct AccordionSection: View {
                         }
                         MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages, zoom: model.bodyZoom, onHeight: { h in
                             bodyHeight = min(max(h, 60), 20000)
-                        }, onMailto: { url in model.compose(.mailto(url)) })
+                        }, onMailto: { url in model.compose(.mailto(url)) },
+                        onSelection: { text in model.setQuoteSelection(text, for: summary.id) })
                         .frame(height: bodyHeight)
                         HStack(spacing: 6) {
-                            Button("Reply") { model.focus(summary); model.compose(.reply(p)) }
-                            Button("Reply all") { model.focus(summary); model.compose(.replyAll(p)) }
-                            Button("Forward") { model.focus(summary); model.compose(.forward(p)) }
+                            Button("Reply") { model.focus(summary); model.compose(.reply(model.quoted(p, id: summary.id))) }
+                            Button("Reply all") { model.focus(summary); model.compose(.replyAll(model.quoted(p, id: summary.id))) }
+                            Button("Forward") { model.focus(summary); model.compose(.forward(model.quoted(p, id: summary.id))) }
                         }
                         .buttonStyle(SlyyOutlineButtonStyle(height: 30))
                     } else {
@@ -572,6 +588,67 @@ struct AccordionSection: View {
     var recipients: String {
         let to = (parsed?.to ?? summary.to).map(\.display).joined(separator: ", ")
         return to.isEmpty ? "" : String(localized: "to \(to)")
+    }
+}
+
+/// "…" on one message: Reply / Reply all / Forward of just that message (only the selected text, if any),
+/// and on the Mac "Open in New Window". A folded message's body is loaded first.
+struct MessageMoreMenu: View {
+    @Environment(AppModel.self) private var model
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
+    let summary: MessageSummary
+    var parsed: ParsedMessage? = nil
+    /// Where the reply is written (the thread window's own sheet); default: focus the message and use the main compose.
+    var onCompose: ((ComposeKind) -> Void)? = nil
+    var showsOpenInWindow = true
+
+    var body: some View {
+        Menu {
+            Button("Reply") { answer(.reply) }
+            Button("Reply all") { answer(.replyAll) }
+            Button("Forward") { answer(.forward) }
+            #if os(macOS)
+            if showsOpenInWindow {
+                Divider()
+                Button("Open in New Window") { openWindow(value: SingleMessage(summary: summary)) }
+            }
+            #endif
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Slyy.muted)
+                .frame(width: 28, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("More actions for this message")
+        .accessibilityLabel("More actions for this message")
+    }
+
+    func answer(_ kind: ReplyKind) {
+        Task { @MainActor in
+            var loaded = parsed
+            if loaded == nil { loaded = await model.body(of: summary) }
+            guard let p = loaded else { return }
+            let q = model.quoted(p, id: summary.id)
+            let k: ComposeKind
+            switch kind {
+            case .reply: k = .reply(q)
+            case .replyAll: k = .replyAll(q)
+            case .forward: k = .forward(q)
+            }
+            if let onCompose {
+                onCompose(k)
+            } else {
+                model.focus(summary)
+                model.compose(k)
+            }
+        }
     }
 }
 

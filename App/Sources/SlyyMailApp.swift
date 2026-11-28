@@ -77,6 +77,16 @@ struct SlyyMailApp: App {
         }
         .defaultSize(width: 900, height: 820)
 
+        // Double-click a message's header (or "…" → Open in New Window): just that message.
+        WindowGroup("Message", for: SingleMessage.self) { $message in
+            if let message {
+                ThreadWindow(summary: message.summary, single: true)
+                    .environment(model)
+                    .frame(minWidth: 560, minHeight: 480)
+            }
+        }
+        .defaultSize(width: 860, height: 760)
+
         WindowGroup("Video Call", for: URL.self) { $url in
             if let url {
                 VideoCallView(url: url)
