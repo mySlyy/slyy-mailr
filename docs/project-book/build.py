@@ -128,7 +128,7 @@ an = f'''
     <p class="meta">Snapshot of commit {commit}, 28 Nov 2026, made by slyy-analytics (Tools/slyy-analytics in the repo). Rerun with <code>python3 -m slyy_analytics</code> (see Tools/slyy-analytics/README.md).</p>
   </div>
   <h3 id="an-summary">Summary</h3>
-  <p class="lead">Slyy Mailr has {f(tot["code_lines"])} lines of production code and {f(tot["test_lines"])} lines of tests. The library's tests run {tot["coverage_percent"]}% of its code. The review found {tot["review_important"]} bugs worth fixing, The cleanup of {tot["cleanup_items"]} pieces of redundant code is done: production code went from 12,013 to {f(tot["code_lines"])} lines. Coverage was measured before the cleanup.</p>
+  <p class="lead">Slyy Mailr has {f(tot["code_lines"])} lines of production code and {f(tot["test_lines"])} lines of tests. The library's tests run {tot["coverage_percent"]}% of its code. The review found {tot["review_important"]} bugs worth fixing, The cleanup of {tot["cleanup_items"]} pieces of redundant code is done: production code went from 12,013 to {f(tot["code_lines"])} lines.</p>
   <div class="tiles">
     <div class="tile"><span class="k">Production code</span><span class="v">{f(tot["code_lines"])}</span><span class="n">lines, without comments and blanks</span></div>
     <div class="tile"><span class="k">Tests</span><span class="v">{f(tot["test_lines"])}</span><span class="n">{tot["test_ratio"]} lines per line of code</span></div>
