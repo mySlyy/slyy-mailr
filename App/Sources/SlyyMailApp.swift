@@ -41,7 +41,9 @@ struct SlyyMailApp: App {
         .commands {
             #if os(macOS)
             CommandGroup(after: .appInfo) {
+                // ⌥⌘U: checks now and shows the answer (an update with its notes, or "up to date").
                 Button("Check for Updates…") { AppUpdater.shared.checkForUpdates() }
+                    .keyboardShortcut("u", modifiers: [.command, .option])
                     .disabled(!AppUpdater.shared.isAvailable)
             }
             #endif
