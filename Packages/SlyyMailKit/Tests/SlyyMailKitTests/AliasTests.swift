@@ -98,3 +98,11 @@ final class AliasIntegrationTests: XCTestCase {
         await aliceMail.disconnect()
     }
 }
+
+extension MailService {
+    /// The message as the server stores it (headers included), from the cache or IMAP.
+    func rawMessage(_ s: MessageSummary) async throws -> Data {
+        if let cached = cache?.body(uid: s.uid, folder: s.folder, account: account.id) { return cached }
+        return try await withIMAP { try await $0.fetchMessage(folder: s.folder, uid: s.uid) }
+    }
+}

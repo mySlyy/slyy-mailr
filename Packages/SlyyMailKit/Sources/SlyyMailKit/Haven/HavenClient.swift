@@ -181,11 +181,6 @@ public actor HavenClient {
         try await call("tools/call", ["name": .string(name), "arguments": arguments])
     }
 
-    // CLEANUP(C10): not called by the app or tests; remove or use for Haven grants.
-    public func requestGrants(classes: [String], sources: [String] = []) async throws -> JSONValue {
-        try await call("grants/request", ["classes": .array(classes.map(JSONValue.string)), "sources": .array(sources.map(JSONValue.string))])
-    }
-
     /// Starts a completion for a model class (fast, smart, vision, embed) and streams its reply.
     public func chat(class modelClass: String, messages: [Message], tools: [Tool]) async throws -> (id: String, events: AsyncThrowingStream<StreamEvent, Error>) {
         var params: [String: JSONValue] = ["class": .string(modelClass), "messages": try JSONValue.from(messages)]

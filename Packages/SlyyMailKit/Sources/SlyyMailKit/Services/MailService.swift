@@ -117,12 +117,6 @@ public actor MailService {
         return ParsedMessage(data: data)
     }
 
-    // CLEANUP(C10): only tests call it; keep as test support or move into the tests.
-    public func rawMessage(_ s: MessageSummary) async throws -> Data {
-        if let cached = cache?.body(uid: s.uid, folder: s.folder, account: account.id) { return cached }
-        return try await withIMAP { try await $0.fetchMessage(folder: s.folder, uid: s.uid) }
-    }
-
     /// The whole conversation of a message: from its folder and from Sent (your replies), oldest first.
     public func conversation(of s: MessageSummary) async throws -> [MessageSummary] {
         var ids = [s.messageID].compactMap { $0 } + (s.references ?? []) + [s.inReplyTo].compactMap { $0 }

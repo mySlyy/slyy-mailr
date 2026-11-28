@@ -157,21 +157,8 @@ public actor IMAPClient {
 
     /// Logs in with a password, or with an OAuth access token (`oauth: true`, SASL XOAUTH2).
     public func connect(user: String, password: String, oauth: Bool = false) async throws {
-        let stream = try await Transport.connect(endpoint)
-        let io = BufferedStream(stream)
-        self.io = io
         do {
-            let greeting = try await readResponse()
-            guard case .untagged(let g) = greeting, let status = g.first?.text?.uppercased(), status == "OK" || status == "PREAUTH" else {
-                throw IMAPError.greeting("\(greeting)")
-            }
-            try await refreshCapabilities()
-            if endpoint.security == .startTLS {
-                guard capabilities.contains("STARTTLS") else { throw IMAPError.startTLSRequired }
-                _ = try await command("STARTTLS")
-                try await io.startTLS()
-                try await refreshCapabilities()
-            }
+            try await openSession()
             do {
                 if oauth {
                     _ = try await command([.text("AUTHENTICATE XOAUTH2 " + XOAUTH2.initialResponse(user: user, accessToken: password))], name: "AUTHENTICATE")
@@ -190,12 +177,19 @@ public actor IMAPClient {
 
     /// Connects, reads the greeting and capabilities and upgrades with STARTTLS if configured, without logging in.
     /// Used to check that a server is reachable and speaks IMAP securely.
-    // CLEANUP(C4): repeats connect()'s open, greeting and STARTTLS steps; share one private helper.
     public func probe() async throws -> Set<String> {
+        defer { disconnect() }
+        try await openSession()
+        _ = try? await command("LOGOUT")
+        return capabilities
+    }
+
+    /// Opens the connection, checks the greeting, reads the capabilities and upgrades with STARTTLS if configured.
+    /// The caller disconnects on failure.
+    private func openSession() async throws {
         let stream = try await Transport.connect(endpoint)
         let io = BufferedStream(stream)
         self.io = io
-        defer { disconnect() }
         let greeting = try await readResponse()
         guard case .untagged(let g) = greeting, let status = g.first?.text?.uppercased(), status == "OK" || status == "PREAUTH" else {
             throw IMAPError.greeting("\(greeting)")
@@ -207,8 +201,6 @@ public actor IMAPClient {
             try await io.startTLS()
             try await refreshCapabilities()
         }
-        _ = try? await command("LOGOUT")
-        return capabilities
     }
 
     public func disconnect() {
