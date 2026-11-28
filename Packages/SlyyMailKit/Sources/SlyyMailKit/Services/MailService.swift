@@ -173,6 +173,24 @@ public actor MailService {
         }
     }
 
+    /// Undo of `delete`: moves messages that were moved to the Trash back to the folder they came from
+    /// (`folder` of each summary), found in the Trash by Message-ID (the newest copy). Returns how many came back;
+    /// a message without Message-ID, or no longer in the Trash, is skipped.
+    @discardableResult
+    public func restoreFromTrash(_ messages: [MessageSummary]) async throws -> Int {
+        let trash = try await folderPath(.trash)
+        var byFolder: [String: [UInt32]] = [:]
+        for m in messages where m.folder != trash {
+            guard let id = m.messageID else { continue }
+            let found = try await withIMAP { try await self.searchMessageID(id, in: trash, client: $0) }
+            if let uid = found.max() { byFolder[m.folder, default: []].append(uid) }
+        }
+        for (folder, uids) in byFolder {
+            try await withIMAP(retry: false) { try await $0.move(folder: trash, uids: uids, to: folder) }
+        }
+        return byFolder.values.reduce(0) { $0 + $1.count }
+    }
+
     /// Archive folder; on Gmail (no \\Archive, but \\All) archiving means moving to All Mail, which removes the Inbox label.
     public func archive(_ messages: [MessageSummary]) async throws {
         if try await folder(.archive) == nil, let all = try await folder(.all) {

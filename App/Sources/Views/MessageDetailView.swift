@@ -5,6 +5,7 @@ import QuickLook
 
 struct MessageDetailView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.undoManager) private var undoManager
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var allowImages = false
     @State private var exporting: Attachment?
@@ -66,7 +67,7 @@ struct MessageDetailView: View {
                     ToolbarItemGroup(placement: .primaryAction) {
                         Button { Task { await model.archive([s]) } } label: { Image(systemName: "archivebox") }
                             .accessibilityLabel("Archive")
-                        Button { Task { await model.delete([s]) } } label: { Image(systemName: "trash") }
+                        Button { Task { await model.delete([s], undo: undoManager) } } label: { Image(systemName: "trash") }
                             .accessibilityLabel("Delete")
                     }
                 }
@@ -118,7 +119,9 @@ struct MessageDetailView: View {
             Spacer()
             Button(s.isFlagged ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: [s]) } }
             Button("Archive") { Task { await model.archive([s]) } }
-            Button("Delete") { Task { await model.delete([s]) } }
+            Button("Delete") { Task { await model.delete([s], undo: undoManager) } }
+                // ⌘⌫ (not while typing: there it deletes to the start of the line); ⌘Z undoes.
+                .keyboardShortcut(model.typingInField ? nil : KeyboardShortcut(.delete, modifiers: .command))
         }
         .buttonStyle(.slyyOutline)
         .headerBar(iOSTop: 10, bottom: 10)
@@ -597,6 +600,7 @@ struct AccordionSection: View {
 /// and on the Mac "Open in New Window". A folded message's body is loaded first.
 struct MessageMoreMenu: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.undoManager) private var undoManager
     #if os(macOS)
     @Environment(\.openWindow) private var openWindow
     #endif
@@ -615,7 +619,7 @@ struct MessageMoreMenu: View {
             if onCompose == nil {
                 Divider()
                 // Just this message; the rest of the conversation stays.
-                Button("Move to Trash", role: .destructive) { Task { await model.delete([summary]) } }
+                Button("Move to Trash", role: .destructive) { Task { await model.delete([summary], undo: undoManager) } }
                 if model.isSnoozed(summary) {
                     Button("Unsnooze") { Task { await model.unsnooze(summary) } }
                 } else {

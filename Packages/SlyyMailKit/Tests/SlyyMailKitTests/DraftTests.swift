@@ -227,3 +227,34 @@ final class DraftIntegrationTests: XCTestCase {
         await mail.disconnect()
     }
 }
+
+final class TrashUndoIntegrationTests: XCTestCase {
+    /// Delete moves one message to the Trash; undo moves it back to its folder; the other message is untouched.
+    func testRestoreFromTrash() async throws {
+        let acc = try TestAccount.local("r9@example.com")
+        let mail = acc.mail()
+        let imap = try await acc.imap()
+        let keep = OutgoingMessage(from: acc.address, to: [acc.address], subject: acc.tagged("keep"), text: "stays")
+        let gone = OutgoingMessage(from: acc.address, to: [acc.address], subject: acc.tagged("undo me"), text: "comes back")
+        _ = try await imap.append(folder: "INBOX", message: keep.render())
+        _ = try await imap.append(folder: "INBOX", message: gone.render())
+        await imap.logout()
+
+        let inbox = try await mail.messages(in: "INBOX", page: 0).messages
+        let target = try XCTUnwrap(inbox.first { $0.subject == gone.subject })
+        try await mail.delete([target])
+        var now = try await mail.messages(in: "INBOX", page: 0).messages
+        XCTAssertFalse(now.contains { $0.subject == gone.subject })
+        XCTAssertTrue(now.contains { $0.subject == keep.subject })
+
+        let restored = try await mail.restoreFromTrash([target])
+        XCTAssertEqual(restored, 1)
+        now = try await mail.messages(in: "INBOX", page: 0).messages
+        XCTAssertTrue(now.contains { $0.subject == gone.subject }, "back in the Inbox")
+        let trash = try await mail.folderPath(.trash)
+        let inTrash = try await mail.messages(in: trash, page: 0).messages
+        XCTAssertFalse(inTrash.contains { $0.subject == gone.subject }, "no copy left in the Trash")
+        await acc.cleanUp(mail)
+        await mail.disconnect()
+    }
+}

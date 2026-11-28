@@ -7,6 +7,7 @@ import AppKit
 /// Desktop message list (middle column).
 struct MessageListView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.undoManager) private var undoManager
     #if os(macOS)
     @Environment(\.openWindow) private var openWindow
     #endif
@@ -118,7 +119,7 @@ struct MessageListView: View {
         }
         .background(Color.white)
         #if os(macOS)
-        .onDeleteCommand { Task { await model.delete(model.selectedMessages) } }
+        .onDeleteCommand { Task { await model.delete(model.selectedMessages, undo: undoManager) } }
         #endif
     }
 
@@ -174,6 +175,7 @@ struct MessageListView: View {
 /// Right-click / long-press actions on one or more messages.
 struct MessageMenu: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.undoManager) private var undoManager
     let list: [MessageSummary]
 
     var body: some View {
@@ -191,7 +193,7 @@ struct MessageMenu: View {
             Button("Video call with \(first.display)") { model.call([first]) }
         }
         Divider()
-        Button("Delete", role: .destructive) { Task { await model.delete(list) } }
+        Button("Delete", role: .destructive) { Task { await model.delete(list, undo: undoManager) } }
     }
 }
 
@@ -268,6 +270,7 @@ struct MessageRow: View {
 /// iPhone inbox (M1): header, search, next-event banner, list; tapping opens the message.
 struct PhoneInboxView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.undoManager) private var undoManager
     /// Select mode: ids of threads (threaded view) or messages.
     @State private var selection: Set<String> = []
     @State private var selecting = false
@@ -294,7 +297,7 @@ struct PhoneInboxView: View {
             }
             .disabled(list.isEmpty)
             bulkButton("Archive", icon: "archivebox") { await model.archive(list); endSelecting() }
-            bulkButton("Delete", icon: "trash", role: .destructive) { await model.delete(list); endSelecting() }
+            bulkButton("Delete", icon: "trash", role: .destructive) { await model.delete(list, undo: undoManager); endSelecting() }
         }
         .foregroundStyle(Slyy.ink)
         .background(Color.white)
@@ -546,6 +549,7 @@ struct ThreadChildRow: View {
 /// One row of the iPhone list: flush layout, swipe actions, long-press menu.
 struct PhoneRow: ViewModifier {
     @Environment(AppModel.self) private var model
+    @Environment(\.undoManager) private var undoManager
     let list: [MessageSummary]
 
     func body(content: Content) -> some View {
@@ -562,7 +566,7 @@ struct PhoneRow: ViewModifier {
                 .tint(Slyy.accent)
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button(role: .destructive) { Task { await model.delete(list) } } label: { Label("Delete", systemImage: "trash") }
+                Button(role: .destructive) { Task { await model.delete(list, undo: undoManager) } } label: { Label("Delete", systemImage: "trash") }
                 Button { Task { await model.archive(list) } } label: { Label("Archive", systemImage: "archivebox") }
                     .tint(Slyy.ink2)
                 Button { Task { await model.toggleFlag("\\Flagged", for: list) } } label: {

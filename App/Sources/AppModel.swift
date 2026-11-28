@@ -946,10 +946,35 @@ final class AppModel {
         totalMessages = max(0, totalMessages - list.filter { $0.folder == currentFolder }.count)
     }
 
-    func delete(_ list: [MessageSummary]) async {
+    /// Moves to the Trash (erases for good when already in the Trash). With an undo manager, ⌘Z moves them back.
+    func delete(_ list: [MessageSummary], undo: UndoManager? = nil) async {
         guard let mail, !list.isEmpty else { return }
+        let trash = folders.first { $0.specialUse == .trash }?.serverPath
+        let undoable = list.filter { $0.folder != trash && $0.messageID != nil }
         removeLocally(list)
-        do { try await mail.delete(list) } catch { report(error); await loadMessages(reset: true) }
+        do {
+            try await mail.delete(list)
+        } catch {
+            report(error)
+            await loadMessages(reset: true)
+            return
+        }
+        guard let undo, !undoable.isEmpty else { return }
+        undo.registerUndo(withTarget: self) { model in
+            Task { @MainActor in await model.restoreFromTrash(undoable) }
+        }
+        undo.setActionName(String(localized: "Move to Trash"))
+    }
+
+    /// Undo of a delete: the messages come back from the Trash to the folder they were in.
+    func restoreFromTrash(_ list: [MessageSummary]) async {
+        guard let mail else { return }
+        do {
+            try await mail.restoreFromTrash(list)
+        } catch {
+            report(error)
+        }
+        if list.contains(where: { $0.folder == currentFolder }) { await loadMessages(reset: true) }
     }
 
     func archive(_ list: [MessageSummary]) async {
