@@ -66,6 +66,11 @@ final class ScriptedServer: ByteStream, @unchecked Sendable {
         }
     }
 
+    /// Sends lines the handler held back (e.g. a delayed reply).
+    func push(_ lines: [String]) {
+        lock.withLock { for r in lines { outbox.append(Data((r + "\r\n").utf8)) } }
+    }
+
     func startTLS() async throws {}
     func close() {}
 }

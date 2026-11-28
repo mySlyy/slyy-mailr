@@ -143,9 +143,12 @@ public actor IMAPClient {
     private var tagCounter = 0
     public private(set) var capabilities: Set<String> = []
     public private(set) var selected: SelectedMailbox?
-    /// Set while an IDLE is running; other commands must wait (use a separate client for IDLE).
+    /// Set while an IDLE is running. A command issued meanwhile ends the IDLE (DONE) and runs after it.
     private var idleDone: DoneSender?
+    /// The connection's exclusive slot: held by one command or one IDLE from writing its tag to reading its tagged reply.
     private var commandInFlight = false
+    /// Callers waiting for the slot, served in order.
+    private var slotWaiters: [CheckedContinuation<Void, Never>] = []
 
     public init(endpoint: ServerEndpoint) {
         self.endpoint = endpoint
@@ -245,12 +248,10 @@ public actor IMAPClient {
 
     @discardableResult
     public func command(_ parts: [Part], name: String) async throws -> Result {
+        // A second command while one is waiting for its reply would steal that reply: wait for the slot.
+        await acquireSlot()
+        defer { releaseSlot() }
         guard let io else { throw TransportError.closed }
-        guard idleDone == nil else { throw IMAPError.protocolError("connection is in IDLE; use a separate client") }
-        // A second command while one is waiting for its reply would steal that reply.
-        guard !commandInFlight else { throw IMAPError.protocolError("concurrent IMAP commands on one connection") }
-        commandInFlight = true
-        defer { commandInFlight = false }
         tagCounter += 1
         let tag = "S\(tagCounter)"
         var pending = Data("\(tag) ".utf8)
@@ -294,6 +295,26 @@ public actor IMAPClient {
         } catch let e as TransportError {
             disconnect()
             throw e
+        }
+    }
+
+    /// Takes the connection's exclusive slot, waiting (in order) while a command or IDLE holds it.
+    /// A running IDLE is ended with DONE so the waiting command does not sit behind it until its timeout.
+    private func acquireSlot() async {
+        guard commandInFlight else {
+            commandInFlight = true
+            return
+        }
+        if let idleDone { Task { await idleDone.send() } }
+        await withCheckedContinuation { slotWaiters.append($0) }
+        // The releasing holder handed the slot over without clearing `commandInFlight`.
+    }
+
+    private func releaseSlot() {
+        if slotWaiters.isEmpty {
+            commandInFlight = false
+        } else {
+            slotWaiters.removeFirst().resume()
         }
     }
 
@@ -619,26 +640,37 @@ public actor IMAPClient {
     // MARK: IDLE
 
     /// Waits for mailbox changes with IDLE (or polls with NOOP if unsupported). Returns after a change or `timeout`.
+    /// IDLE holds the connection's command slot from writing `IDLE` until the server's tagged reply to DONE,
+    /// so no other command is written in between; a command issued meanwhile ends the IDLE and runs after it.
     public func idle(folder serverPath: String, timeout: TimeInterval = 25 * 60) async throws -> IdleResult {
-        try await select(serverPath)
-        guard let io else { throw TransportError.closed }
-        guard has("IDLE") else {
-            try await Task.sleep(nanoseconds: UInt64(min(timeout, 60) * 1_000_000_000))
-            let before = selected?.exists
-            let r = try await command("NOOP")
-            let changed = r.untagged.contains { $0.count >= 2 && ["EXISTS", "EXPUNGE", "FETCH"].contains($0[1].text?.uppercased() ?? "") }
-            return changed || before != selected?.exists ? .changed : .timeout
+        while true {
+            try await select(serverPath)
+            guard has("IDLE") else {
+                try await Task.sleep(nanoseconds: UInt64(min(timeout, 60) * 1_000_000_000))
+                let before = selected?.exists
+                let r = try await command("NOOP")
+                let changed = r.untagged.contains { $0.count >= 2 && ["EXISTS", "EXPUNGE", "FETCH"].contains($0[1].text?.uppercased() ?? "") }
+                return changed || before != selected?.exists ? .changed : .timeout
+            }
+            await acquireSlot()
+            // Another command may have selected a different folder while we waited for the slot.
+            if selected?.path == serverPath { break }
+            releaseSlot()
         }
+        defer { releaseSlot() }
+        guard let io else { throw TransportError.closed }
         tagCounter += 1
         let tag = "S\(tagCounter)"
+        // Set before the first suspension point: a command issued from here on sees the IDLE and ends it.
+        let done = DoneSender(io: io)
+        idleDone = done
+        defer { idleDone = nil }
+        // Commands queued behind this IDLE before it took the slot must not wait for its timeout.
+        if !slotWaiters.isEmpty { await done.send() }
         // IDLE waits for the server for up to `timeout`; normal commands keep the short read timeout.
         let normalTimeout = io.readTimeout
         io.readTimeout = timeout + 60
         defer { io.readTimeout = normalTimeout }
-        try await io.write("\(tag) IDLE\r\n")
-        let done = DoneSender(io: io)
-        idleDone = done
-        defer { idleDone = nil }
         let timer = Task {
             try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
             await done.send()
@@ -646,11 +678,13 @@ public actor IMAPClient {
         defer { timer.cancel() }
         var result = IdleResult.timeout
         do {
+            try await io.write("\(tag) IDLE\r\n")
             while true {
                 let r = try await readResponse()
                 switch r {
                 case .continuation:
-                    continue
+                    // "+ idling": from now on DONE may be written (a stop requested earlier is sent now).
+                    await done.idling()
                 case .untagged(let v):
                     track(v)
                     if v.count >= 2, ["EXISTS", "EXPUNGE", "FETCH", "RECENT"].contains(v[1].text?.uppercased() ?? "") {
@@ -663,9 +697,10 @@ public actor IMAPClient {
                     return result
                 }
             }
-        } catch let e as TransportError {
-            disconnect()
-            throw e
+        } catch {
+            // Cancelled or cut off mid-IDLE: the connection may still be idling, so it can't be reused.
+            if !(error is IMAPError) { disconnect() }
+            throw error
         }
     }
 
@@ -748,17 +783,31 @@ public actor IMAPClient {
     }
 }
 
-/// Ensures DONE is written exactly once per IDLE.
+/// Ensures DONE is written exactly once per IDLE, and only after the server's "+ idling" continuation.
 actor DoneSender {
     private let io: BufferedStream
+    private var requested = false
+    private var isIdling = false
     private var sent = false
 
     init(io: BufferedStream) {
         self.io = io
     }
 
+    /// Asks to end the IDLE; deferred until the server has acknowledged it.
     func send() async {
-        guard !sent else { return }
+        requested = true
+        await flush()
+    }
+
+    /// The server answered IDLE with a continuation.
+    func idling() async {
+        isIdling = true
+        await flush()
+    }
+
+    private func flush() async {
+        guard requested, isIdling, !sent else { return }
         sent = true
         try? await io.write("DONE\r\n")
     }
