@@ -338,7 +338,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
             return [.account, .senders, .reading, .assistant, .servers]
             #endif
         case .calendar: return [.calendarServer, .calendars]
-        case .video: return [.videoServer, .rooms]
+        case .video: return [.videoServer]
         }
     }
 }
@@ -347,7 +347,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case account, senders, reading, assistant, servers, updates
     case calendarServer, calendars
-    case videoServer, rooms
+    case videoServer
     var id: String { rawValue }
     var title: LocalizedStringKey {
         switch self {
@@ -360,7 +360,6 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .calendarServer: "Calendar Server"
         case .calendars: "Shown Calendars"
         case .videoServer: "Meeting Link"
-        case .rooms: "Room Links"
         }
     }
     var tab: SettingsTab { SettingsTab.allCases.first { $0.sections.contains(self) } ?? .mail }
@@ -521,7 +520,6 @@ struct SettingsSectionView: View {
             case .calendarServer: CalendarServerForm()
             case .calendars: ShownCalendarsForm()
             case .videoServer: VideoServerForm()
-            case .rooms: RoomLinksInfo()
             }
         }
     }
@@ -807,43 +805,50 @@ struct VideoServerForm: View {
     @State private var state = SaveState()
 
     var changed: Bool { server != (model.account?.jitsiURL ?? "") }
+    @State private var previewRoom = JitsiRoom.meetingURL(setting: JitsiRoom.defaultServer)
+
+    /// The link a new meeting would get from the field (one example room when only a server is set).
+    var preview: String {
+        if let room = JitsiRoom.personalRoom(server) { return room.absoluteString }
+        let host = URL(string: server.lowercased().hasPrefix("http") ? server : "https://" + server)?.host ?? "vid.rocket.re-cloud.io"
+        return "https://\(host)/\(previewRoom.lastPathComponent)"
+    }
+
+    func save() async -> Bool {
+        let url = server.trimmingCharacters(in: .whitespacesAndNewlines)
+        return await saveSection(model, state: $state, reconnect: false, apply: { $0.jitsiURL = url })
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             settingsField("Your meeting link") {
                 TextField("https://vid.rocket.re-cloud.io/YourName", text: $server).textFieldStyle(SlyyFieldStyle(padding: 8)).serverField()
+                    .onSubmit { if changed { Task { _ = await save() } } }
             }
             Text("The link you share with partners. Video links in mails, meetings and \u{201C}Meet now\u{201D} use it. Only a server address: every meeting gets its own private room.")
                 .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            // What new meetings get with the text in the field (saved or not yet).
+            HStack(spacing: 6) {
+                Text(JitsiRoom.personalRoom(server) != nil ? LocalizedStringKey("Every meeting uses") : LocalizedStringKey("Each meeting gets a private room like"))
+                Text(preview).font(Slyy.mono(12)).foregroundStyle(Slyy.ink2).textSelection(.enabled).lineLimit(1)
+            }
+            .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
             HStack(spacing: 10) {
                 Button("Private room per meeting") { server = JitsiRoom.defaultServer }
                     .buttonStyle(.slyyOutline)
                     .disabled(server == JitsiRoom.defaultServer)
-                Button { model.meetNow() } label: { Label("Test call", systemImage: SlyyIcon.video) }
+                // Tests the link in the field; an unsaved change is saved first, so the test and later mails agree.
+                Button {
+                    Task {
+                        if changed, !(await save()) { return }
+                        model.meetNow()
+                    }
+                } label: { Label("Test call", systemImage: SlyyIcon.video) }
                     .buttonStyle(SlyyOutlineButtonStyle(strong: true))
             }
-            SectionSaveBar(title: "Save", changed: changed, state: state) {
-                let url = server.trimmingCharacters(in: .whitespacesAndNewlines)
-                _ = await saveSection(model, state: $state, reconnect: false, apply: { $0.jitsiURL = url })
-            }
+            SectionSaveBar(title: "Save", changed: changed, state: state) { _ = await save() }
         }
         .onAppear { server = model.account?.jitsiURL ?? JitsiRoom.defaultServer }
-    }
-}
-
-struct RoomLinksInfo: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("New meetings use")
-            Text(model.newMeetingURL().absoluteString)
-                .font(Slyy.mono(12)).foregroundStyle(Slyy.ink2).textSelection(.enabled)
-            Text(JitsiRoom.personalRoom(model.account?.jitsiURL ?? "") != nil
-                 ? LocalizedStringKey("Your own meeting room, the same link every time. You can change the link in each mail.")
-                 : LocalizedStringKey("Every meeting gets its own unguessable room name. Set your own meeting link to share the same room every time."))
-                .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
-        }
     }
 }
 
