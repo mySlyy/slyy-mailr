@@ -617,10 +617,10 @@ struct AddressField<Trailing: View>: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            let suggestions = self.suggestions
-            if !suggestions.isEmpty {
+            let shown = suggestions
+            if !shown.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(suggestions.enumerated()), id: \.element.id) { i, s in
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { i, s in
                         Button { pick(s) } label: {
                             HStack(spacing: 6) {
                                 Text(s.name.isEmpty ? s.address : s.name).font(Slyy.font(14, .semibold))
