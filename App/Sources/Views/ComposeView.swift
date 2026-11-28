@@ -538,6 +538,15 @@ struct AddressField<Trailing: View>: View {
     var focus: FocusState<ComposeView.Field?>.Binding
     let field: ComposeView.Field
     @ViewBuilder var trailing: () -> Trailing
+    /// The suggestion ↑/↓ move to; Return or Tab takes it.
+    @State private var highlighted = 0
+
+    /// Contacts matching what is being typed (none once it is exactly one of them).
+    var suggestions: [EmailAddress] {
+        guard editing, !current.isEmpty else { return [] }
+        let list = model.contacts.suggestions(for: current)
+        return list.contains(where: { $0.address.caseInsensitiveCompare(current) == .orderedSame }) ? [] : list
+    }
 
     var editing: Bool { focus.wrappedValue == field }
 
@@ -572,7 +581,19 @@ struct AddressField<Trailing: View>: View {
                     TextField("", text: Binding(get: { current }, set: { setCurrent($0) }))
                         .textFieldStyle(.plain)
                         .focused(focus, equals: field)
-                        .onSubmit { text = AddressEntry.commit(text) }
+                        .onSubmit {
+                            let list = suggestions
+                            if list.indices.contains(highlighted) { pick(list[highlighted]) } else { text = AddressEntry.commit(text) }
+                        }
+                        .onKeyPress(.downArrow) { move(+1) }
+                        .onKeyPress(.upArrow) { move(-1) }
+                        .onKeyPress(.tab) {
+                            let list = suggestions
+                            guard list.indices.contains(highlighted) else { return .ignored }
+                            pick(list[highlighted])
+                            return .handled
+                        }
+                        .onChange(of: current) { _, _ in highlighted = 0 }
                         .onKeyPress(.delete) {
                             // Backspace in an empty field deletes the last chip.
                             guard current.isEmpty, !chipTexts.isEmpty else { return .ignored }
@@ -596,8 +617,8 @@ struct AddressField<Trailing: View>: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            let suggestions = focus.wrappedValue == field ? model.contacts.suggestions(for: current) : []
-            if !current.isEmpty && !suggestions.isEmpty && !suggestions.contains(where: { $0.address.caseInsensitiveCompare(current) == .orderedSame }) {
+            let suggestions = self.suggestions
+            if !suggestions.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(suggestions.enumerated()), id: \.element.id) { i, s in
                         Button { pick(s) } label: {
@@ -608,10 +629,11 @@ struct AddressField<Trailing: View>: View {
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
-                            .background(i == 0 ? Slyy.tint : Color.white)
+                            .background(i == highlighted ? Slyy.tint : Color.white)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .onHover { inside in if inside { highlighted = i } }
                     }
                 }
                 .frame(maxWidth: 420)
@@ -621,6 +643,14 @@ struct AddressField<Trailing: View>: View {
             }
         }
         .bottomHairline()
+    }
+
+    /// ↑/↓ in the suggestions (only while they show; otherwise the keys keep their usual meaning).
+    func move(_ step: Int) -> KeyPress.Result {
+        let count = suggestions.count
+        guard count > 0 else { return .ignored }
+        highlighted = (highlighted + step + count) % count
+        return .handled
     }
 
     func setCurrent(_ value: String) {
