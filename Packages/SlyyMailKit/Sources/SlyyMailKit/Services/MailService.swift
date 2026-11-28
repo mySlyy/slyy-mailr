@@ -208,17 +208,50 @@ public actor MailService {
         if !account.serverSavesSent, let sent = try? await folderPath(.sent) {
             _ = try? await withIMAP { try await $0.append(folder: sent, message: data, flags: ["\\Seen"]) }
         }
-        if let draftUID, let drafts = try? await folderPath(.drafts) {
-            try? await withIMAP { try await $0.expunge(folder: drafts, uids: [draftUID]) }
+        // The draft this came from: by UID if known, else by its Message-ID (drafts keep one across autosaves).
+        if let drafts = try? await folderPath(.drafts) {
+            try? await withIMAP { c in
+                let uids = try await draftUIDs(c, drafts: drafts, messageID: message.messageID, known: draftUID)
+                try await c.expunge(folder: drafts, uids: uids)
+            }
         }
     }
 
-    /// Saves a draft (replacing the previous version); returns the new UID if the server reports it.
+    /// Saves a draft (replacing the previous version); returns the new UID.
+    /// Without UIDPLUS the APPEND reports no UID, so the copy is found by its Message-ID:
+    /// pass the same `messageID` for every save of one draft.
     public func saveDraft(_ message: OutgoingMessage, replacing oldUID: UInt32?) async throws -> UInt32? {
         let drafts = try await folderPath(.drafts)
-        let uid = try await withIMAP { try await $0.append(folder: drafts, message: message.render(), flags: ["\\Draft", "\\Seen"]) }
-        if let oldUID { try? await withIMAP { try await $0.expunge(folder: drafts, uids: [oldUID]) } }
+        var uid = try await withIMAP { try await $0.append(folder: drafts, message: message.render(), flags: ["\\Draft", "\\Seen"]) }
+        var stale = oldUID.map { [$0] } ?? []
+        if uid == nil {
+            // Every copy of this draft; the newest (highest UID) is the one just appended.
+            let found = (try? await withIMAP { try await self.searchMessageID(message.messageID, in: drafts, client: $0) }) ?? []
+            uid = found.max()
+            stale += found
+        }
+        stale = Array(Set(stale.filter { $0 != uid })).sorted()
+        if !stale.isEmpty { try? await withIMAP { try await $0.expunge(folder: drafts, uids: stale) } }
         return uid
+    }
+
+    /// UIDs of the draft copies to remove: `known` if given, else every copy with this Message-ID.
+    private func draftUIDs(_ c: IMAPClient, drafts: String, messageID: String, known: UInt32?) async throws -> [UInt32] {
+        if let known { return [known] }
+        return try await searchMessageID(messageID, in: drafts, client: c)
+    }
+
+    /// `UID SEARCH HEADER Message-ID <id>` in one folder.
+    private func searchMessageID(_ messageID: String, in folder: String, client c: IMAPClient) async throws -> [UInt32] {
+        let id = messageID.trimmingCharacters(in: .whitespaces)
+        guard !id.isEmpty else { return [] }
+        _ = try await c.select(folder)
+        let r = try await c.command([.text("UID SEARCH HEADER Message-ID "), .astring(id)], name: "SEARCH")
+        var uids: [UInt32] = []
+        for line in r.untagged where line.first?.text?.uppercased() == "SEARCH" {
+            uids += line.dropFirst().compactMap { $0.text.flatMap { UInt32($0) } }
+        }
+        return uids
     }
 
     /// Sends an iTIP message (REQUEST/CANCEL/REPLY) as an email.
