@@ -1,0 +1,191 @@
+<section id="spec" class="part">
+  <div class="part-head">
+    <span class="eyebrow">Part 1 · Spec</span>
+    <h2>Simple Mail &amp; Calendar Client (Outlook Replacement)</h2>
+    <p class="meta">Spec dated 26 Nov 2026. This is the first spec, written before the native Swift build: where the app now differs (native macOS/iOS instead of a web app, no backend, mailcow with SOGo), the backlog and the code are what's current.</p>
+  </div>
+
+  <article class="prose">
+    <h3 id="spec-overview">Overview</h3>
+    <p>Build a lean web + desktop client (working name <b>Mailr</b>) that replaces Outlook for internal staff: mail over our own IMAP/SMTP, a CalDAV calendar with meeting invites, and one-click Jitsi video calls on vid.rocket.re-cloud.io. Scope is deliberately smaller than Outlook: the 20% of features used 95% of the time.</p>
+    <p><b>Goals</b></p>
+    <ul>
+      <li>Read, write, search, file mail on our IMAP/SMTP server; multiple accounts per user.</li>
+      <li>Calendar: day/week/month views, create events, send/receive invites (iCalendar/iTIP), shared team calendars.</li>
+      <li>Every meeting can carry a video link; join from mail, calendar or reminder in one click.</li>
+      <li>Runs in the browser (PWA) and as a desktop app; German and English UI.</li>
+    </ul>
+    <p><b>Non-goals (v1)</b></p>
+    <ul>
+      <li>Exchange/EWS, MAPI, Microsoft 365 connectivity.</li>
+      <li>PST import (use IMAP migration on server side instead), tasks/to-dos, notes, RSS.</li>
+      <li>S/MIME, PGP, mail rules engine beyond server-side Sieve.</li>
+      <li>Native mobile apps (PWA on mobile is acceptable).</li>
+    </ul>
+    <p><b>Users</b>: ~5–50 internal staff, office + remote. Primary devices: Windows/macOS laptops, secondary: phones.</p>
+
+    <h3 id="spec-architecture">Architecture</h3>
+    <p>Browsers cannot speak IMAP/SMTP, so a thin Mailr backend sits between the clients and our mail and CalDAV servers. Video media flows directly between client and Jitsi.</p>
+    <figure class="diagram">
+      <div class="scroll">
+      <svg viewBox="0 0 760 368" role="img" aria-label="Architecture: two Mailr clients talk to one Mailr backend over HTTPS; the backend talks to the mail server and the CalDAV server; video goes directly from the clients to Jitsi Meet" font-size="11.5" font-family="var(--sans)">
+        <defs><marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--line-strong)"/></marker></defs>
+        <text x="24" y="28" font-size="15" font-weight="600" fill="var(--ink)">One backend fronts mail and calendar; video connects directly to Jitsi</text>
+        <text x="24" y="50" fill="var(--muted)">Highlighted: the only new server-side component. Right column: self-hosted servers.</text>
+        <g fill="none" stroke="var(--line-strong)" stroke-width="1.25">
+          <path d="M240 184H312" marker-start="url(#arch-arrow)" marker-end="url(#arch-arrow)"/>
+          <path d="M504 150H528V116H552" marker-end="url(#arch-arrow)"/>
+          <path d="M504 204H552" marker-end="url(#arch-arrow)"/>
+          <path d="M132 288V344H644V328" marker-end="url(#arch-arrow)"/>
+        </g>
+        <text x="276" y="174" text-anchor="middle" fill="var(--muted)">HTTPS, WSS</text>
+        <text x="300" y="336" fill="var(--muted)">WebRTC media + IFrame API, direct</text>
+        <rect x="24" y="80" width="216" height="208" fill="none" stroke="var(--line-strong)"/>
+        <text x="40" y="102" font-size="13" font-weight="600" fill="var(--ink)">Mailr clients</text>
+        <rect x="40" y="112" width="184" height="72" fill="var(--bg)" stroke="var(--line-strong)"/>
+        <text x="52" y="136" font-size="13" font-weight="600" fill="var(--ink)">Web app (PWA)</text>
+        <text x="52" y="152" fill="var(--muted)">Mail, calendar, contacts</text>
+        <text x="52" y="168" fill="var(--muted)">Offline cache, push</text>
+        <rect x="40" y="200" width="184" height="72" fill="var(--bg)" stroke="var(--line-strong)"/>
+        <text x="52" y="224" font-size="13" font-weight="600" fill="var(--ink)">Desktop app</text>
+        <text x="52" y="240" fill="var(--muted)">Same UI, Tauri wrapper</text>
+        <text x="52" y="256" fill="var(--muted)">Keychain, notifications</text>
+        <rect x="312" y="124" width="192" height="120" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+        <text x="324" y="148" font-size="13" font-weight="600" fill="var(--ink)">Mailr backend</text>
+        <text x="324" y="164" fill="var(--ink)">IMAP/SMTP sync + IDLE push</text>
+        <text x="324" y="180" fill="var(--ink)">CalDAV/CardDAV proxy</text>
+        <text x="324" y="196" fill="var(--ink)">Local search index</text>
+        <text x="324" y="212" fill="var(--ink)">Sends iTIP invites</text>
+        <text x="324" y="228" fill="var(--ink)">Signs Jitsi JWT (later)</text>
+        <rect x="552" y="80" width="184" height="72" fill="var(--bg)" stroke="var(--line-strong)"/>
+        <text x="564" y="104" font-size="13" font-weight="600" fill="var(--ink)">Mail server</text>
+        <text x="564" y="120" fill="var(--muted)">IMAP 993 · SMTP 587</text>
+        <text x="564" y="136" fill="var(--muted)">ManageSieve 4190</text>
+        <rect x="552" y="168" width="184" height="72" fill="var(--bg)" stroke="var(--line-strong)"/>
+        <text x="564" y="192" font-size="13" font-weight="600" fill="var(--ink)">CalDAV / CardDAV</text>
+        <text x="564" y="208" fill="var(--muted)">Radicale / SOGo (TBD)</text>
+        <text x="564" y="224" fill="var(--muted)">Calendars, contacts</text>
+        <rect x="552" y="256" width="184" height="72" fill="var(--bg)" stroke="var(--line-strong)"/>
+        <text x="564" y="280" font-size="13" font-weight="600" fill="var(--ink)">Jitsi Meet</text>
+        <text x="564" y="296" fill="var(--muted)">vid.rocket.re-cloud.io</text>
+        <text x="564" y="312" fill="var(--muted)">Rooms, lobby, IFrame API</text>
+      </svg>
+      </div>
+      <figcaption>Architecture · 2 clients, 1 backend, 3 servers</figcaption>
+    </figure>
+    <p><b>Stack (proposal)</b>: TypeScript throughout. Frontend React PWA; desktop = same build in a Tauri shell. Backend Node.js with ImapFlow (IMAP), Nodemailer (SMTP), tsdav (CalDAV/CardDAV), ical.js (iCalendar), PostgreSQL for sync state + search index. Deployed as Docker containers next to the mail server. The backend stores no mail permanently beyond the cache; IMAP stays the source of truth.</p>
+
+    <h3 id="spec-mail">Mail (IMAP / SMTP)</h3>
+    <p>The client talks only to our own servers. IMAP for reading and folders, SMTP submission for sending, server-side Sieve for rules and out-of-office.</p>
+    <p><b>Protocols</b></p>
+    <ul>
+      <li>IMAP4rev1 over TLS (993), extensions used when offered: IDLE (push), CONDSTORE/QRESYNC (fast sync), MOVE, UIDPLUS, SPECIAL-USE (Sent/Drafts/Trash/Junk/Archive detection), SORT/THREAD, QUOTA.</li>
+      <li>SMTP submission on 587 (STARTTLS) or 465 (TLS), AUTH PLAIN/LOGIN; XOAUTH2 optional later.</li>
+      <li>ManageSieve (4190) for filters and vacation reply.</li>
+      <li>Autoconfig: read <code>autoconfig.&lt;domain&gt;/mail/config-v1.1.xml</code>; user only types email + password.</li>
+    </ul>
+    <p><b>Features (v1)</b></p>
+    <div class="scroll"><table>
+      <thead><tr><th>Area</th><th>Must have</th><th>Later</th></tr></thead>
+      <tbody>
+        <tr><td>Inbox</td><td>Unified inbox across accounts, conversation view toggle, unread/flag/star, push via IDLE</td><td>Focused inbox</td></tr>
+        <tr><td>Folders</td><td>Create/rename/delete, drag-and-drop move, archive with one key</td><td>Smart folders</td></tr>
+        <tr><td>Compose</td><td>Rich text + plain text, reply/reply-all/forward, drafts auto-saved to IMAP every 10 s, attachments up to server limit (drag-and-drop, paste images), signatures per account</td><td>Templates, send later</td></tr>
+        <tr><td>Addressing</td><td>Autocomplete from contacts + recently used, To/Cc/Bcc</td><td>Distribution lists</td></tr>
+        <tr><td>Search</td><td>Server-side IMAP SEARCH + local index of headers/bodies</td><td>Saved searches</td></tr>
+        <tr><td>Safety</td><td>Remote images blocked by default, phishing link hover preview, sanitised HTML (no scripts, no forms)</td><td>DKIM/SPF result badge</td></tr>
+        <tr><td>Rules</td><td>Sieve filters UI (from/subject/to → move/flag/forward), out-of-office</td><td>—</td></tr>
+        <tr><td>Invites</td><td>iMIP mails (<code>text/calendar</code>) shown as invite card with Accept / Tentative / Decline</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+    <p><b>Offline</b>: last 30 days of each folder cached locally (configurable); outbox queues sends while offline.</p>
+
+    <h3 id="spec-calendar">Calendar</h3>
+    <p>Calendar data lives on a CalDAV server, not in the client. Invites travel as standard iCalendar (RFC 5545) over iTIP/iMIP (RFC 5546/6047), so external Outlook, Google and Apple users can accept them.</p>
+    <p><b>Server</b>: IMAP/SMTP do not store calendars. We need a CalDAV/CardDAV server next to the mail server: Radicale (minimal) or SOGo / Nextcloud (with shared calendars + free/busy). Auth against the same user directory as IMAP. See open questions.</p>
+    <p><b>Features (v1)</b></p>
+    <ul>
+      <li>Views: day, work week, week, month, agenda list; side-by-side overlay of several calendars with colours.</li>
+      <li>Create/edit events: title, time, all-day, time zone, location, description, recurrence (daily/weekly/monthly/yearly, end by date/count, exceptions), reminders (popup + email).</li>
+      <li>Invites: add attendees, client sends <code>METHOD:REQUEST</code> via SMTP; replies (<code>REPLY</code>) update attendee status; cancel sends <code>CANCEL</code>. Prefer server-side scheduling (CalDAV Scheduling, RFC 6638) when the server supports it.</li>
+      <li>Incoming invites in the inbox: Accept / Tentative / Decline / Propose new time; accepted event written to default calendar.</li>
+      <li>Free/busy lookup for internal attendees when creating a meeting (scheduling assistant: one row per attendee, busy blocks shown).</li>
+      <li>Shared calendars: team and room calendars, read-only or read-write per user.</li>
+      <li>Subscribe to external ICS feeds (holidays, public calendars), read-only.</li>
+      <li>Drag to move/resize events; quick-create by click in an empty slot.</li>
+      <li>Reminder notifications on desktop/browser; "Join" button inside the reminder when the event has a video link.</li>
+      <li>Import/export <code>.ics</code> files (for one-off migration from Outlook).</li>
+    </ul>
+
+    <h3 id="spec-video">Video calls (vid.rocket.re-cloud.io)</h3>
+    <p>vid.rocket.re-cloud.io runs Jitsi Meet (docker-jitsi-meet; checked 2026-11-26). Its public config shows no authentication domain, so anyone with a room URL can join. The client generates the room, puts the link into the event, and embeds the call.</p>
+    <p><b>Integration</b></p>
+    <ul>
+      <li>Room URL: <code>https://vid.rocket.re-cloud.io/&lt;room&gt;</code>; room name = random, unguessable slug (≥ 16 chars, e.g. <code>mailr-7f3k9q2xw4bt8zne</code>), never the meeting title.</li>
+      <li>"Add video call" toggle in the event form (default on for events with attendees). Writes the link to: iCalendar <code>LOCATION</code> (if empty), <code>URL</code>, <code>X-JITSI-URL</code>, and a "Join video call" block at the top of <code>DESCRIPTION</code>, so Outlook/Google/Apple recipients see it too.</li>
+      <li>Optional dial-in/PIN block if the server later offers phone dial-in.</li>
+      <li>Join points: event popover, invite card in mail, reminder notification, "Meet now" button in the toolbar (ad-hoc room + copy link), "Call" action on a contact or mail thread (creates room, sends link).</li>
+      <li>Embedded call: Jitsi IFrame API (<code>https://vid.rocket.re-cloud.io/external_api.js</code>) in an in-app window; display name and email pre-filled from the account; option "open in browser" instead.</li>
+      <li>Desktop app: grant camera/mic/screen-share permissions to the Jitsi origin only.</li>
+    </ul>
+    <p><b>Security</b></p>
+    <ul>
+      <li>Short term: unguessable names + Jitsi lobby enabled by the organiser (moderator) for external meetings.</li>
+      <li>Recommended: enable JWT auth on the Jitsi server (<code>ENABLE_AUTH=1</code>, <code>AUTH_TYPE=jwt</code>). The Mailr backend then signs short-lived tokens for internal users (moderator rights); guests join through the lobby. Spec the token claims once the server change is agreed.</li>
+      <li>Optional: end-to-end encryption toggle for small internal calls.</li>
+    </ul>
+
+    <h3 id="spec-nonfunctional">Contacts, security, non-functional</h3>
+    <p><b>Contacts</b>: CardDAV address book on the same server as the calendar; personal + shared company address book. Auto-collect recipients into a "Collected" book. Optional read-only sync of Odoo <code>res.partner</code> into the shared book (one-way, nightly).</p>
+    <p><b>Security</b></p>
+    <ul>
+      <li>TLS everywhere; reject plain IMAP/SMTP. Certificate pinning not required.</li>
+      <li>Credentials: stored in OS keychain (desktop) or encrypted server-side session (web); never in localStorage.</li>
+      <li>2FA: web login supports TOTP; IMAP/SMTP use per-device app passwords if the server supports them.</li>
+      <li>HTML mail rendered in a sandboxed iframe with strict CSP; attachments never auto-opened.</li>
+      <li>GDPR: data stays on our servers (mail, CalDAV, Jitsi, backend all self-hosted, EU); no third-party telemetry; logs keep no message content, 30-day retention.</li>
+    </ul>
+    <p><b>Non-functional</b></p>
+    <div class="scroll"><table>
+      <thead><tr><th>Requirement</th><th>Target</th></tr></thead>
+      <tbody>
+        <tr><td>Inbox open (cached)</td><td>&lt; 1 s</td></tr>
+        <tr><td>New mail shown after arrival (IDLE)</td><td>&lt; 5 s</td></tr>
+        <tr><td>Mailbox size supported</td><td>100,000 messages / 20 GB per account</td></tr>
+        <tr><td>Search result (server)</td><td>&lt; 3 s on 100k messages</td></tr>
+        <tr><td>Browsers</td><td>Current Chrome, Edge, Firefox, Safari</td></tr>
+        <tr><td>Desktop</td><td>Windows 10+, macOS 13+, Ubuntu 22.04+</td></tr>
+        <tr><td>Accessibility</td><td>Full keyboard navigation (Outlook-like shortcuts optional), WCAG 2.1 AA</td></tr>
+        <tr><td>Languages</td><td>German, English</td></tr>
+        <tr><td>Availability (backend)</td><td>99.5 % in business hours</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="spec-milestones">Milestones, acceptance, open questions</h3>
+    <p>Four phases, ~14 weeks for 2 developers (estimate; confirm after open questions).</p>
+    <ol>
+      <li><b>M1 Mail core (wk 1–5)</b>: account setup via autoconfig, sync, read, compose, send, folders, search, offline cache. Pilot with 3 users.</li>
+      <li><b>M2 Calendar (wk 6–9)</b>: CalDAV server live, views, events, recurrence, iTIP invites, invite cards in mail, <code>.ics</code> import.</li>
+      <li><b>M3 Video + contacts (wk 10–11)</b>: Jitsi links in events, Meet now, embedded call, reminders with Join; CardDAV contacts, autocomplete.</li>
+      <li><b>M4 Rollout (wk 12–14)</b>: desktop builds, Sieve/out-of-office, shared calendars, free/busy; migrate all users, Outlook switched off.</li>
+    </ol>
+    <p><b>Acceptance criteria</b></p>
+    <ul class="checks">
+      <li>New user is set up with email + password only, in &lt; 2 min.</li>
+      <li>Mail sent from Mailr arrives with correct headers at Gmail and Outlook.com (not spam).</li>
+      <li>Invite sent from Mailr is accepted in Outlook and Google Calendar; the reply updates the attendee status in Mailr.</li>
+      <li>Invite from Outlook is shown as invite card in Mailr; Accept puts it in the calendar.</li>
+      <li>Every meeting with attendees carries a working vid.rocket.re-cloud.io link that external recipients see in their own client.</li>
+      <li>"Join" from reminder opens the call with camera/mic in ≤ 2 clicks.</li>
+      <li>Pilot users run 2 weeks without Outlook.</li>
+    </ul>
+    <p><b>Open questions</b></p>
+    <ul>
+      <li>Which IMAP/SMTP server do we run (Dovecot/Postfix, Mailcow, Stalwart, other)? Does it ship CalDAV/CardDAV (e.g. SOGo in Mailcow, Stalwart's built-in)?</li>
+      <li>Where do existing Outlook calendars live (Exchange, local PST)? Defines the migration path.</li>
+      <li>Will the Jitsi server get JWT auth, and who administers it?</li>
+      <li>Build vs. adopt: SOGo, Roundcube + plugins or Thunderbird cover most of this spec today. Is a custom client required (branding, Odoo integration), or would configuring one of these be enough?</li>
+      <li>Web-only first, or desktop app needed from day one?</li>
+    </ul>
+  </article>
+</section>

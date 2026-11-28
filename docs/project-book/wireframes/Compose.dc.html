@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: compose</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button,input,textarea{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; box-sizing: border-box; background: rgba(10,10,10,0.32); padding: 40px 24px; display: flex; justify-content: center; align-items: flex-start; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+  <div role="dialog" aria-label="New message" style="width: 100%; max-width: 860px; background: #ffffff; box-shadow: 0 16px 48px rgba(0,0,0,0.18); display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #e2e2e2; flex-wrap: wrap;">
+      <a href="Main.dc.html" style="padding: 7px 10px; color: #0a0a0a; text-decoration: none; border: 1px solid #e2e2e2;">Cancel</a>
+      <strong style="flex: 1; text-align: center; font-size: 15px;">Re: Angebot Wärmepumpe</strong>
+      <button type="button" aria-label="Attach file" style="width: 36px; height: 36px; border: 1px solid #e2e2e2; background: #ffffff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7"/></svg></button>
+      <button type="button" onClick="{{ addVideo }}" style="height: 36px; padding: 0 12px; border: 1px solid #e2e2e2; background: #ffffff; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg>Add video link</button>
+      <a href="Main.dc.html" style="height: 36px; padding: 0 16px; background: #2b3bff; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-8-8 18-2-8z"/></svg>Send</a>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #e2e2e2; flex-wrap: wrap;">
+      <label for="to" style="width: 56px; color: #5c5c5c;">To</label>
+      <span style="display: inline-flex; align-items: center; gap: 6px; background: #f4f4f2; padding: 4px 8px;">Jürgen Schott <span style="color: #5c5c5c; font-size: 12px;">j.schott@schott-haustechnik.de</span></span>
+      <input id="to" value="bri" style="flex: 1 1 120px; border: none; outline: none; font-size: 14px; padding: 4px 0;">
+      <a href="#" style="font-size: 13px; color: #3d3d3d;">Cc / Bcc</a>
+    </div>
+    <div role="listbox" aria-label="Suggestions" style="margin: 0 16px 0 82px; border: 1px solid #a3a3a3; border-top: none; display: flex; flex-direction: column; max-width: 420px;">
+      <span role="option" aria-selected="true" style="padding: 8px 10px; background: #e6e8ff;"><strong>Brandt Logistik</strong> <span style="color: #3d3d3d; font-size: 13px;">dispo@brandt-logistik.de</span></span>
+      <span role="option" aria-selected="false" style="padding: 8px 10px;"><strong>Britta Lang</strong> <span style="color: #5c5c5c; font-size: 13px;">b.lang@slyy.ai</span></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #e2e2e2;">
+      <label for="subject" style="width: 56px; color: #5c5c5c;">Subject</label>
+      <input id="subject" value="Re: Angebot Wärmepumpe" style="flex: 1; border: none; outline: none; font-size: 14px; padding: 4px 0;">
+    </div>
+
+    <div style="display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #e2e2e2; flex-wrap: wrap;">
+      <span style="display: inline-flex; gap: 6px; align-items: center; padding: 5px 10px; background: #f4f4f2; font-size: 13px;"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/></svg>Angebot-2026-118.pdf · 212 KB<button type="button" aria-label="Remove attachment" style="border: none; background: none; padding: 0 2px; cursor: pointer; color: #3d3d3d;">×</button></span>
+      <span style="font-size: 12px; color: #5c5c5c; align-self: center;">Drop files anywhere to attach</span>
+    </div>
+
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 360px; line-height: 1.55;">
+      <sc-if value="{{ hasVideo }}" hint-placeholder-val="{{ true }}">
+        <div style="border: 1px solid #2b3bff; background: #e6e8ff; padding: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2b3bff" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg>
+          <span style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column;"><strong>Join video call / Videokonferenz beitreten</strong><span style="font-family: 'Martian Mono', monospace; font-size: 12px; color: #3d3d3d; overflow-wrap: anywhere;">https://vid.rocket.re-cloud.io/slyy-p3w8kx2m9qtz7ghd4fna</span></span>
+          <button type="button" onClick="{{ removeVideo }}" style="height: 32px; padding: 0 10px; border: 1px solid #a3a3a3; background: #ffffff; cursor: pointer;">Remove</button>
+        </div>
+      </sc-if>
+      <p style="margin: 0;">Hallo Herr Schott,</p>
+      <p style="margin: 0;">anbei das überarbeitete Angebot. Wollen wir die Details morgen kurz per Video besprechen?</p>
+      <p style="margin: 0; color: #5c5c5c; white-space: pre-line;">--
+Anna Weber · Slyy</p>
+      <blockquote style="margin: 8px 0 0; padding-left: 12px; border-left: 2px solid #e2e2e2; color: #5c5c5c;">On 25 Nov 2026, Jürgen Schott wrote:<br>Können Sie das Angebot um die Montage ergänzen?</blockquote>
+    </div>
+    <div style="padding: 8px 16px; border-top: 1px solid #e2e2e2; font-size: 12px; color: #5c5c5c; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <span>Draft saved to Drafts · 09:52</span>
+      <span>Sent from anna@slyy.ai via smtp.slyy.ai · TLS</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { video: true }; }
+  renderVals() {
+    return {
+      hasVideo: this.state.video,
+      addVideo: () => this.setState({ video: true }),
+      removeVideo: () => this.setState({ video: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

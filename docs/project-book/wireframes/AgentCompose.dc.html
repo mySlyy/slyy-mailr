@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: Haven in the writer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button,input,textarea{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; box-sizing: border-box; background: rgba(10,10,10,0.32); padding: 32px 24px; display: flex; justify-content: center; align-items: flex-start; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+  <div role="dialog" aria-label="Reply to Jürgen Schott" style="width: 100%; max-width: 860px; background: #ffffff; box-shadow: 0 16px 48px rgba(0,0,0,0.18); display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #e2e2e2; flex-wrap: wrap;">
+      <a href="Main.dc.html" style="padding: 7px 10px; color: #0a0a0a; text-decoration: none; border: 1px solid #e2e2e2;">Cancel</a>
+      <strong style="flex: 1; text-align: center; font-size: 15px;">Re: Angebot Wärmepumpe</strong>
+      <button type="button" aria-label="Attach file" style="width: 36px; height: 36px; border: 1px solid #e2e2e2; background: #ffffff; display: inline-flex; align-items: center; justify-content: center;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7"/></svg></button>
+      <a href="Main.dc.html" style="height: 36px; padding: 0 16px; background: #2b3bff; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l18-8-8 18-2-8z"/></svg>Send</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #e2e2e2;">
+      <span style="width: 56px; color: #5c5c5c;">To</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; background: #f4f4f2; padding: 4px 8px;">Jürgen Schott <span style="color: #5c5c5c; font-size: 12px;">j.schott@schott-haustechnik.de</span></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #e2e2e2;">
+      <span style="width: 56px; color: #5c5c5c;">Subject</span>
+      <span>Re: Angebot Wärmepumpe</span>
+    </div>
+
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 230px; line-height: 1.55;">
+      <sc-if value="{{ inserted }}" hint-placeholder-val="{{ false }}">
+        <p style="margin: 0; color: #2b3bff;">Guten Tag Herr Schott,</p>
+        <p style="margin: 0; color: #2b3bff;">gerne ergänzen wir die Montage: Einbau der Wärmepumpe WP-12 inklusive Hydraulik und Inbetriebnahme, 2 Tage vor Ort, 2.480 € netto. Das aktualisierte Angebot SO-2026-118 erhalten Sie bis Freitag.</p>
+        <p style="margin: 0; color: #2b3bff;">Passt Ihnen Dienstag, 10:00 Uhr, für eine kurze Abstimmung per Video?</p>
+      </sc-if>
+      <sc-if value="{{ notInserted }}" hint-placeholder-val="{{ true }}">
+        <p style="margin: 0; color: #2b3bff;">Hallo Herr Schott, Montage geht klar, Angebot kommt</p>
+      </sc-if>
+      <p style="margin: 0; color: #5c5c5c; white-space: pre-line;">--
+Anna Weber · Slyy</p>
+      <blockquote style="margin: 4px 0 0; padding-left: 12px; border-left: 2px solid #e2e2e2; color: #5c5c5c;">On 25 Nov 2026, Jürgen Schott wrote:<br>Können Sie das Angebot um die Montage ergänzen?</blockquote>
+    </div>
+
+    <sc-if value="{{ hasResult }}" hint-placeholder-val="{{ true }}">
+      <section aria-label="Haven result" style="border-top: 1px solid #e2e2e2; background: #f4f4f2; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: 'Martian Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: #2b3bff;">HAVEN</span>
+          <span style="font-size: 12px; color: #3d3d3d;">{{ resultTitle }}</span>
+          <span style="flex: 1;"></span>
+          <button type="button" onClick="{{ close }}" aria-label="Close result" style="border: none; background: none; cursor: pointer; color: #5c5c5c; font-size: 16px; line-height: 1;">×</button>
+        </div>
+        <ol aria-label="What Haven did" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-family: 'Martian Mono', monospace; font-size: 11px; color: #3d3d3d;">
+          <li>✓ mail · read this thread (3 mails)</li>
+          <li>✓ odoo · read quotation SO-2026-118 and price list Montage</li>
+          <li>✓ calendar · free slots next week: Tue 10:00, Wed 14:00</li>
+        </ol>
+        <div style="background: #ffffff; border: 1px solid #e2e2e2; padding: 12px; display: flex; flex-direction: column; gap: 8px; line-height: 1.5;">
+          <span style="color: #2b3bff;">Guten Tag Herr Schott, gerne ergänzen wir die Montage: Einbau der Wärmepumpe WP-12 inklusive Hydraulik und Inbetriebnahme, 2 Tage vor Ort, 2.480 € netto. Das aktualisierte Angebot SO-2026-118 erhalten Sie bis Freitag. Passt Ihnen Dienstag, 10:00 Uhr, …</span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <button type="button" onClick="{{ insert }}" style="height: 32px; padding: 0 14px; background: #2b3bff; color: #ffffff; border: none; font-weight: 600; cursor: pointer;">Replace my text</button>
+            <button type="button" onClick="{{ insert }}" style="height: 32px; padding: 0 12px; background: #ffffff; border: 1px solid #a3a3a3; cursor: pointer;">Insert below</button>
+            <button type="button" onClick="{{ close }}" style="height: 32px; padding: 0 12px; background: #ffffff; border: 1px solid #e2e2e2; cursor: pointer;">Discard</button>
+            <span style="flex: 1;"></span>
+            <span style="font-size: 12px; color: #5c5c5c;">Sources: 3 mails · Odoo SO-2026-118 (read only)</span>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <div style="border-top: 1px solid #2b3bff; padding: 10px 16px; display: flex; flex-direction: column; gap: 8px;">
+      <div role="group" aria-label="Quick actions" style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <button type="button" onClick="{{ pickDraft }}" style="{{ chipDraft }}">Write the reply</button>
+        <button type="button" onClick="{{ pickDraft }}" style="{{ chipIdle }}">Shorten</button>
+        <button type="button" onClick="{{ pickDraft }}" style="{{ chipIdle }}">More formal</button>
+        <button type="button" onClick="{{ pickDraft }}" style="{{ chipIdle }}">Translate to English</button>
+        <button type="button" onClick="{{ pickDraft }}" style="{{ chipIdle }}">Add facts from Odoo</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff;"></span>
+        <label for="ask" style="position: absolute; left: -9999px;">Ask Haven</label>
+        <input id="ask" value="{{ prompt }}" placeholder="Ask Haven to write, shorten, translate, look something up…" style="flex: 1; border: none; outline: none; font-size: 13px; padding: 6px 0; color: #0a0a0a;">
+        <span style="font-family: 'Martian Mono', monospace; font-size: 10px; color: #a3a3a3;">⌘J</span>
+        <button type="button" onClick="{{ pickDraft }}" aria-label="Send to Haven" style="width: 32px; height: 32px; border: 1px solid #2b3bff; background: #ffffff; color: #2b3bff; cursor: pointer;">↑</button>
+      </div>
+    </div>
+
+    <div style="padding: 8px 16px; border-top: 1px solid #e2e2e2; font-size: 12px; color: #5c5c5c; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <span>Draft saved · 09:52</span>
+      <span>Haven reads only what you allow · writes always ask first</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { result: true, inserted: false }; }
+  renderVals() {
+    const chip = 'height: 30px; padding: 0 10px; font-size: 13px; cursor: pointer; ';
+    const on = chip + 'background: #e6e8ff; border: 1px solid #2b3bff; color: #0a0a0a;';
+    const off = chip + 'background: #ffffff; border: 1px solid #e2e2e2; color: #0a0a0a;';
+    return {
+      hasResult: this.state.result,
+      inserted: this.state.inserted,
+      notInserted: !this.state.inserted,
+      resultTitle: 'Reply drafted from the thread, the quotation in Odoo and your calendar',
+      prompt: this.state.result ? 'Write the reply: Montage yes, price from Odoo, propose a call next week' : '',
+      chipDraft: this.state.result ? on : off,
+      chipIdle: off,
+      pickDraft: () => this.setState({ result: true, inserted: false }),
+      insert: () => this.setState({ result: false, inserted: true }),
+      close: () => this.setState({ result: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

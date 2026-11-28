@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr mobile inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 15px; overflow: hidden;">
+  <header style="display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 8px;">
+    <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; letter-spacing: -0.025em;"><span style="width: 14px; height: 14px; border-radius: 50%; background: #2b3bff; display: inline-block;"></span>Inbox</span>
+    <span style="display: flex; gap: 6px;">
+      <a href="#" aria-label="Meet now" style="width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e2e2e2; color: #0a0a0a;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg></a>
+      <a href="#" aria-label="New message" style="width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: #0a0a0a; color: #ffffff;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></a>
+    </span>
+  </header>
+  <label for="msearch" style="position: absolute; left: -9999px;">Search mail</label>
+  <input id="msearch" placeholder="Search" style="margin: 4px 18px 10px; border: 1px solid #a3a3a3; padding: 10px; font-size: 15px; font-family: inherit;">
+
+  <a href="MobileCalendar.dc.html" style="margin: 0 18px 12px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #e6e8ff; color: #0a0a0a; text-decoration: none;">
+    <span style="flex: 1; display: flex; flex-direction: column;"><span style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #3d3d3d;">Next · in 18 min</span><strong>Kundentermin Schott, 14:00</strong></span>
+    <span style="font-size: 13px; background: #2b3bff; color: #ffffff; padding: 6px 10px;">Join</span>
+  </a>
+
+  <nav aria-label="Messages" style="flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; border-top: 1px solid #e2e2e2;">
+    <a href="MobileMessage.dc.html" style="display: flex; gap: 10px; padding: 12px 18px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff; margin-top: 7px; flex: none;"></span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><strong>Heiko Meier</strong><span style="font-size: 12px; color: #5c5c5c;">09:41</span></span><span style="display: flex; gap: 6px; align-items: center;"><span style="font-family: 'Martian Mono', monospace; font-size: 10px; background: #2b3bff; color: #ffffff; padding: 1px 5px;">INVITE</span>ERP Wochenfazit</span></span></a>
+    <a href="#" style="display: flex; gap: 10px; padding: 12px 18px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff; margin-top: 7px; flex: none;"></span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><strong>Brandt Logistik</strong><span style="font-size: 12px; color: #5c5c5c;">08:15</span></span><span style="font-weight: 600;">Lieferavis KW 49</span><span style="font-size: 13px; color: #5c5c5c;">avis-kw49.pdf</span></span></a>
+    <a href="#" style="display: flex; gap: 10px; padding: 12px 18px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span aria-hidden="true" style="width: 8px; flex: none;"></span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><span>Jürgen Schott</span><span style="font-size: 12px; color: #5c5c5c;">Yesterday</span></span><span style="color: #3d3d3d;">Re: Angebot Wärmepumpe</span></span></a>
+    <div style="display: flex; border-bottom: 1px solid #e2e2e2;">
+      <a href="#" style="flex: 1; min-width: 0; display: flex; gap: 10px; padding: 12px 18px; color: #0a0a0a; text-decoration: none; transform: translateX(-140px); min-width: 390px;"><span aria-hidden="true" style="width: 8px; flex: none;"></span><span style="display: flex; flex-direction: column; gap: 2px;"><span>Bob Krause</span><span style="color: #3d3d3d;">Accepted: Planung Q1</span></span></a>
+      <span style="display: flex; margin-left: -140px;"><span style="width: 70px; display: flex; align-items: center; justify-content: center; background: #3d3d3d; color: #ffffff; font-size: 12px;">Archive</span><span style="width: 70px; display: flex; align-items: center; justify-content: center; background: #b42318; color: #ffffff; font-size: 12px;">Delete</span></span>
+    </div>
+    <a href="#" style="display: flex; gap: 10px; padding: 12px 18px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span aria-hidden="true" style="width: 8px; flex: none;"></span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><span>Finanzamt Bayreuth</span><span style="font-size: 12px; color: #5c5c5c;">24.11.</span></span><span style="color: #3d3d3d;">Bescheid über Umsatzsteuer</span></span></a>
+  </nav>
+
+  <nav aria-label="Main" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #e2e2e2; padding: 6px 4px 22px; font-size: 11px;">
+    <a href="MobileInbox.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; color: #2b3bff; text-decoration: none; font-weight: 600; position: relative;"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></svg>Mail<span style="position: absolute; top: 2px; right: 30%; background: #2b3bff; color: #ffffff; font-size: 10px; padding: 0 5px; border-radius: 999px;">12</span></a>
+    <a href="MobileCalendar.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; color: #3d3d3d; text-decoration: none;"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Calendar</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; color: #3d3d3d; text-decoration: none;"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

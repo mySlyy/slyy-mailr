@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr mobile message with invite</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 15px; overflow: hidden;">
+  <header style="display: flex; align-items: center; gap: 8px; padding: 14px 10px 8px; border-bottom: 1px solid #e2e2e2;">
+    <a href="MobileInbox.dc.html" style="height: 44px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; color: #2b3bff; text-decoration: none;"><span aria-hidden="true" style="font-size: 22px;">‹</span>Inbox</a>
+    <span style="flex: 1;"></span>
+    <button type="button" aria-label="Archive" style="width: 44px; height: 44px; border: none; background: none;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/></svg></button>
+    <button type="button" aria-label="Delete" style="width: 44px; height: 44px; border: none; background: none;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
+  </header>
+
+  <div style="flex: 1 1 auto; overflow: hidden; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h1 style="margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -0.01em;">Invitation: ERP Wochenfazit</h1>
+      <span><strong>Heiko Meier</strong> <span style="font-size: 13px; color: #5c5c5c;">· 09:41</span></span>
+      <span style="font-size: 13px; color: #5c5c5c;">To you, Jürgen Schott</span>
+    </div>
+
+    <section aria-label="Invitation" style="border: 1px solid #0a0a0a; display: flex; flex-direction: column;">
+      <div style="padding: 14px; display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #2b3bff; font-weight: 600;">Fri 27 Nov · 10:00 – 10:30</span>
+        <strong style="font-size: 17px;">ERP Wochenfazit</strong>
+        <span style="font-size: 13px; color: #3d3d3d;">Every Friday · organizer Heiko Meier</span>
+      </div>
+      <a href="MobileReminder.dc.html" style="margin: 0 14px 14px; height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #2b3bff; color: #ffffff; text-decoration: none; font-weight: 600;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg>Join video call</a>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #e2e2e2;">
+        <button type="button" onClick="{{ accept }}" style="{{ s1 }}">Accept</button>
+        <button type="button" onClick="{{ maybe }}" style="{{ s2 }}">Maybe</button>
+        <button type="button" onClick="{{ decline }}" style="{{ s3 }}">Decline</button>
+      </div>
+    </section>
+    <span style="font-size: 13px; color: #3d3d3d;">{{ status }}</span>
+
+    <div style="line-height: 1.55; display: flex; flex-direction: column; gap: 10px;">
+      <p style="margin: 0;">Hallo zusammen,</p>
+      <p style="margin: 0;">wie jede Woche: 20 Minuten Status zu Angeboten, Lager und offenen Rechnungen.</p>
+    </div>
+    <a href="#" style="align-self: flex-start; display: inline-flex; gap: 6px; align-items: center; padding: 8px 10px; background: #f4f4f2; color: #0a0a0a; text-decoration: none; font-size: 13px;">Agenda-KW48.pdf · 84 KB</a>
+  </div>
+
+  <nav aria-label="Reply" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px 18px 24px; border-top: 1px solid #e2e2e2;">
+    <a href="#" style="height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #a3a3a3; color: #0a0a0a; text-decoration: none;">Reply</a>
+    <a href="#" style="height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #a3a3a3; color: #0a0a0a; text-decoration: none;">Reply all</a>
+    <a href="#" style="height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #a3a3a3; color: #0a0a0a; text-decoration: none;">Forward</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { a: null }; }
+  renderVals() {
+    const a = this.state.a;
+    const base = 'height: 48px; border: none; border-right: 1px solid #e2e2e2; cursor: pointer; font-size: 15px; ';
+    const st = (k) => base + (a === k ? 'background: #0a0a0a; color: #ffffff;' : 'background: #ffffff; color: #0a0a0a;');
+    const msg = { accepted: 'Accepted · Heiko gets your reply; the event is in your calendar.', tentative: 'Maybe · reply sent.', declined: 'Declined · reply sent.' };
+    return {
+      accept: () => this.setState({ a: 'accepted' }),
+      maybe: () => this.setState({ a: 'tentative' }),
+      decline: () => this.setState({ a: 'declined' }),
+      s1: st('accepted'), s2: st('tentative'), s3: st('declined'),
+      status: a ? msg[a] : 'Not answered yet'
+    };
+  }
+}
+</script>
+</body>
+</html>

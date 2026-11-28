@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr reminder with Join</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#ffffff}a:hover{color:#e6e8ff}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 120px 12px 40px; background: #1c1f3a; color: #ffffff; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 15px; overflow: hidden;">
+  <div style="text-align: center; display: flex; flex-direction: column; gap: 2px; margin-bottom: 40px;">
+    <span style="font-size: 16px; color: #c7ccff;">Thursday 26 November</span>
+    <span style="font-size: 76px; font-weight: 300; letter-spacing: -0.03em; line-height: 1;">13:50</span>
+  </div>
+
+  <section aria-label="Notification" style="background: rgba(255,255,255,0.92); color: #0a0a0a; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
+    <span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #3d3d3d;"><span style="width: 18px; height: 18px; background: #2b3bff; display: inline-flex; align-items: center; justify-content: center;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #ffffff;"></span></span>SLYY MAILR <span style="margin-left: auto;">now</span></span>
+    <strong>Kundentermin Schott</strong>
+    <span style="font-size: 14px; color: #3d3d3d;">14:00 · in 10 minutes · video call</span>
+  </section>
+  <div style="display: flex; flex-direction: column; gap: 1px; background: rgba(255,255,255,0.25);">
+    <a href="#" style="height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #2b3bff; text-decoration: none; font-weight: 600;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg>Join video call</a>
+  </div>
+  <p style="margin: 6px 4px 0; font-size: 13px; line-height: 1.45; color: #c7ccff;">Long-press the reminder for "Join video call". It opens the call in the app with your name already filled in. Reminders cover the next 7 days and follow each event's own alarm.</p>
+
+  <span style="flex: 1;"></span>
+  <section aria-label="Second notification, mail" style="background: rgba(255,255,255,0.85); color: #0a0a0a; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px;">
+    <span style="display: flex; gap: 8px; font-size: 12px; color: #3d3d3d;">SLYY MAILR <span style="margin-left: auto;">2 min ago</span></span>
+    <strong>Bob Krause</strong>
+    <span style="font-size: 14px; color: #3d3d3d;">Accepted: Planung Q1</span>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

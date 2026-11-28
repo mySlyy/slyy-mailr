@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: new meeting</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button,input,select,textarea{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; box-sizing: border-box; background: rgba(10,10,10,0.32); padding: 32px 24px; display: flex; justify-content: center; align-items: flex-start; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+  <form role="dialog" aria-label="New meeting" style="width: 100%; max-width: 640px; background: #ffffff; box-shadow: 0 16px 48px rgba(0,0,0,0.18); display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2;">
+      <a href="Calendar.dc.html" style="padding: 7px 10px; border: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">Cancel</a>
+      <strong style="flex: 1; text-align: center; font-size: 15px;">New meeting</strong>
+      <a href="Calendar.dc.html" style="height: 36px; padding: 0 16px; background: #2b3bff; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; font-weight: 600;">{{ saveLabel }}</a>
+    </div>
+
+    <div style="padding: 20px; display: flex; flex-direction: column; gap: 18px;">
+      <label for="title" style="position: absolute; left: -9999px;">Title</label>
+      <input id="title" value="Abstimmung Angebot Schott" style="border: none; border-bottom: 1px solid #a3a3a3; padding: 6px 0; font-size: 22px; font-weight: 600; outline: none;">
+
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; align-items: end;">
+        <label for="d" style="grid-column: span 2; font-size: 13px; color: #3d3d3d;">Date</label>
+        <label for="s" style="font-size: 13px; color: #3d3d3d;">Starts</label>
+        <label for="e" style="font-size: 13px; color: #3d3d3d;">Ends</label>
+        <input id="d" value="Fri, 27 Nov 2026" style="grid-column: span 2; border: 1px solid #a3a3a3; padding: 9px;">
+        <input id="s" value="14:00" style="border: 1px solid #a3a3a3; padding: 9px;">
+        <input id="e" value="14:30" style="border: 1px solid #a3a3a3; padding: 9px;">
+        <label style="grid-column: span 2; display: flex; gap: 8px; align-items: center;"><input type="checkbox" style="accent-color: #2b3bff;">All day</label>
+        <span style="grid-column: span 2; font-size: 12px; color: #5c5c5c; text-align: right;">Europe/Berlin</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label for="rep" style="font-size: 13px; color: #3d3d3d;">Repeat</label><select id="rep" style="border: 1px solid #a3a3a3; padding: 9px; background: #ffffff;"><option>Never</option><option>Every day</option><option>Every week</option><option>Every month</option><option>Every year</option></select></div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label for="rem" style="font-size: 13px; color: #3d3d3d;">Reminder</label><select id="rem" style="border: 1px solid #a3a3a3; padding: 9px; background: #ffffff;"><option>10 minutes before</option><option>None</option><option>At start</option><option>15 minutes before</option><option>1 day before</option></select></div>
+      </div>
+
+      <section aria-label="Video call" style="border: 1px solid #e2e2e2; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2b3bff" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg>
+          <span style="flex: 1; display: flex; flex-direction: column;"><strong>Video call</strong><span style="font-size: 12px; color: #5c5c5c;">On for meetings with people; a new private room each time</span></span>
+          <button type="button" role="switch" aria-checked="{{ videoAria }}" aria-label="Add video call" onClick="{{ toggleVideo }}" style="{{ switchStyle }}"><span style="{{ knobStyle }}"></span></button>
+        </div>
+        <sc-if value="{{ video }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; gap: 8px; align-items: center; background: #f4f4f2; padding: 8px 10px;">
+            <span style="flex: 1; min-width: 0; font-family: 'Martian Mono', monospace; font-size: 12px; overflow-wrap: anywhere;">https://vid.rocket.re-cloud.io/slyy-r4t9mw2kq8zx7bnhc3pe</span>
+            <button type="button" style="height: 30px; padding: 0 10px; border: 1px solid #a3a3a3; background: #ffffff;">Copy link</button>
+          </div>
+          <span style="font-size: 12px; color: #5c5c5c;">Goes into location, description and the Outlook "Join" field, so every guest sees it.</span>
+        </sc-if>
+      </section>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="people" style="font-size: 13px; color: #3d3d3d;">People</label>
+        <div style="border: 1px solid #a3a3a3; padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+          <span style="background: #f4f4f2; padding: 4px 8px;">Jürgen Schott</span>
+          <span style="background: #f4f4f2; padding: 4px 8px;">Heiko Meier</span>
+          <input id="people" placeholder="Add email" style="flex: 1 1 120px; border: none; outline: none; padding: 4px;">
+        </div>
+        <label style="display: flex; gap: 8px; align-items: center; font-size: 13px;"><input type="checkbox" checked style="accent-color: #2b3bff;">Send invitations (work in Outlook, Google and Apple Calendar)</label>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label for="loc" style="font-size: 13px; color: #3d3d3d;">Location</label><input id="loc" placeholder="Optional" style="border: 1px solid #a3a3a3; padding: 9px;"></div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label for="cal" style="font-size: 13px; color: #3d3d3d;">Calendar</label><select id="cal" style="border: 1px solid #a3a3a3; padding: 9px; background: #ffffff;"><option>Anna</option><option>Team Slyy</option></select></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><label for="notes" style="font-size: 13px; color: #3d3d3d;">Notes</label><textarea id="notes" rows="3" style="border: 1px solid #a3a3a3; padding: 9px; resize: vertical;">Montage-Option und Lieferzeit klären.</textarea></div>
+    </div>
+  </form>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { video: true }; }
+  renderVals() {
+    const on = this.state.video;
+    return {
+      video: on,
+      videoAria: on ? 'true' : 'false',
+      toggleVideo: () => this.setState({ video: !on }),
+      switchStyle: 'width: 48px; height: 28px; border: none; padding: 3px; cursor: pointer; display: flex; justify-content: ' + (on ? 'flex-end' : 'flex-start') + '; background: ' + (on ? '#2b3bff' : '#a3a3a3') + ';',
+      knobStyle: 'width: 22px; height: 22px; background: #ffffff; display: block;',
+      saveLabel: 'Send invitations'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+{
+ "checked": "2026-11-28, done the same day (commits 131b068..b886029)",
+ "items": [
+  {
+   "id": "C1",
+   "action": "done",
+   "module": "Library \u00b7 accounts and sign-in",
+   "summary": "OAuth sign-in flow unused by the app",
+   "files": "OAuth.swift, OAuthCallbackReceiver.swift",
+   "fix": "Keep for Microsoft sign-in, or remove now and restore from git later",
+   "lines": 360
+  },
+  {
+   "id": "C2",
+   "action": "done",
+   "module": "App \u00b7 model and support",
+   "summary": "Test fixture AppModel.sample() ships in the app",
+   "files": "AppModel.swift",
+   "fix": "Move to App/Tests",
+   "lines": 100
+  },
+  {
+   "id": "C3",
+   "action": "done",
+   "module": "App \u00b7 model and support",
+   "summary": "Cleanup of the pre-rename app and Intel DMGs",
+   "files": "InstallerCleanup.swift",
+   "fix": "Remove once 0.2.x installs are gone; drops two file-access exceptions",
+   "lines": 80
+  },
+  {
+   "id": "C4",
+   "action": "done",
+   "module": "Library \u00b7 mail protocols",
+   "summary": "probe() repeats connect()'s opening steps",
+   "files": "IMAPClient.swift",
+   "fix": "One private openSession()",
+   "lines": 10
+  },
+  {
+   "id": "C5",
+   "action": "done",
+   "module": "App \u00b7 views",
+   "summary": "Two button styles identical except colours; unused shortcut",
+   "files": "Theme.swift",
+   "fix": "One filled style taking colours",
+   "lines": 15
+  },
+  {
+   "id": "C6",
+   "action": "done",
+   "module": "App \u00b7 views",
+   "summary": "Header-bar padding repeated in three views",
+   "files": "CalendarView.swift, MessageDetailView.swift, MessageListView.swift",
+   "fix": "Shared view modifier",
+   "lines": 15
+  },
+  {
+   "id": "C7",
+   "action": "done",
+   "module": "App \u00b7 views",
+   "summary": "Calendar on/off list repeated",
+   "files": "SidebarView.swift, AccountViews.swift",
+   "fix": "One CalendarToggle view",
+   "lines": 10
+  },
+  {
+   "id": "C8",
+   "action": "done",
+   "module": "App \u00b7 model and support",
+   "summary": "Keychain query built three times",
+   "files": "Keychain.swift",
+   "fix": "baseQuery(account)",
+   "lines": 8
+  },
+  {
+   "id": "C9",
+   "action": "done",
+   "module": "App \u00b7 views",
+   "summary": "Event form rows repeat the same layout",
+   "files": "EventViews.swift",
+   "fix": "FieldRow helper",
+   "lines": 15
+  },
+  {
+   "id": "C10",
+   "action": "done",
+   "module": "Library and app",
+   "summary": "Unused or test-only functions: openAttachment, requestGrants, needsAppPassword, rawMessage",
+   "files": "MessageDetailView.swift, HavenClient.swift, KnownProviders.swift, MailService.swift",
+   "fix": "Remove; wire needsAppPassword into the app-password guide",
+   "lines": 25
+  },
+  {
+   "id": "C11",
+   "action": "done",
+   "module": "Library tests",
+   "summary": "OAuth tests still named after Yahoo",
+   "files": "OAuthTests.swift",
+   "fix": "Neutral example provider",
+   "lines": 0
+  }
+ ]
+}

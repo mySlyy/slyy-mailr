@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: video call</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#aeb6ff}a:hover{color:#ffffff}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; display: flex; flex-direction: column; background: #0a0a0a; color: #ffffff; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+  <header style="display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #2a2a2a; flex-wrap: wrap;">
+    <a href="Main.dc.html" style="height: 34px; padding: 0 14px; background: #d92d20; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 15c5-5 13-5 18 0l-2 3-4-2v-3a10 10 0 0 0-6 0v3l-4 2z"/></svg>Leave</a>
+    <strong style="flex: 1; min-width: 160px;">ERP Wochenfazit <span style="font-weight: 400; color: #a3a3a3;">· 10:04 · 4 people</span></strong>
+    <button type="button" onClick="{{ copy }}" style="height: 34px; padding: 0 12px; border: 1px solid #3d3d3d; background: transparent; color: #ffffff; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>{{ copyLabel }}</button>
+    <a href="https://vid.rocket.re-cloud.io" style="height: 34px; padding: 0 12px; border: 1px solid #3d3d3d; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center;">Open in browser</a>
+  </header>
+
+  <main style="flex: 1 1 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px;">
+    <div style="background: #1c1f3a; min-height: 300px; position: relative; display: flex; align-items: center; justify-content: center; outline: 3px solid #2b3bff; outline-offset: -3px;">
+      <span aria-hidden="true" style="width: 96px; height: 96px; border-radius: 50%; background: #2b3bff; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600;">HM</span>
+      <span style="position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,0.6); padding: 3px 8px; font-size: 13px;">Heiko Meier · speaking</span>
+    </div>
+    <div style="background: #1d1d1d; min-height: 300px; position: relative; display: flex; align-items: center; justify-content: center;">
+      <span aria-hidden="true" style="width: 96px; height: 96px; border-radius: 50%; background: #3d3d3d; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600;">JS</span>
+      <span style="position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,0.6); padding: 3px 8px; font-size: 13px;">Jürgen Schott · guest</span>
+    </div>
+    <div style="background: #1d1d1d; min-height: 300px; position: relative; display: flex; align-items: center; justify-content: center;">
+      <span aria-hidden="true" style="width: 96px; height: 96px; border-radius: 50%; background: #3d3d3d; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600;">BK</span>
+      <span style="position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,0.6); padding: 3px 8px; font-size: 13px;">Bob Krause · muted</span>
+    </div>
+    <div style="background: #1d1d1d; min-height: 300px; position: relative; display: flex; align-items: center; justify-content: center;">
+      <span aria-hidden="true" style="width: 96px; height: 96px; border-radius: 50%; background: #5c5c5c; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600;">AW</span>
+      <span style="position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,0.6); padding: 3px 8px; font-size: 13px;">You · camera {{ camState }}</span>
+    </div>
+  </main>
+
+  <footer style="display: flex; justify-content: center; gap: 10px; padding: 14px 16px 18px; flex-wrap: wrap;">
+    <button type="button" onClick="{{ toggleMic }}" aria-pressed="{{ micAria }}" style="{{ micStyle }}">{{ micLabel }}</button>
+    <button type="button" onClick="{{ toggleCam }}" aria-pressed="{{ camAria }}" style="{{ camStyle }}">{{ camLabel }}</button>
+    <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #3d3d3d; background: #1d1d1d; color: #ffffff; cursor: pointer;">Share screen</button>
+    <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #3d3d3d; background: #1d1d1d; color: #ffffff; cursor: pointer;">Chat</button>
+    <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #3d3d3d; background: #1d1d1d; color: #ffffff; cursor: pointer;">Lobby (1 waiting)</button>
+  </footer>
+  <p style="margin: 0 0 12px; text-align: center; font-size: 12px; color: #a3a3a3;">Jitsi Meet on vid.rocket.re-cloud.io, inside the app. Camera and microphone are allowed for this server only.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mic: true, cam: false, copied: false }; }
+  renderVals() {
+    const s = this.state;
+    const btn = (on) => 'height: 44px; padding: 0 16px; cursor: pointer; border: 1px solid ' + (on ? '#3d3d3d' : '#ffffff') + '; background: ' + (on ? '#1d1d1d' : '#ffffff') + '; color: ' + (on ? '#ffffff' : '#0a0a0a') + ';';
+    return {
+      toggleMic: () => this.setState({ mic: !s.mic }),
+      toggleCam: () => this.setState({ cam: !s.cam }),
+      copy: () => this.setState({ copied: true }),
+      copyLabel: s.copied ? 'Link copied' : 'Copy link',
+      micLabel: s.mic ? 'Mute' : 'Unmute',
+      camLabel: s.cam ? 'Stop camera' : 'Start camera',
+      micAria: s.mic ? 'false' : 'true',
+      camAria: s.cam ? 'false' : 'true',
+      micStyle: btn(s.mic),
+      camStyle: btn(s.cam),
+      camState: s.cam ? 'on' : 'off'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: ask across all mail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button,input{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; display: flex; flex-wrap: wrap; background: #ffffff; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+
+  <section aria-label="Search" style="flex: 1 1 360px; max-width: 420px; min-width: 0; border-right: 1px solid #e2e2e2; display: flex; flex-direction: column;">
+    <div style="padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid #e2e2e2;">
+      <h1 style="margin: 0; font-size: 20px; font-weight: 600;">All mail</h1>
+      <label for="q" style="position: absolute; left: -9999px;">Search or ask</label>
+      <input id="q" value="What did we agree with Schott about the Montage?" style="border: 1px solid #2b3bff; padding: 8px 10px; font-size: 14px;">
+      <button type="button" onClick="{{ ask }}" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #e2e2e2; background: #e6e8ff; text-align: left; cursor: pointer; font-size: 13px; color: #0a0a0a;">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff; flex: none;"></span>
+        <span style="flex: 1;">Ask Haven this question across your mail</span>
+        <span style="font-family: 'Martian Mono', monospace; font-size: 10px; color: #3d3d3d;">⌘↩</span>
+      </button>
+      <span style="font-size: 12px; color: #5c5c5c;">Enter searches as usual · Haven answers with sources</span>
+    </div>
+    <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5c5c5c; padding: 10px 16px 4px;">Mails Haven used</div>
+    <a href="AgentReader.dc.html" style="display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #2b3bff; width: 22px;">[1]</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="display: flex; justify-content: space-between;"><strong>Jürgen Schott</strong><span style="font-size: 12px; color: #5c5c5c;">today</span></span><span style="color: #3d3d3d;">Re: Angebot Wärmepumpe</span></span></a>
+    <a href="#" style="display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #2b3bff; width: 22px;">[2]</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="display: flex; justify-content: space-between;"><span>You → Schott</span><span style="font-size: 12px; color: #5c5c5c;">25 Nov</span></span><span style="color: #3d3d3d;">Angebot SO-2026-118</span></span></a>
+    <a href="#" style="display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #2b3bff; width: 22px;">[3]</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="display: flex; justify-content: space-between;"><span>Heiko Meier</span><span style="font-size: 12px; color: #5c5c5c;">12 Nov</span></span><span style="color: #3d3d3d;">Fwd: Montagepreise 2027</span></span></a>
+    <a href="#" style="display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #2b3bff; width: 22px;">[4]</span><span style="flex: 1; min-width: 0; display: flex; flex-direction: column;"><span style="display: flex; justify-content: space-between;"><span>Jürgen Schott</span><span style="font-size: 12px; color: #5c5c5c;">3 Oct</span></span><span style="color: #3d3d3d;">Anfrage Wärmepumpe Neubau Halle 2</span></span></a>
+  </section>
+
+  <main style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column;">
+    <sc-if value="{{ answered }}" hint-placeholder-val="{{ true }}">
+      <div style="padding: 20px 28px; display: flex; flex-direction: column; gap: 14px; line-height: 1.55; max-width: 720px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: 'Martian Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: #2b3bff;">HAVEN</span>
+          <span style="font-size: 12px; color: #5c5c5c;">answer from 4 mails and Odoo · 6 s</span>
+        </div>
+        <h2 style="margin: 0; font-size: 20px; font-weight: 600;">What did we agree with Schott about the Montage?</h2>
+        <p style="margin: 0;">Nothing is agreed yet. Schott first asked for the heat pump only <a href="#">[4]</a>; you sent quotation SO-2026-118 without installation <a href="#">[2]</a>. Today he asked to add the Montage and wants to install in January <a href="#">[1]</a>.</p>
+        <p style="margin: 0;">Heiko's 2027 price list puts a two-day WP-12 installation at 2.480 € net <a href="#">[3]</a>. Odoo has no installation line on the quotation yet.</p>
+        <div style="border: 1px solid #e2e2e2; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-family: 'Martian Mono', monospace; font-size: 11px; color: #3d3d3d;">
+          <span>✓ mail · searched “Schott Montage”, read 4 of 9 hits</span>
+          <span>✓ odoo · read quotation SO-2026-118 (no changes)</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="AgentCompose.dc.html" style="height: 36px; padding: 0 14px; background: #2b3bff; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; font-weight: 600;">Draft a follow-up to Schott</a>
+          <button type="button" style="height: 36px; padding: 0 12px; background: #ffffff; border: 1px solid #a3a3a3; cursor: pointer;">Open all 4 mails</button>
+          <button type="button" style="height: 36px; padding: 0 12px; background: #ffffff; border: 1px solid #a3a3a3; cursor: pointer;">Copy answer</button>
+        </div>
+        <span style="font-size: 12px; color: #5c5c5c;">Haven read these mails through Mailr on this Mac; nothing was changed. Ask a follow-up below.</span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ notAnswered }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #5c5c5c;">Press ⌘↩ to ask Haven, or Enter to search.</div>
+    </sc-if>
+    <span style="flex: 1;"></span>
+    <div style="border-top: 1px solid #2b3bff; padding: 10px 20px 12px; display: flex; align-items: center; gap: 10px;">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff;"></span>
+      <label for="follow" style="position: absolute; left: -9999px;">Follow-up question</label>
+      <input id="follow" placeholder="Follow up: and what did we offer Brandt for the same pump?" style="flex: 1; border: none; outline: none; font-size: 13px; padding: 6px 0;">
+      <button type="button" onClick="{{ reset }}" style="height: 30px; padding: 0 10px; background: #ffffff; border: 1px solid #e2e2e2; cursor: pointer; font-size: 13px;">New question</button>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { answered: true }; }
+  renderVals() {
+    return {
+      answered: this.state.answered,
+      notAnswered: !this.state.answered,
+      ask: () => this.setState({ answered: true }),
+      reset: () => this.setState({ answered: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

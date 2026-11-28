@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: add account</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button,input,select{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; box-sizing: border-box; background: #f9f9f7; padding: 48px 24px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+
+  <form style="flex: 1 1 420px; max-width: 460px; background: #ffffff; border: 1px solid #e2e2e2; padding: 28px; display: flex; flex-direction: column; gap: 16px;">
+    <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 22px; letter-spacing: -0.025em;"><span style="width: 16px; height: 16px; border-radius: 50%; background: #2b3bff; display: inline-block;"></span>slyy <span style="font-weight: 500; color: #5c5c5c;">mailr</span></span>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Add your account</h1>
+      <p style="margin: 0; color: #5c5c5c;">Mail, calendar and video calls on our own servers.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;"><label for="name" style="font-weight: 600;">Your name</label><input id="name" value="Anna Weber" style="border: 1px solid #a3a3a3; padding: 10px; font-size: 14px;"></div>
+    <div style="display: flex; flex-direction: column; gap: 6px;"><label for="email" style="font-weight: 600;">Email address</label><input id="email" value="anna@slyy.ai" style="border: 1px solid #a3a3a3; padding: 10px; font-size: 14px;"></div>
+    <div style="display: flex; flex-direction: column; gap: 6px;"><label for="pw" style="font-weight: 600;">Password</label><input id="pw" type="password" value="xxxxxxxxxx" style="border: 1px solid #a3a3a3; padding: 10px; font-size: 14px;"><span style="font-size: 12px; color: #5c5c5c;">Stored in the Keychain on this device only.</span></div>
+    <button type="button" style="height: 44px; background: #0a0a0a; color: #ffffff; border: none; font-size: 15px; font-weight: 600; cursor: pointer;">Sign in</button>
+    <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: #f4f4f2;">
+      <span style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5c5c5c;">Found automatically</span>
+      <span style="display: flex; justify-content: space-between;"><span>Mail in</span><span style="font-family: 'Martian Mono', monospace; font-size: 12px;">imap.slyy.ai:993 TLS</span></span>
+      <span style="display: flex; justify-content: space-between;"><span>Mail out</span><span style="font-family: 'Martian Mono', monospace; font-size: 12px;">smtp.slyy.ai:587 STARTTLS</span></span>
+      <span style="display: flex; justify-content: space-between;"><span>Calendar</span><span style="font-family: 'Martian Mono', monospace; font-size: 12px;">dav.slyy.ai · 2 calendars</span></span>
+      <span style="display: flex; justify-content: space-between;"><span>Video</span><span style="font-family: 'Martian Mono', monospace; font-size: 12px;">vid.rocket.re-cloud.io</span></span>
+    </div>
+  </form>
+
+  <section aria-label="Server settings" style="flex: 1 1 420px; max-width: 520px; background: #ffffff; border: 1px solid #e2e2e2; padding: 28px; display: flex; flex-direction: column; gap: 18px;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Server settings</h2>
+      <p style="margin: 0; color: #5c5c5c; font-size: 13px;">Shown when auto-detection fails or when you open "Server settings…".</p>
+    </div>
+    <fieldset style="border: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px;">
+      <legend style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5c5c5c; margin-bottom: 8px;">Incoming mail (IMAP)</legend>
+      <label for="ih" style="grid-column: span 4; font-size: 13px;">Server</label>
+      <input id="ih" value="imap.slyy.ai" style="grid-column: span 2; border: 1px solid #a3a3a3; padding: 8px;">
+      <input aria-label="IMAP port" value="993" style="border: 1px solid #a3a3a3; padding: 8px;">
+      <select aria-label="IMAP security" style="border: 1px solid #a3a3a3; padding: 8px; background: #ffffff;"><option>TLS</option><option>STARTTLS</option></select>
+    </fieldset>
+    <fieldset style="border: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px;">
+      <legend style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5c5c5c; margin-bottom: 8px;">Outgoing mail (SMTP)</legend>
+      <label for="sh" style="grid-column: span 4; font-size: 13px;">Server</label>
+      <input id="sh" value="smtp.slyy.ai" style="grid-column: span 2; border: 1px solid #a3a3a3; padding: 8px;">
+      <input aria-label="SMTP port" value="587" style="border: 1px solid #a3a3a3; padding: 8px;">
+      <select aria-label="SMTP security" style="border: 1px solid #a3a3a3; padding: 8px; background: #ffffff;"><option>STARTTLS</option><option>TLS</option></select>
+    </fieldset>
+    <div style="display: flex; flex-direction: column; gap: 6px;"><label for="user" style="font-size: 13px;">User name</label><input id="user" value="anna@slyy.ai" style="border: 1px solid #a3a3a3; padding: 8px;"></div>
+    <div style="display: flex; flex-direction: column; gap: 6px;"><label for="dav" style="font-size: 13px;">Calendar server (CalDAV)</label><input id="dav" value="https://dav.slyy.ai/" style="border: 1px solid #a3a3a3; padding: 8px;"><span style="font-size: 12px; color: #5c5c5c;">Slyy finds your calendars from here. Empty turns the calendar off.</span></div>
+    <div style="display: flex; flex-direction: column; gap: 6px;"><label for="jitsi" style="font-size: 13px;">Video call server</label><input id="jitsi" value="https://vid.rocket.re-cloud.io" style="border: 1px solid #a3a3a3; padding: 8px;"></div>
+    <div role="alert" style="border: 1px solid #b42318; color: #8a1c13; padding: 10px 12px; font-size: 13px; display: flex; gap: 8px;"><strong>Not signed in.</strong>smtp.slyy.ai offers no STARTTLS; Slyy will not send your password unencrypted.</div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

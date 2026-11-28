@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: Haven in the reader</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button,input{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; display: flex; flex-wrap: wrap; background: #ffffff; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+
+  <section aria-label="Messages" style="flex: 1 1 300px; max-width: 340px; min-width: 0; border-right: 1px solid #e2e2e2; display: flex; flex-direction: column; background: #ffffff;">
+    <div style="padding: 14px 16px 10px; border-bottom: 1px solid #e2e2e2; display: flex; justify-content: space-between; align-items: baseline;"><h1 style="margin: 0; font-size: 20px; font-weight: 600;">Inbox</h1><span style="font-size: 12px; color: #5c5c5c;">push on</span></div>
+    <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; background: #e6e8ff; color: #0a0a0a; text-decoration: none;"><span style="display: flex; justify-content: space-between;"><strong>Jürgen Schott <span style="font-family: 'Martian Mono', monospace; font-size: 10px; border: 1px solid #a3a3a3; padding: 0 4px; font-weight: 400;">3</span></strong><span style="font-size: 12px; color: #3d3d3d;">09:12</span></span><span>Re: Angebot Wärmepumpe</span><span style="font-size: 13px; color: #3d3d3d;">Können Sie die Montage ergänzen?</span></a>
+    <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span style="display: flex; justify-content: space-between;"><span>Brandt Logistik</span><span style="font-size: 12px; color: #5c5c5c;">08:15</span></span><span style="color: #3d3d3d;">Lieferavis KW 49</span></a>
+    <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;"><span style="display: flex; justify-content: space-between;"><span>Heiko Meier</span><span style="font-size: 12px; color: #5c5c5c;">Yesterday</span></span><span style="color: #3d3d3d;">Invitation: ERP Wochenfazit</span></a>
+  </section>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+    <div role="toolbar" aria-label="Message actions" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #e2e2e2;">
+      <a href="AgentCompose.dc.html" style="padding: 7px 10px; border: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">Reply</a>
+      <a href="AgentCompose.dc.html" style="padding: 7px 10px; border: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">Reply all</a>
+      <a href="#" style="padding: 7px 10px; border: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">Forward</a>
+      <span style="flex: 1;"></span>
+      <button type="button" style="padding: 7px 10px; border: 1px solid #e2e2e2; background: #ffffff;">Archive</button>
+    </div>
+
+    <div style="flex: 1 1 auto; padding: 18px 28px; display: flex; flex-direction: column; gap: 10px; line-height: 1.55;">
+      <h2 style="margin: 0; font-size: 22px; font-weight: 600;">Angebot Wärmepumpe</h2>
+      <span style="font-size: 13px; color: #5c5c5c;">3 messages · Jürgen Schott, you</span>
+      <div style="border: 1px solid #e2e2e2; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;">
+        <span><strong>Jürgen Schott</strong> <span style="font-size: 13px; color: #5c5c5c;">· today 09:12</span></span>
+        <p style="margin: 0;">Guten Morgen Frau Weber, können Sie das Angebot um die Montage ergänzen? Wir möchten im Januar einbauen. Gibt es dafür noch Termine?</p>
+      </div>
+    </div>
+
+    <sc-if value="{{ hasResult }}" hint-placeholder-val="{{ true }}">
+      <section aria-label="Haven result" style="border-top: 1px solid #e2e2e2; background: #f4f4f2; padding: 12px 20px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: 'Martian Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: #2b3bff;">HAVEN</span>
+          <span style="font-size: 12px; color: #3d3d3d;">Thread summary and next steps</span>
+          <span style="flex: 1;"></span>
+          <button type="button" onClick="{{ close }}" aria-label="Close result" style="border: none; background: none; cursor: pointer; color: #5c5c5c; font-size: 16px; line-height: 1;">×</button>
+        </div>
+        <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; line-height: 1.45;">
+          <li>Schott wants the Montage added to quotation SO-2026-118 and installs in January. <a href="#">[1]</a> <a href="#">[3]</a></li>
+          <li>Your last offer: WP-12 without installation, 9.870 € net, valid until 15 Dec. <a href="#">[2]</a> <a href="#">Odoo</a></li>
+          <li>Open question: which January week; your team calendar has KW 2 and KW 4 free.</li>
+        </ul>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;">
+          <div style="background: #ffffff; border: 1px solid #e2e2e2; padding: 10px; display: flex; flex-direction: column; gap: 6px;">
+            <strong style="font-size: 13px;">Reply</strong>
+            <span style="font-size: 13px; color: #2b3bff;">Montage ergänzt, 2.480 € netto, Termine KW 2 oder KW 4 …</span>
+            <a href="AgentCompose.dc.html" style="align-self: flex-start; height: 30px; padding: 0 12px; background: #2b3bff; color: #ffffff; text-decoration: none; display: inline-flex; align-items: center; font-weight: 600; font-size: 13px;">Reply with this</a>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #e2e2e2; padding: 10px; display: flex; flex-direction: column; gap: 6px;">
+            <strong style="font-size: 13px;">Task in Odoo</strong>
+            <span style="font-size: 13px; color: #3d3d3d;">Montage in SO-2026-118 ergänzen · Anna · due Fri</span>
+            <sc-if value="{{ taskOpen }}" hint-placeholder-val="{{ true }}">
+              <button type="button" onClick="{{ askTask }}" style="align-self: flex-start; height: 30px; padding: 0 12px; background: #ffffff; border: 1px solid #0a0a0a; cursor: pointer; font-size: 13px;">Create task…</button>
+            </sc-if>
+            <sc-if value="{{ taskConfirm }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size: 12px; color: #0a0a0a;">Haven will write to Odoo. OK?</span>
+              <span style="display: flex; gap: 6px;"><button type="button" onClick="{{ doTask }}" style="height: 30px; padding: 0 12px; background: #0a0a0a; color: #ffffff; border: none; cursor: pointer; font-size: 13px;">Create</button><button type="button" onClick="{{ cancelTask }}" style="height: 30px; padding: 0 10px; background: #ffffff; border: 1px solid #a3a3a3; cursor: pointer; font-size: 13px;">Cancel</button></span>
+            </sc-if>
+            <sc-if value="{{ taskDone }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size: 12px; color: #3d3d3d;">✓ Created in Odoo · <a href="#">open</a></span>
+            </sc-if>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #e2e2e2; padding: 10px; display: flex; flex-direction: column; gap: 6px;">
+            <strong style="font-size: 13px;">Meeting</strong>
+            <span style="font-size: 13px; color: #3d3d3d;">Abstimmung Montage Schott · Tue 10:00 · video</span>
+            <a href="EventEditor.dc.html" style="align-self: flex-start; height: 30px; padding: 0 12px; border: 1px solid #a3a3a3; color: #0a0a0a; text-decoration: none; display: inline-flex; align-items: center; font-size: 13px;">Review event</a>
+          </div>
+        </div>
+        <span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #5c5c5c;">[1] 09:12 today · [2] your mail 25 Nov · [3] Schott 18 Nov · read: mail, Odoo, calendar</span>
+      </section>
+    </sc-if>
+
+    <div style="border-top: 1px solid #2b3bff; padding: 10px 20px 12px; display: flex; flex-direction: column; gap: 8px;">
+      <div role="group" aria-label="Quick actions" style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <button type="button" onClick="{{ run }}" style="{{ chipOn }}">Summarize thread</button>
+        <button type="button" onClick="{{ run }}" style="{{ chip }}">Draft a reply</button>
+        <button type="button" onClick="{{ run }}" style="{{ chip }}">Research the sender</button>
+        <button type="button" onClick="{{ run }}" style="{{ chip }}">Find related mails</button>
+        <button type="button" onClick="{{ run }}" style="{{ chip }}">Create a task</button>
+        <button type="button" onClick="{{ run }}" style="{{ chip }}">Schedule a meeting</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff;"></span>
+        <label for="askr" style="position: absolute; left: -9999px;">Ask Haven about this mail</label>
+        <input id="askr" placeholder="Ask Haven about this mail…" style="flex: 1; border: none; outline: none; font-size: 13px; padding: 6px 0;">
+        <span style="font-family: 'Martian Mono', monospace; font-size: 10px; color: #a3a3a3;">⌘J</span>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { result: true, task: 'open' }; }
+  renderVals() {
+    const base = 'height: 30px; padding: 0 10px; font-size: 13px; cursor: pointer; color: #0a0a0a; ';
+    const t = this.state.task;
+    return {
+      hasResult: this.state.result,
+      chipOn: base + (this.state.result ? 'background: #e6e8ff; border: 1px solid #2b3bff;' : 'background: #ffffff; border: 1px solid #e2e2e2;'),
+      chip: base + 'background: #ffffff; border: 1px solid #e2e2e2;',
+      run: () => this.setState({ result: true }),
+      close: () => this.setState({ result: false }),
+      taskOpen: t === 'open',
+      taskConfirm: t === 'confirm',
+      taskDone: t === 'done',
+      askTask: () => this.setState({ task: 'confirm' }),
+      doTask: () => this.setState({ task: 'done' }),
+      cancelTask: () => this.setState({ task: 'open' })
+    };
+  }
+}
+</script>
+</body>
+</html>

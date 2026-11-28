@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slyy Mailr: inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Martian+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#2b3bff}a:hover{color:#1f2ed0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 800px; display: flex; flex-wrap: wrap; background: #ffffff; color: #0a0a0a; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-size: 14px;">
+
+  <nav aria-label="Folders" style="flex: 1 1 220px; max-width: 240px; min-width: 0; box-sizing: border-box; padding: 16px 12px; display: flex; flex-direction: column; gap: 14px; background: #f9f9f7; border-right: 1px solid #e2e2e2;">
+    <span style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 20px; letter-spacing: -0.025em; padding: 0 6px;"><span style="width: 14px; height: 14px; border-radius: 50%; background: #2b3bff; display: inline-block;"></span>slyy <span style="font-weight: 500; color: #5c5c5c;">mailr</span></span>
+    <a href="Compose.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; background: #0a0a0a; color: #ffffff; text-decoration: none; font-weight: 600;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>New message</a>
+    <a href="VideoCall.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border: 1px solid #a3a3a3; color: #0a0a0a; text-decoration: none; font-weight: 600;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg>Meet now</a>
+
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+      <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5c5c5c; padding: 4px 8px;">Mail</div>
+      <a href="Main.dc.html" aria-current="page" style="padding: 7px 8px; display: flex; justify-content: space-between; color: #0a0a0a; text-decoration: none; background: #e2e2e2; font-weight: 600;">Inbox<span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #2b3bff;">12</span></a>
+      <a href="#" style="padding: 7px 8px; display: flex; justify-content: space-between; color: #0a0a0a; text-decoration: none;">Drafts<span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #5c5c5c;">2</span></a>
+      <a href="#" style="padding: 7px 8px; color: #0a0a0a; text-decoration: none;">Sent</a>
+      <a href="#" style="padding: 7px 8px; color: #0a0a0a; text-decoration: none;">Archive</a>
+      <a href="#" style="padding: 7px 8px; display: flex; justify-content: space-between; color: #0a0a0a; text-decoration: none;">Junk<span style="font-family: 'Martian Mono', monospace; font-size: 11px; color: #5c5c5c;">4</span></a>
+      <a href="#" style="padding: 7px 8px; color: #0a0a0a; text-decoration: none;">Trash</a>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+      <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5c5c5c; padding: 4px 8px;">Folders</div>
+      <a href="#" style="padding: 7px 8px; color: #0a0a0a; text-decoration: none;">Kunden</a>
+      <a href="#" style="padding: 7px 8px 7px 20px; color: #0a0a0a; text-decoration: none;">Angebote</a>
+      <a href="#" style="padding: 7px 8px; color: #0a0a0a; text-decoration: none;">Lieferanten</a>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+      <div style="font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5c5c5c; padding: 4px 8px;">Calendar</div>
+      <a href="Calendar.dc.html" style="padding: 7px 8px; display: flex; justify-content: space-between; color: #0a0a0a; text-decoration: none;">Calendar<span style="font-size: 12px; color: #5c5c5c;">Next 10:00</span></a>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 6px 0; border-top: 1px solid #e2e2e2;">
+      <span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 50%; background: #0a0a0a; color: #ffffff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">AW</span>
+      <span style="display: flex; flex-direction: column; min-width: 0;"><strong style="font-size: 13px;">Anna Weber</strong><span style="font-size: 12px; color: #5c5c5c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">anna@slyy.ai · synced</span></span>
+    </div>
+  </nav>
+
+  <section aria-label="Messages" style="flex: 1 1 340px; max-width: 380px; min-width: 0; border-right: 1px solid #e2e2e2; display: flex; flex-direction: column;">
+    <div style="padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid #e2e2e2;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline;"><h1 style="margin: 0; font-size: 20px; font-weight: 600;">Inbox</h1><span style="font-size: 12px; color: #5c5c5c;">12 unread · push on</span></div>
+      <label for="search" style="position: absolute; left: -9999px;">Search mail</label>
+      <input id="search" placeholder="Search subject, sender, text" style="border: 1px solid #a3a3a3; padding: 8px 10px; font-size: 14px; font-family: inherit;">
+    </div>
+    <div style="flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column;">
+      <a href="#" style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; background: #e6e8ff; color: #0a0a0a; text-decoration: none;">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff; margin-top: 6px; flex: none;"></span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><strong>Heiko Meier</strong><span style="font-size: 12px; color: #3d3d3d;">09:41</span></span><span style="display: flex; gap: 6px; align-items: center;"><span style="font-family: 'Martian Mono', monospace; font-size: 10px; background: #2b3bff; color: #ffffff; padding: 1px 5px;">INVITE</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">ERP Wochenfazit</span></span><span style="font-size: 13px; color: #3d3d3d;">Fri 10:00 – 10:30 · video call</span></span>
+      </a>
+      <a href="#" style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: #2b3bff; margin-top: 6px; flex: none;"></span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><strong>Brandt Logistik</strong><span style="font-size: 12px; color: #5c5c5c;">08:15</span></span><span style="font-weight: 600;">Lieferavis KW 49</span><span style="font-size: 13px; color: #5c5c5c; display: flex; gap: 6px; align-items: center;"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7"/></svg>avis-kw49.pdf</span></span>
+      </a>
+      <a href="#" style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">
+        <span aria-hidden="true" style="width: 8px; flex: none;"></span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><span>Jürgen Schott</span><span style="font-size: 12px; color: #5c5c5c;">Yesterday</span></span><span style="color: #3d3d3d;">Re: Angebot Wärmepumpe</span><span style="font-size: 13px; color: #5c5c5c;">Replied · flagged</span></span>
+      </a>
+      <a href="#" style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">
+        <span aria-hidden="true" style="width: 8px; flex: none;"></span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><span>Bob Krause</span><span style="font-size: 12px; color: #5c5c5c;">Tuesday</span></span><span style="color: #3d3d3d;">Accepted: Planung Q1</span><span style="font-size: 13px; color: #5c5c5c;">Reply applied to your calendar</span></span>
+      </a>
+      <a href="#" style="display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">
+        <span aria-hidden="true" style="width: 8px; flex: none;"></span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><span style="display: flex; justify-content: space-between;"><span>Finanzamt Bayreuth</span><span style="font-size: 12px; color: #5c5c5c;">24.11.</span></span><span style="color: #3d3d3d;">Bescheid über Umsatzsteuer</span><span style="font-size: 13px; color: #5c5c5c;">1 attachment</span></span>
+      </a>
+    </div>
+  </section>
+
+  <main style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column;">
+    <div role="toolbar" aria-label="Message actions" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #e2e2e2;">
+      <a href="Compose.dc.html" style="padding: 7px 10px; border: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">Reply</a>
+      <a href="Compose.dc.html" style="padding: 7px 10px; border: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">Reply all</a>
+      <a href="Compose.dc.html" style="padding: 7px 10px; border: 1px solid #e2e2e2; color: #0a0a0a; text-decoration: none;">Forward</a>
+      <span style="flex: 1;"></span>
+      <button type="button" style="padding: 7px 10px; border: 1px solid #e2e2e2; background: #ffffff;">Flag</button>
+      <button type="button" style="padding: 7px 10px; border: 1px solid #e2e2e2; background: #ffffff;">Archive</button>
+      <button type="button" style="padding: 7px 10px; border: 1px solid #e2e2e2; background: #ffffff;">Delete</button>
+    </div>
+    <div style="padding: 20px 28px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">Invitation: ERP Wochenfazit</h2>
+        <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;"><span><strong>Heiko Meier</strong> <span style="color: #5c5c5c;">&lt;heiko@slyy.ai&gt;</span></span><span style="font-size: 13px; color: #5c5c5c;">Today, 09:41</span></div>
+        <span style="font-size: 13px; color: #5c5c5c;">To Anna Weber, Jürgen Schott</span>
+      </div>
+
+      <section aria-label="Invitation" style="border: 1px solid #0a0a0a; display: flex; flex-direction: column;">
+        <div style="display: flex; gap: 16px; padding: 16px; align-items: center; flex-wrap: wrap;">
+          <div style="width: 56px; flex: none; display: flex; flex-direction: column; align-items: center; border: 1px solid #e2e2e2;"><span style="width: 100%; text-align: center; background: #2b3bff; color: #ffffff; font-size: 11px; letter-spacing: 0.06em; padding: 2px 0;">FRI</span><span style="font-size: 22px; font-weight: 700; padding: 4px 0;">27</span></div>
+          <div style="flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 2px;"><strong style="font-size: 16px;">ERP Wochenfazit</strong><span style="color: #3d3d3d;">Friday 27 Nov · 10:00 – 10:30 · every week</span><span style="font-size: 13px; color: #5c5c5c;">Organizer Heiko Meier · 4 people</span></div>
+          <a href="VideoCall.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; background: #2b3bff; color: #ffffff; text-decoration: none; font-weight: 600;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12"/><path d="M15 10l6-3v10l-6-3"/></svg>Join</a>
+        </div>
+        <div style="display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #e2e2e2; background: #f9f9f7; flex-wrap: wrap; align-items: center;">
+          <button type="button" onClick="{{ accept }}" style="{{ acceptStyle }}">Accept</button>
+          <button type="button" onClick="{{ maybe }}" style="{{ maybeStyle }}">Maybe</button>
+          <button type="button" onClick="{{ decline }}" style="{{ declineStyle }}">Decline</button>
+          <span style="flex: 1;"></span>
+          <span style="font-size: 13px; color: #3d3d3d;">{{ statusText }}</span>
+        </div>
+      </section>
+
+      <div style="line-height: 1.55; max-width: 640px; display: flex; flex-direction: column; gap: 10px;">
+        <p style="margin: 0;">Hallo zusammen,</p>
+        <p style="margin: 0;">wie jede Woche: 20 Minuten Status zu Angeboten, Lager und offenen Rechnungen. Agenda im Anhang.</p>
+        <p style="margin: 0; font-family: 'Martian Mono', monospace; font-size: 12px; color: #3d3d3d;">vid.rocket.re-cloud.io/slyy-k7m2q9xwt4bh8nzr3fpe</p>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="#" style="display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; background: #f4f4f2; color: #0a0a0a; text-decoration: none; font-size: 13px;"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/></svg>Agenda-KW48.pdf · 84 KB</a>
+        <a href="#" style="display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; background: #f4f4f2; color: #0a0a0a; text-decoration: none; font-size: 13px;"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/></svg>invite.ics</a>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { answer: null }; }
+  renderVals() {
+    const base = 'height: 36px; padding: 0 14px; cursor: pointer; font-size: 14px; ';
+    const on = base + 'background: #0a0a0a; color: #ffffff; border: 1px solid #0a0a0a;';
+    const off = base + 'background: #ffffff; color: #0a0a0a; border: 1px solid #a3a3a3;';
+    const a = this.state.answer;
+    const labels = { accepted: 'Accepted · reply sent to Heiko, added to your calendar', tentative: 'Maybe · reply sent', declined: 'Declined · reply sent' };
+    return {
+      accept: () => this.setState({ answer: 'accepted' }),
+      maybe: () => this.setState({ answer: 'tentative' }),
+      decline: () => this.setState({ answer: 'declined' }),
+      acceptStyle: a === 'accepted' ? on : off,
+      maybeStyle: a === 'tentative' ? on : off,
+      declineStyle: a === 'declined' ? on : off,
+      statusText: a ? labels[a] : 'No answer yet'
+    };
+  }
+}
+</script>
+</body>
+</html>
