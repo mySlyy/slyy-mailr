@@ -615,6 +615,7 @@ struct MessageMoreMenu: View {
             Button("Reply") { answer(.reply) }
             Button("Reply all") { answer(.replyAll) }
             Button("Forward") { answer(.forward) }
+            Button("Edit as New Message") { model.compose(.again(summary)) }
             // Snooze in the main window only (its picker is shown there).
             if onCompose == nil {
                 Divider()

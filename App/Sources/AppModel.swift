@@ -37,6 +37,8 @@ enum ComposeKind {
     case replyAll(ParsedMessage)
     case forward(ParsedMessage)
     case draft(MessageSummary)
+    /// A copy of any message as a new mail (same recipients, subject, text and attachments), to change and send again.
+    case again(MessageSummary)
     case mailto(URL)
 }
 
@@ -1110,7 +1112,9 @@ final class AppModel {
                 }
             }
             present(d)
-        case .draft(let s):
+        case .draft(let s), .again(let s):
+            let asDraft: Bool
+            if case .draft = kind { asDraft = true } else { asDraft = false }
             Task {
                 guard let mail else { return }
                 do {
@@ -1126,11 +1130,19 @@ final class AppModel {
                         d.body = JitsiRoom.stripDescriptionBlock(d.body) // the card shows the link again
                     }
                     d.attachments = m.attachments.map { OutgoingAttachment(filename: $0.filename, mimeType: $0.mimeType, data: $0.data) }
-                    d.inReplyTo = m.inReplyTo
-                    d.references = m.references
-                    d.draftUID = s.uid
-                    d.messageID = m.messageID
                     d.showCcBcc = !m.cc.isEmpty
+                    if asDraft {
+                        d.inReplyTo = m.inReplyTo
+                        d.references = m.references
+                        d.draftUID = s.uid
+                        d.messageID = m.messageID
+                    } else {
+                        // A new message: new Message-ID, no draft to replace; from my address it was sent from, if any.
+                        let ids = a.identities
+                        d.from = m.from.first.flatMap { f in ids.first { $0.email.caseInsensitiveCompare(f.address) == .orderedSame } } ?? a.defaultIdentity
+                        d.inReplyTo = m.inReplyTo
+                        d.references = m.references
+                    }
                     present(d)
                 } catch { report(error) }
             }

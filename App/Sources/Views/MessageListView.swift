@@ -228,8 +228,11 @@ struct MessageMenu: View {
                 Button(f.path) { Task { await model.move(list, to: f) } }
             }
         }
-        if list.count == 1, let first = list.first?.from.first {
-            Button("Video call with \(first.display)") { model.call([first]) }
+        if list.count == 1, let only = list.first {
+            Button("Edit as New Message") { model.compose(.again(only)) }
+            if let first = only.from.first {
+                Button("Video call with \(first.display)") { model.call([first]) }
+            }
         }
         Divider()
         Button("Delete", role: .destructive) { Task { await model.delete(list, undo: undoManager) } }
