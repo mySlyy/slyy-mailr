@@ -131,3 +131,19 @@ final class AddressEntryTests: XCTestCase {
         XCTAssertEqual(AddressEntry.commit(" , "), "")
     }
 }
+
+final class ChipFlowTests: XCTestCase {
+    func testChipsWrapInsteadOfDisappearing() {
+        // 5 chips of 200 pt + the typing field, in a 700 pt field: 3 per line, then the rest, then the cursor.
+        let lines = ChipFlow.lines(widths: [200, 200, 200, 200, 200, 20], available: 700)
+        XCTAssertEqual(lines, [0..<3, 3..<6])
+        XCTAssertEqual(lines.flatMap { Array($0) }, Array(0..<6), "every chip is on some line")
+    }
+
+    func testTypingFieldMovesToTheNextLineWhenThereIsNoRoom() {
+        XCTAssertEqual(ChipFlow.lines(widths: [300, 300, 10], available: 700), [0..<2, 2..<3], "needs 140 pt, only ~88 left")
+        XCTAssertEqual(ChipFlow.lines(widths: [300, 10], available: 700), [0..<2])
+        XCTAssertEqual(ChipFlow.lines(widths: [1000, 10], available: 700), [0..<1, 1..<2], "an over-long chip gets its own line")
+        XCTAssertEqual(ChipFlow.lines(widths: [10], available: 700), [0..<1], "only the typing field")
+    }
+}

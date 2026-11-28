@@ -187,3 +187,25 @@ public enum AddressEntry {
         return all.isEmpty ? "" : all.joined(separator: ", ") + ", "
     }
 }
+
+/// Line breaking for the address chips: which items go on which line. Items keep their width (at most a full line);
+/// the last item (the typing field) needs at least `lastMinWidth` and then takes the rest of its line.
+public enum ChipFlow {
+    public static func lines(widths: [Double], available: Double, spacing: Double = 6, lastMinWidth: Double = 140) -> [Range<Int>] {
+        guard !widths.isEmpty else { return [] }
+        var lines: [Range<Int>] = []
+        var start = 0
+        var x = 0.0
+        for (i, raw) in widths.enumerated() {
+            let w = i == widths.count - 1 ? max(lastMinWidth, min(raw, available)) : min(raw, available)
+            if x > 0 && x + w > available {
+                lines.append(start..<i)
+                start = i
+                x = 0
+            }
+            x += w + spacing
+        }
+        lines.append(start..<widths.count)
+        return lines
+    }
+}

@@ -571,9 +571,9 @@ struct AddressField<Trailing: View>: View {
                         .focused(focus, equals: field)
                         .onSubmit { text = AddressEntry.commit(text) }
                         .onKeyPress(.delete) {
-                            // Backspace in an empty field takes the last chip back for editing.
-                            guard current.isEmpty, let last = chipTexts.last else { return .ignored }
-                            text = AddressEntry.join(Array(chipTexts.dropLast()), current: last)
+                            // Backspace in an empty field deletes the last chip.
+                            guard current.isEmpty, !chipTexts.isEmpty else { return .ignored }
+                            text = AddressEntry.join(Array(chipTexts.dropLast()), current: "")
                             return .handled
                         }
                         #if os(iOS)
@@ -640,18 +640,11 @@ struct AddressField<Trailing: View>: View {
 struct AddressFlow: Layout {
     var spacing: CGFloat = 6
 
+    /// The line breaking itself is ChipFlow.lines (unit-tested in the library); here only sizes and heights.
     private func rows(_ width: CGFloat, _ subviews: Subviews) -> [(range: Range<Int>, height: CGFloat)] {
-        var rows: [(Range<Int>, CGFloat)] = []
-        var start = 0, x: CGFloat = 0, h: CGFloat = 0
-        for (i, v) in subviews.enumerated() {
-            let s = v.sizeThatFits(.unspecified)
-            let w = i == subviews.count - 1 ? max(140, s.width) : min(s.width, width)
-            if x > 0 && x + w > width { rows.append((start..<i, h)); start = i; x = 0; h = 0 }
-            x += w + spacing
-            h = max(h, s.height)
-        }
-        rows.append((start..<subviews.count, h))
-        return rows
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        return ChipFlow.lines(widths: sizes.map { Double($0.width) }, available: Double(width), spacing: Double(spacing))
+            .map { r in (r, r.map { sizes[$0].height }.max() ?? 0) }
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
