@@ -88,6 +88,14 @@ struct ComposeDraft: Identifiable, Codable {
 
     var isEmpty: Bool { to.isEmpty && cc.isEmpty && subject.isEmpty && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty }
 
+    /// What the user can change, without the signature block: equal keys mean nothing was written.
+    func contentKey(signature: String) -> String {
+        var text = body
+        if !signature.isEmpty { text = text.replacingOccurrences(of: "-- \n" + signature, with: "") }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [to, cc, bcc, subject, text, attachments.map(\.filename).joined(separator: "/"), videoURL?.absoluteString ?? ""].joined(separator: "\u{1F}")
+    }
+
     func message(from fallback: EmailAddress) -> OutgoingMessage {
         let m = OutgoingMessage(
             from: from.map { EmailAddress(name: $0.name.isEmpty ? fallback.name : $0.name, address: $0.email) } ?? fallback,

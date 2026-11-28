@@ -19,6 +19,8 @@ struct ComposeView: View {
     #endif
     @State private var confirmClose = false
     @State private var lastSaved: String = ""
+    /// The content as the window opened (signature left out), to tell whether anything was written since.
+    @State private var openedKey: String?
     @FocusState private var focus: Field?
 
     enum Field: Hashable { case to, cc, bcc, subject, body }
@@ -96,7 +98,8 @@ struct ComposeView: View {
         #if os(macOS)
         .frame(minWidth: 680, idealWidth: 860, minHeight: 560, idealHeight: 680)
         #endif
-        .interactiveDismissDisabled(!draft.isEmpty)
+        .interactiveDismissDisabled(!untouched)
+        .onAppear { if openedKey == nil { openedKey = currentKey } }
         .confirmationDialog("Save this message as a draft?", isPresented: $confirmClose) {
             Button("Save Draft") { Task { _ = await model.saveDraft(draft); close() } }
             Button("Discard", role: .destructive) { close() }
@@ -178,7 +181,7 @@ struct ComposeView: View {
 
     var topBar: some View {
         HStack(spacing: 8) {
-            Button("Cancel") { if draft.isEmpty { close() } else { confirmClose = true } }
+            Button("Cancel") { if untouched { close() } else { confirmClose = true } }
                 .buttonStyle(.slyyOutline)
                 .keyboardShortcut(.cancelAction)
             Text(draft.subject.isEmpty ? String(localized: "New message") : draft.subject)
@@ -352,6 +355,12 @@ struct ComposeView: View {
     }
 
     /// Normal close (sent, saved to Drafts, discarded): the crash copy is no longer needed.
+    var currentKey: String { draft.contentKey(signature: currentIdentity.map { model.signature(for: $0) } ?? "") }
+
+    /// Empty, or exactly as opened (a new mail with only the signature, an unanswered reply): closes without asking.
+    /// A draft recovered after a crash always asks, so its text isn't dropped by accident.
+    var untouched: Bool { draft.isEmpty || (!draft.recovered && openedKey == currentKey) }
+
     func close() {
         DraftJournal.standard.remove(draft.id)
         dismiss()
@@ -362,7 +371,7 @@ struct ComposeView: View {
             try? await Task.sleep(nanoseconds: 10_000_000_000)
             guard model.autoSave else { continue }
             let fingerprint = "\(draft.to)|\(draft.cc)|\(draft.bcc)|\(draft.subject)|\(draft.body)|\(draft.attachments.count)|\(draft.videoURL?.absoluteString ?? "")"
-            guard !draft.isEmpty, fingerprint != lastSaved, !sending else { continue }
+            guard !untouched, fingerprint != lastSaved, !sending else { continue }
             let saved = await model.saveDraft(draft)
             if saved.draftUID != nil || draft.draftUID == nil {
                 draft.draftUID = saved.draftUID

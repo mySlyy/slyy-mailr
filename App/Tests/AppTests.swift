@@ -21,6 +21,24 @@ final class AppLogicTests: XCTestCase {
         }
     }
 
+    func testUntouchedNewMessageIgnoresSignature() {
+        let sig = "https://slyy.ai | Business Agents"
+        var d = ComposeDraft()
+        d.body = "\n\n-- \n" + sig
+        let opened = d.contentKey(signature: sig)
+        XCTAssertFalse(d.isEmpty, "the signature alone makes the body non-empty")
+        XCTAssertEqual(d.contentKey(signature: sig), opened, "only the signature: nothing written")
+        var other = d
+        other.body = "\n\n-- \nAnna · Slyy"
+        XCTAssertEqual(other.contentKey(signature: "Anna · Slyy"), opened, "switching the sender swaps the signature, still nothing written")
+        var typed = d
+        typed.body = "Hallo\n\n-- \n" + sig
+        XCTAssertNotEqual(typed.contentKey(signature: sig), opened)
+        var addressed = d
+        addressed.to = "bob@example.com"
+        XCTAssertNotEqual(addressed.contentKey(signature: sig), opened)
+    }
+
     func testComposeAddsVideoLinkAndKeepsBccOutOfHeaders() {
         var d = ComposeDraft()
         d.to = "\"Schott, Jürgen\" <j@schott.de>, bob@slyy.ai"
