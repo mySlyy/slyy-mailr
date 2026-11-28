@@ -228,6 +228,19 @@ final class AppModel {
     /// A text field has the keyboard: single-key shortcuts like ⌘A (Reply all) step aside for Select All.
     var typingInField = false
 
+    /// Senders whose remote images load without asking ("Always from this sender"), lower-cased; on this device.
+    var imageSenders: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "imageSenders") ?? []) {
+        didSet { UserDefaults.standard.set(imageSenders.sorted(), forKey: "imageSenders") }
+    }
+
+    func loadsImages(from m: ParsedMessage) -> Bool {
+        m.from.first.map { imageSenders.contains($0.address.lowercased()) } ?? false
+    }
+
+    func alwaysLoadImages(from m: ParsedMessage) {
+        if let a = m.from.first?.address.lowercased(), !a.isEmpty { imageSenders.insert(a) }
+    }
+
     /// My reply colour (#RRGGBB); default the Slyy dot blue.
     var replyColorHex: String = UserDefaults.standard.string(forKey: "replyColor").flatMap { Color.isHex($0) ? $0 : nil } ?? Slyy.replyDefaultHex {
         didSet { UserDefaults.standard.set(replyColorHex, forKey: "replyColor") }

@@ -34,12 +34,14 @@ struct MessageDetailView: View {
                                 InviteCard(invite: invite.event, method: invite.method, phone: phone)
                             }
                             if !visibleAttachments(m).isEmpty { attachments(m) }
-                            if hasRemoteContent(m) && !allowImages {
+                            if hasRemoteContent(m) && !(allowImages || model.loadsImages(from: m)) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "photo")
                                     Text("Remote images are blocked to protect your privacy.")
                                     Spacer()
                                     Button("Load images") { allowImages = true }
+                                        .buttonStyle(SlyyOutlineButtonStyle(height: 28))
+                                    Button("Always from this sender") { model.alwaysLoadImages(from: m) }
                                         .buttonStyle(SlyyOutlineButtonStyle(height: 28))
                                 }
                                 .font(Slyy.font(13))
@@ -51,7 +53,7 @@ struct MessageDetailView: View {
                         .padding(.top, 20)
                         .padding(.bottom, 8)
                         .frame(maxWidth: 760, alignment: .leading)
-                        MailHTMLView(html: MessageBody.html(m), allowRemoteContent: allowImages, zoom: model.bodyZoom, onMailto: { url in
+                        MailHTMLView(html: MessageBody.html(m), allowRemoteContent: allowImages || model.loadsImages(from: m), zoom: model.bodyZoom, onMailto: { url in
                             model.compose(.mailto(url))
                         }, onSelection: { text in model.setQuoteSelection(text, for: s.id) })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -570,11 +572,14 @@ struct AccordionSection: View {
                         if !p.attachments.filter({ !$0.isInline || $0.contentID == nil }).isEmpty {
                             AttachmentChips(attachments: p.attachments.filter { !$0.isInline || $0.contentID == nil })
                         }
-                        if MessageBody.hasRemoteContent(p) && !allowImages {
-                            Button("Load images") { allowImages = true }
-                                .buttonStyle(SlyyOutlineButtonStyle(height: 28))
+                        if MessageBody.hasRemoteContent(p) && !(allowImages || model.loadsImages(from: p)) {
+                            HStack(spacing: 6) {
+                                Button("Load images") { allowImages = true }
+                                Button("Always from this sender") { model.alwaysLoadImages(from: p) }
+                            }
+                            .buttonStyle(SlyyOutlineButtonStyle(height: 28))
                         }
-                        MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages, zoom: model.bodyZoom, onHeight: { h in
+                        MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages || model.loadsImages(from: p), zoom: model.bodyZoom, onHeight: { h in
                             bodyHeight = min(max(h, 60), 20000)
                         }, onMailto: { url in model.compose(.mailto(url)) },
                         onSelection: { text in model.setQuoteSelection(text, for: summary.id) })

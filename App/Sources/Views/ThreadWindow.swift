@@ -130,11 +130,14 @@ struct ThreadMessage: View {
                 }
                 let files = p.attachments.filter { !$0.isInline || $0.contentID == nil }
                 if !files.isEmpty { AttachmentChips(attachments: files) }
-                if MessageBody.hasRemoteContent(p) && !allowImages {
-                    Button("Load images") { allowImages = true }
-                        .buttonStyle(SlyyOutlineButtonStyle(height: 28))
+                if MessageBody.hasRemoteContent(p) && !(allowImages || model.loadsImages(from: p)) {
+                    HStack(spacing: 6) {
+                        Button("Load images") { allowImages = true }
+                        Button("Always from this sender") { model.alwaysLoadImages(from: p) }
+                    }
+                    .buttonStyle(SlyyOutlineButtonStyle(height: 28))
                 }
-                MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages, zoom: model.bodyZoom, onHeight: { h in
+                MailHTMLView(html: MessageBody.html(p), allowRemoteContent: allowImages || model.loadsImages(from: p), zoom: model.bodyZoom, onHeight: { h in
                     height = min(max(h, 40), 20000)
                 }, onMailto: { url in onCompose(.mailto(url)) },
                 onSelection: { text in model.setQuoteSelection(text, for: summary.id) })
