@@ -169,6 +169,17 @@ final class AppModel {
     private(set) var isLoadingMessage = false
     var searchText = ""
     private(set) var isSearching = false
+    /// The query the list currently shows results for (nil: the folder). Refreshes then search again
+    /// instead of putting the folder back under the search field.
+    private(set) var activeSearch: String?
+    /// Results that only mention the query in the text (shown after the sender/subject hits, under a divider).
+    private(set) var searchMentionIDs: Set<String> = []
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    var isSearchActive: Bool { activeSearch != nil }
+    /// Conversations in the list (not while showing search results, which are single messages).
+    var showsThreads: Bool { threaded && !isSearchActive }
+    /// The first "mentioned in the text" result, where the list shows its divider.
+    var firstMentionID: String? { searchMentionIDs.isEmpty ? nil : messages.first { searchMentionIDs.contains($0.id) }?.id }
     private(set) var isRefreshing = false
     /// The message being written in a sheet (iOS, and the Mac's fallback before a window can be opened).
     var composeDraft: ComposeDraft?
@@ -472,7 +483,7 @@ final class AppModel {
     func mailChanged() async {
         guard let mail else { return }
         if let f = try? await mail.folders() { folders = f; updateBadge() }
-        if currentFolder == "INBOX" && searchText.isEmpty {
+        if currentFolder == "INBOX" && !isSearchActive {
             await loadMessages(reset: true)
         } else if let a = account, let r = try? await mail.messages(in: "INBOX", page: 0) {
             await MailNotifier.process(inbox: r.messages, account: a.id)
@@ -581,6 +592,7 @@ final class AppModel {
         openSummary = nil
         selectedMessageIDs = []
         searchText = ""
+        endSearch()
         Task {
             if item == .calendar {
                 await loadEvents(force: false)
@@ -593,6 +605,11 @@ final class AppModel {
 
     func loadMessages(reset: Bool) async {
         guard let mail, let folder = currentFolder else { return }
+        // While search results are shown, a refresh (push, Fetch mail, a due snooze) searches again.
+        if activeSearch != nil {
+            if reset { await search() }
+            return
+        }
         if reset {
             page = 0
             _ = await releaseDueSnoozes()
@@ -627,7 +644,7 @@ final class AppModel {
         }
     }
 
-    var canLoadMore: Bool { searchText.isEmpty && messages.count < totalMessages }
+    var canLoadMore: Bool { !isSearchActive && messages.count < totalMessages }
 
     // MARK: Snooze
 
@@ -725,7 +742,7 @@ final class AppModel {
 
     /// A snooze ended (timer or its notification): show the messages again.
     func snoozeDue() async {
-        if await releaseDueSnoozes(), currentFolder != nil, searchText.isEmpty {
+        if await releaseDueSnoozes(), currentFolder != nil, !isSearchActive {
             await loadMessages(reset: true)
         }
         scheduleSnoozeWake()
@@ -761,17 +778,45 @@ final class AppModel {
         await loadMessages(reset: false)
     }
 
+    /// The search field changed: search after a short pause in typing; empty goes back to the folder.
+    func searchTextChanged() {
+        searchTask?.cancel()
+        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
+            endSearch()
+            Task { await loadMessages(reset: true) }
+            return
+        }
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            await search()
+        }
+    }
+
+    /// Searches the open folder: sender, recipient and subject hits first, then messages that only mention the
+    /// words in the text; each message once. A result for text that has been typed over is dropped.
     func search() async {
         guard let mail, let folder = currentFolder else { return }
         let q = searchText.trimmingCharacters(in: .whitespaces)
-        if q.isEmpty { await loadMessages(reset: true); return }
+        guard !q.isEmpty else { endSearch(); await loadMessages(reset: true); return }
+        activeSearch = q
         isSearching = true
         defer { isSearching = false }
         do {
-            messages = try await mail.search(in: folder, text: q)
+            let hits = try await mail.search(in: folder, text: q)
+            guard q == searchText.trimmingCharacters(in: .whitespaces), folder == currentFolder, activeSearch == q else { return }
+            let r = SearchResults(query: q, hits: unsnoozed(hits))
+            searchMentionIDs = Set(r.mentions.map(\.id))
+            messages = r.all
         } catch {
             report(error)
         }
+    }
+
+    private func endSearch() {
+        searchTask?.cancel()
+        activeSearch = nil
+        searchMentionIDs = []
     }
 
     func open(_ s: MessageSummary?) async {

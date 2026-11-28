@@ -125,3 +125,26 @@ final class ThreadIntegrationTests: XCTestCase {
         await bob.disconnect()
     }
 }
+
+final class SearchResultsTests: XCTestCase {
+    func summary(_ uid: UInt32, from: String, subject: String, id: String?, day: Int) -> MessageSummary {
+        MessageSummary(uid: uid, folder: "INBOX", flags: [], date: Date(timeIntervalSince1970: TimeInterval(day * 86400)), size: 0,
+                       from: [EmailAddress(name: from, address: "x@y.de")], to: [], cc: [], subject: subject, messageID: id,
+                       hasAttachments: false, isInvite: false)
+    }
+
+    func testHeaderHitsFirstMentionsAfterNoDuplicates() {
+        let hits = [
+            summary(1, from: "Main Capital Partners", subject: "Confirmation", id: "<a@x>", day: 17),
+            summary(2, from: "SICOS BW Event-Team", subject: "KI Kompetenz", id: "<b@x>", day: 26),
+            summary(3, from: "Sebastian Schumann", subject: "Danke für unser Gespräch", id: "<c@x>", day: 25),
+            summary(4, from: "Sebastian Schumann", subject: "Danke für unser Gespräch", id: "<C@x>", day: 25), // label copy
+            summary(2, from: "SICOS BW Event-Team", subject: "KI Kompetenz", id: "<b@x>", day: 26),             // same UID again
+            summary(5, from: "Anna", subject: "Re: sicos workshop", id: nil, day: 20),
+        ]
+        let r = SearchResults(query: "Sicos", hits: hits)
+        XCTAssertEqual(r.direct.map(\.uid), [2, 5], "sender or subject contains the word (any case)")
+        XCTAssertEqual(r.mentions.map(\.uid), [3, 1], "the rest only mention it in the text; one Schumann copy")
+        XCTAssertEqual(SearchResults(query: "schumann gesprach", hits: hits).direct.map(\.uid), [3], "all words, accents ignored")
+    }
+}

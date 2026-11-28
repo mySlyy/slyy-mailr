@@ -45,9 +45,7 @@ struct MessageListView: View {
                     .focused($searchFocused)
                     .onChange(of: searchFocused) { _, f in model.typingInField = f }
                     .onSubmit { Task { await model.search() } }
-                    .onChange(of: model.searchText) { _, q in
-                        if q.isEmpty { Task { await model.loadMessages(reset: true) } }
-                    }
+                    .onChange(of: model.searchText) { _, _ in model.searchTextChanged() }
                 if model.havenState == .connected && !model.searchText.trimmingCharacters(in: .whitespaces).isEmpty {
                     // Enter searches as before; ⌘↩ asks Haven across the mailbox.
                     Button { model.havenQuestion = model.searchText.trimmingCharacters(in: .whitespaces) } label: {
@@ -70,7 +68,7 @@ struct MessageListView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    if model.threaded && model.searchText.isEmpty {
+                    if model.showsThreads {
                         ForEach(model.threads) { t in
                             ThreadRow(thread: t, me: model.account?.email, mine: model.account?.myAddresses ?? [], showRecipients: isSentLike,
                                       selected: t.messages.contains { model.selectedMessageIDs.contains($0.id) },
@@ -93,6 +91,7 @@ struct MessageListView: View {
                         }
                     } else {
                         ForEach(model.messages) { m in
+                            if m.id == model.firstMentionID { MentionsDivider() }
                             MessageRow(message: m, showRecipients: isSentLike, selected: model.selectedMessageIDs.contains(m.id))
                                 .contentShape(Rectangle())
                                 .onTapGesture { select(m) }
@@ -111,7 +110,7 @@ struct MessageListView: View {
             }
             .overlay {
                 if model.messages.isEmpty && !model.isRefreshing {
-                    Text(model.searchText.isEmpty ? String(localized: "No messages") : String(localized: "No results"))
+                    Text(model.isSearchActive ? String(localized: "No results") : String(localized: "No messages"))
                         .foregroundStyle(Slyy.muted)
                 }
             }
@@ -169,6 +168,17 @@ struct MessageListView: View {
 
     func targets(_ m: MessageSummary) -> [MessageSummary] {
         model.selectedMessageIDs.contains(m.id) ? model.selectedMessages : [m]
+    }
+}
+
+/// In search results: the messages below only mention the words in their text.
+struct MentionsDivider: View {
+    var body: some View {
+        Text("Mentioned in the text")
+            .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 6)
+            .bottomHairline()
     }
 }
 
@@ -276,7 +286,7 @@ struct PhoneInboxView: View {
     @State private var selecting = false
 
     var selectedList: [MessageSummary] {
-        if model.threaded && model.searchText.isEmpty {
+        if model.showsThreads {
             return model.actionable(model.threads.filter { selection.contains($0.id) }.flatMap(\.messages))
         }
         return model.messages.filter { selection.contains($0.id) }
@@ -371,6 +381,7 @@ struct PhoneInboxView: View {
                 .textFieldStyle(SlyyFieldStyle())
                 .font(Slyy.bodyPhone)
                 .onSubmit { Task { await model.search() } }
+                .onChange(of: model.searchText) { _, _ in model.searchTextChanged() }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 10)
 
@@ -398,7 +409,7 @@ struct PhoneInboxView: View {
             }
 
             List(selection: $selection) {
-                if model.threaded && model.searchText.isEmpty {
+                if model.showsThreads {
                     ForEach(model.threads) { t in
                         NavigationLink(value: t.latest) {
                             ThreadRow(thread: t, me: model.account?.email, mine: model.account?.myAddresses ?? [], phone: true)
@@ -408,6 +419,7 @@ struct PhoneInboxView: View {
                     }
                 } else {
                     ForEach(model.messages) { m in
+                        if m.id == model.firstMentionID { MentionsDivider().listRowSeparator(.hidden) }
                         NavigationLink(value: m) {
                             MessageRow(message: m, showRecipients: false, phone: true)
                         }
@@ -431,7 +443,7 @@ struct PhoneInboxView: View {
             .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
             .overlay {
                 if model.messages.isEmpty && !model.isRefreshing {
-                    Text(model.searchText.isEmpty ? String(localized: "No messages") : String(localized: "No results"))
+                    Text(model.isSearchActive ? String(localized: "No results") : String(localized: "No messages"))
                         .foregroundStyle(Slyy.muted)
                 }
             }

@@ -82,6 +82,7 @@ new_items = '''
   [134, "write", "Replies start with the cursor on the first line", "", D, N],
   [135, "write", "Reply from the first sender address of the domain the mail was sent to", "When no sender address matches exactly.", D, B],
   [136, "write", "Several addresses in To, Cc and Bcc add cleanly", "Chips flow and wrap; comma, semicolon, Return, a space after an address or a pasted list each make chips; backspace deletes the last chip.", D, B],
+  [137, "read", "Search: sender/subject hits first, text mentions below, no doubles; stays put during refresh", "Searches as you type.", D, B],
 '''
 bl_js = bl_js.replace('  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]', '  [88, "q", "Privacy-friendly crash reports", "", T, T, 3],' + new_items.rstrip().rstrip(','))
 assert '[109,' in bl_js
