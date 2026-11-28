@@ -120,12 +120,16 @@ final class AppDelegate: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
+        // A snooze ended while Mailr is open: the message shows again in the list.
+        if notification.request.content.userInfo["snooze"] != nil {
+            await AppModel.shared.snoozeDue()
+        }
+        return [.banner, .sound, .list]
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
-        // New-mail notification: open that message.
+        // New-mail or snooze reminder: open that message (loading the list releases a due snooze first).
         if let folder = info["folder"] as? String {
             let uid = (info["uid"] as? Int).map { UInt32($0) }
             await AppModel.shared.openFromNotification(folder: folder, uid: uid)

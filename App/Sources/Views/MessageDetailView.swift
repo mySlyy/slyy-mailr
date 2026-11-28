@@ -28,6 +28,7 @@ struct MessageDetailView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         VStack(alignment: .leading, spacing: 16) {
                             header(m, s)
+                            DateMentionLine(summary: s, parsed: m)
                             if let invite = invite(in: m) {
                                 InviteCard(invite: invite.event, method: invite.method, phone: phone)
                             }
@@ -552,6 +553,7 @@ struct AccordionSection: View {
             if open {
                 VStack(alignment: .leading, spacing: 12) {
                     if let p = parsed {
+                        if focused { DateMentionLine(summary: summary, parsed: p) }
                         if let inv = MessageBody.invite(in: p) {
                             InviteCard(invite: inv.event, method: inv.method, phone: phone)
                         }
@@ -609,6 +611,18 @@ struct MessageMoreMenu: View {
             Button("Reply") { answer(.reply) }
             Button("Reply all") { answer(.replyAll) }
             Button("Forward") { answer(.forward) }
+            // Snooze in the main window only (its picker is shown there).
+            if onCompose == nil {
+                Divider()
+                if model.isSnoozed(summary) {
+                    Button("Unsnooze") { Task { await model.unsnooze(summary) } }
+                } else {
+                    Button("Snooze…") {
+                        model.requestSnooze(model.snoozeTargets(for: summary),
+                                            suggestion: parsed.flatMap { model.dateMentions(for: summary, parsed: $0).first })
+                    }
+                }
+            }
             #if os(macOS)
             if showsOpenInWindow {
                 Divider()

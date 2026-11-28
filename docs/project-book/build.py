@@ -75,6 +75,7 @@ new_items = '''
   [122, "write", "Meeting invitation from the writer (calendar icon)", "Title, date, time, length and video link; To and Cc are invited, the event is saved in your calendar and the mail carries the invitation.", D, B],
   [123, "write", "Slyy-styled “Save as draft?” prompt; quieter footer", "Esc closes an untouched message without asking; the footer only shows the draft status or a warning if not encrypted.", D, B],
   [124, "vid", "Your own meeting link (e.g. vid.rocket.re-cloud.io/YourName) for mails, meetings and Meet now", "Only a server address: a private room per meeting, as before.", D, B],
+  [130, "read", "Snooze & remind: dates in a mail (e.g. “back on Monday December 7th”) offer a reminder", "A quick on-device check of the text (English and German) shows “Back on …” under the header; pick the date and time, the mail is hidden until then and comes back unread with a notification. Also Snooze… in the … and list menus; kept on this device.", D, B],
 '''
 bl_js = bl_js.replace('  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]', '  [88, "q", "Privacy-friendly crash reports", "", T, T, 3],' + new_items.rstrip().rstrip(','))
 assert '[109,' in bl_js

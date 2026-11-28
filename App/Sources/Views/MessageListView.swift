@@ -181,6 +181,7 @@ struct MessageMenu: View {
         Button(list.allSatisfy(\.isFlagged) ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: list) } }
         Divider()
         Button("Archive") { Task { await model.archive(list) } }
+        Button("Snooze…") { model.requestSnooze(list) }
         Menu("Move to") {
             ForEach(model.folders.filter { $0.isSelectable && $0.serverPath != model.currentFolder }) { f in
                 Button(f.path) { Task { await model.move(list, to: f) } }

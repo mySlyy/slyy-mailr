@@ -37,6 +37,12 @@ struct RootView: View {
             EventEditorView(event: event)
                 .environment(model)
         }
+        // "Snooze…" from a message menu: when should it come back?
+        .sheet(item: $model.snoozeRequest) { request in
+            SnoozePicker(messages: request.messages, suggestion: request.suggestion) { model.snoozeRequest = nil }
+                .environment(model)
+                .presentationDetents([.large])
+        }
         #if os(macOS)
         // New messages open in their own resizable windows.
         .onAppear { model.openComposeWindow = { id in openWindow(id: "compose", value: id) } }

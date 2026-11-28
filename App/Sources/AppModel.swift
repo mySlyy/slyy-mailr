@@ -232,6 +232,18 @@ final class AppModel {
 
     /// My recent replies (first page of Sent), so a conversation in the Inbox also shows what I answered.
     private(set) var companions: [MessageSummary] = []
+
+    // Snooze
+    /// This account's snoozed messages (per device, not synced: see SnoozeStore). Hidden from the list until due.
+    private(set) var snoozes: [SnoozeEntry] = []
+    /// A snooze being chosen from a menu ("Snooze…"); RootView shows the date picker for it.
+    var snoozeRequest: SnoozeRequest?
+    /// Messages of the loaded pages that are hidden because they are snoozed (keeps "Load more" right).
+    @ObservationIgnored private var hiddenLoaded = 0
+    /// Wakes the app when the next snooze is due (while it runs; the notification covers the rest).
+    @ObservationIgnored private var snoozeWake: Task<Void, Never>?
+    /// Dates found in a message's text, by MessageSummary.id (cheap, but the reader asks on every redraw).
+    @ObservationIgnored private var mentionCache: [String: [DateMention]] = [:]
     var threads: [MessageThread] { MessageThreads.group(messages, companions: companions) }
 
     /// The messages of a conversation that live in the current folder: list actions (archive, delete, move)
@@ -404,6 +416,10 @@ final class AppModel {
         openMessage = nil
         openSummary = nil
         ReminderScheduler.clear()
+        SnoozeStore.cancelReminders(keys: snoozes.map(\.key))
+        SnoozeStore.save([], account: a.id)
+        snoozes = []
+        snoozeWake?.cancel()
     }
 
     private func activate(_ a: AccountSettings, password: String) async {
@@ -413,9 +429,12 @@ final class AppModel {
         let m = MailService(account: a, password: password, cache: cache)
         mail = m
         calendarService = CalendarService(account: a, password: password, mail: m)
+        snoozes = SnoozeStore.entries(account: a.id)
+        mentionCache = [:]
         // Show cached list immediately, then sync.
-        messages = cache.summaries(folder: "INBOX", account: a.id)
+        messages = unsnoozed(cache.summaries(folder: "INBOX", account: a.id))
         await refresh()
+        scheduleSnoozeWake()
         let w = MailWatcher(account: a, password: password)
         watcher = w
         await w.start(folder: "INBOX") {
@@ -433,6 +452,7 @@ final class AppModel {
         guard let mail else { return }
         isRefreshing = true
         defer { isRefreshing = false }
+        _ = await releaseDueSnoozes(refetchFolders: false)
         do {
             folders = try await mail.folders()
             updateBadge()
@@ -562,7 +582,7 @@ final class AppModel {
             if item == .calendar {
                 await loadEvents(force: false)
             } else {
-                if let f = currentFolder, let a = account { messages = cache.summaries(folder: f, account: a.id) }
+                if let f = currentFolder, let a = account { messages = unsnoozed(cache.summaries(folder: f, account: a.id)) }
                 await loadMessages(reset: true)
             }
         }
@@ -570,16 +590,22 @@ final class AppModel {
 
     func loadMessages(reset: Bool) async {
         guard let mail, let folder = currentFolder else { return }
-        if reset { page = 0 }
+        if reset {
+            page = 0
+            _ = await releaseDueSnoozes()
+        }
         do {
             let r = try await mail.messages(in: folder, page: page)
             guard folder == currentFolder else { return }
-            totalMessages = r.total
+            // Snoozed messages stay hidden; the total leaves them out too.
+            let shown = unsnoozed(r.messages)
+            hiddenLoaded = (reset ? 0 : hiddenLoaded) + (r.messages.count - shown.count)
+            totalMessages = max(0, r.total - hiddenLoaded)
             if reset {
-                messages = r.messages
+                messages = shown
             } else {
                 let known = Set(messages.map(\.id))
-                messages += r.messages.filter { !known.contains($0.id) }
+                messages += shown.filter { !known.contains($0.id) }
             }
             contacts.add(r.messages.flatMap(\.from))
             if reset { await loadCompanions(for: folder) }
@@ -594,11 +620,137 @@ final class AppModel {
         let use = folders.first { $0.serverPath == folder }?.specialUse
         guard use != .sent, use != .drafts, let sent = folders.first(where: { $0.specialUse == .sent }) else { companions = []; return }
         if let r = try? await mail.messages(in: sent.serverPath, page: 0), folder == currentFolder {
-            companions = r.messages
+            companions = unsnoozed(r.messages)
         }
     }
 
     var canLoadMore: Bool { searchText.isEmpty && messages.count < totalMessages }
+
+    // MARK: Snooze
+
+    /// The list without snoozed messages.
+    private func unsnoozed(_ list: [MessageSummary]) -> [MessageSummary] {
+        guard !snoozes.isEmpty else { return list }
+        let keys = Set(snoozes.map(\.key))
+        return list.filter { !keys.contains(SnoozeStore.key(for: $0)) }
+    }
+
+    func snoozeEntry(for s: MessageSummary) -> SnoozeEntry? {
+        guard !snoozes.isEmpty else { return nil }
+        let key = SnoozeStore.key(for: s)
+        return snoozes.first { $0.key == key }
+    }
+
+    func isSnoozed(_ s: MessageSummary) -> Bool { snoozeEntry(for: s) != nil }
+
+    /// What a snooze of this message hides: its conversation in this folder when the list shows conversations
+    /// (else the row would stay), else just the message.
+    func snoozeTargets(for s: MessageSummary) -> [MessageSummary] {
+        guard threaded else { return [s] }
+        let list = actionable(thread(containing: s)).filter { $0.folder == s.folder }
+        return list.contains { $0.id == s.id } ? list : [s]
+    }
+
+    func snooze(_ s: MessageSummary, until: Date) async {
+        await snooze([s], until: until)
+    }
+
+    /// Hides the messages until `until`, then a local notification reminds and they come back unread.
+    /// Unread ones are marked read meanwhile, so the unread count only counts what is shown.
+    func snooze(_ list: [MessageSummary], until: Date) async {
+        guard let a = account, !list.isEmpty else { return }
+        let batch = UUID().uuidString
+        let entries = list.map { SnoozeEntry($0, until: until, batch: batch) }
+        snoozes = SnoozeStore.add(entries, account: a.id)
+        let unread = list.filter { !$0.isSeen }
+        if !unread.isEmpty { setLocalFlag("\\Seen", on: true, ids: Set(unread.map(\.id))) }
+        removeLocally(list) // the reader moves on as after Archive
+        #if os(iOS)
+        let ids = Set(list.map(\.id))
+        phonePath.removeAll { ids.contains($0.id) }
+        #endif
+        // One reminder for the newest message (a whole conversation is snoozed together).
+        if let newest = list.max(by: { $0.date < $1.date }) {
+            await SnoozeStore.scheduleReminder(for: SnoozeEntry(newest, until: until, batch: batch))
+        }
+        scheduleSnoozeWake()
+        if !unread.isEmpty, let mail {
+            // Quietly: the next refresh shows the server's state anyway.
+            try? await mail.setFlag("\\Seen", on: true, for: unread)
+        }
+    }
+
+    /// Shows a snoozed message again now (and cancels its reminder).
+    func unsnooze(_ s: MessageSummary) async {
+        guard let a = account, let e = snoozeEntry(for: s) else { return }
+        // A conversation snoozed together comes back together.
+        var keys: Set<String> = [e.key]
+        if let batch = e.batch { keys.formUnion(snoozes.filter { $0.batch == batch }.map(\.key)) }
+        SnoozeStore.cancelReminders(keys: Array(keys))
+        snoozes = SnoozeStore.remove(keys: keys, account: a.id)
+        scheduleSnoozeWake()
+        await loadMessages(reset: true)
+    }
+
+    /// Due snoozes: removed from the store, marked unread on the server so they stand out, shown again.
+    /// Returns whether any were due.
+    @discardableResult
+    func releaseDueSnoozes(refetchFolders: Bool = true) async -> Bool {
+        guard let a = account, snoozes.contains(where: { $0.until <= Date() }) else { return false }
+        let due = SnoozeStore.takeDue(account: a.id)
+        snoozes = SnoozeStore.entries(account: a.id)
+        guard !due.isEmpty else { return false }
+        if let mail {
+            try? await mail.setFlag("\\Seen", on: false, for: due.map(\.summary))
+            if refetchFolders, let f = try? await mail.folders() { folders = f; updateBadge() }
+        }
+        return true
+    }
+
+    /// Releases what is due when the next snooze ends, while the app runs.
+    private func scheduleSnoozeWake() {
+        snoozeWake?.cancel()
+        snoozeWake = nil
+        guard let next = snoozes.map(\.until).min() else { return }
+        snoozeWake = Task { [weak self] in
+            let seconds = max(0, next.timeIntervalSinceNow) + 1
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.snoozeDue()
+        }
+    }
+
+    /// A snooze ended (timer or its notification): show the messages again.
+    func snoozeDue() async {
+        if await releaseDueSnoozes(), currentFolder != nil, searchText.isEmpty {
+            await loadMessages(reset: true)
+        }
+        scheduleSnoozeWake()
+    }
+
+    /// Dates mentioned in a message's own text (quotes skipped), best first; memoized per message.
+    func dateMentions(for s: MessageSummary, parsed p: ParsedMessage) -> [DateMention] {
+        if let known = mentionCache[s.id] { return known }
+        let text = p.textBody ?? p.htmlBody.map(HTMLText.toPlain) ?? ""
+        let found = DateMentions.find(in: text, sentAt: p.date ?? s.date)
+        mentionCache[s.id] = found
+        return found
+    }
+
+    /// The best date suggestion for a message, loading its text (without marking it read) when not shown yet.
+    func dateSuggestion(for s: MessageSummary) async -> DateMention? {
+        if let known = mentionCache[s.id] { return known.first }
+        var loaded = conversationBodies[s.id] ?? (openSummary?.id == s.id ? openMessage : nil)
+        if loaded == nil { loaded = await parsedMessage(s) }
+        guard let p = loaded else { return nil }
+        return dateMentions(for: s, parsed: p).first
+    }
+
+    /// "Snooze…" from a menu: RootView asks for the time.
+    func requestSnooze(_ list: [MessageSummary], suggestion: DateMention? = nil) {
+        guard !list.isEmpty else { return }
+        snoozeRequest = SnoozeRequest(messages: list, suggestion: suggestion)
+    }
 
     func loadMore() async {
         guard canLoadMore else { return }
