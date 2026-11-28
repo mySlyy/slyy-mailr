@@ -145,7 +145,13 @@ public actor CalendarService {
         guard let caldav else { return }
         let existing = try await findObject(uid: invite.uid)
         if status == .declined {
-            if let existing { try await caldav.delete(objectURL: existing.url, etag: existing.etag) }
+            guard let existing else { return }
+            // Declining one occurrence removes only that one, not the series.
+            if let rid = invite.recurrenceID, let root = ICalComponent.parse(existing.ics), let rest = ICalendarWriter.cancelOccurrence(rid, uid: invite.uid, in: root) {
+                _ = try await caldav.put(ics: rest, uid: invite.uid, calendarURL: "", objectURL: existing.url, etag: existing.etag)
+            } else {
+                try await caldav.delete(objectURL: existing.url, etag: existing.etag)
+            }
             return
         }
         var mine = invite
@@ -171,16 +177,38 @@ public actor CalendarService {
         guard let obj = try await findObject(uid: e.uid) else { return }
         switch method {
         case "CANCEL":
-            try await caldav.delete(objectURL: obj.url, etag: obj.etag)
+            // One occurrence (RECURRENCE-ID): exclude just that one from the series; otherwise the whole event goes.
+            if let rid = e.recurrenceID, let root = ICalComponent.parse(obj.ics) {
+                if let rest = ICalendarWriter.cancelOccurrence(rid, uid: e.uid, in: root) {
+                    _ = try await caldav.put(ics: rest, uid: e.uid, calendarURL: "", objectURL: obj.url, etag: obj.etag)
+                } else {
+                    try await caldav.delete(objectURL: obj.url, etag: obj.etag)
+                }
+            } else {
+                try await caldav.delete(objectURL: obj.url, etag: obj.etag)
+            }
         case "REPLY":
-            guard var master = obj.events.first(where: { $0.recurrenceID == nil }), let reply = e.attendees.first else { return }
-            if let i = master.attendees.firstIndex(where: { $0.email.caseInsensitiveCompare(reply.email) == .orderedSame }) {
-                master.attendees[i].status = reply.status
-                _ = try await caldav.put(ics: ICalendarWriter.object(master, keeping: ICalComponent.parse(obj.ics)), uid: master.uid, calendarURL: "", objectURL: obj.url, etag: obj.etag)
+            guard let reply = e.attendees.first else { return }
+            // A reply for one occurrence updates that occurrence (its override, made from the master if needed), not the series.
+            guard var target = obj.events.first(where: { $0.recurrenceID == e.recurrenceID }) ?? CalendarService.override(of: obj.events, at: e.recurrenceID) else { return }
+            if let i = target.attendees.firstIndex(where: { $0.email.caseInsensitiveCompare(reply.email) == .orderedSame }) {
+                target.attendees[i].status = reply.status
+                _ = try await caldav.put(ics: ICalendarWriter.object(target, keeping: ICalComponent.parse(obj.ics)), uid: target.uid, calendarURL: "", objectURL: obj.url, etag: obj.etag)
             }
         default:
             break
         }
+    }
+
+    /// A new override for occurrence `rid` of the recurring master in `events` (nil without a recurring master or `rid`).
+    static func override(of events: [CalendarEvent], at rid: Date?) -> CalendarEvent? {
+        guard let rid, var o = events.first(where: { $0.recurrenceID == nil }), o.isRecurring else { return nil }
+        o.recurrenceID = rid
+        o.start = rid
+        o.end = rid.addingTimeInterval(o.duration)
+        o.recurrence = nil
+        o.exceptionDates = []
+        return o
     }
 
     /// Finds the stored object for a UID by searching all calendars (±2 years).

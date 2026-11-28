@@ -324,10 +324,53 @@ public enum ICalendarWriter {
         } else {
             cal = calendar(method: method)
         }
-        let master = cal.children("VEVENT").first { $0.first("RECURRENCE-ID") == nil && $0.first("UID")?.value == e.uid }
-        let v = master ?? ICalComponent("VEVENT")
-        if master == nil { cal.components.append(v) }
+        // The master, or for a single occurrence (RECURRENCE-ID) its override, never the master in its place.
+        let existing = cal.children("VEVENT").first { $0.first("UID")?.value == e.uid && recurrenceID(of: $0, in: cal) == e.recurrenceID }
+        let v = existing ?? ICalComponent("VEVENT")
+        if existing == nil { cal.components.append(v) }
         apply(e, to: v)
+        ensureTimeZones(cal)
+        return cal.serialize()
+    }
+
+    static func recurrenceID(of v: ICalComponent, in cal: ICalComponent) -> Date? {
+        v.first("RECURRENCE-ID").flatMap { ICalTime.parse($0, calendar: cal)?.date }
+    }
+
+    /// The stored object after a CANCEL of one occurrence: an EXDATE on the master (in DTSTART's form) and
+    /// no override for it. nil when nothing of the event would be left (delete the object instead).
+    public static func cancelOccurrence(_ rid: Date, uid: String, in original: ICalComponent, now: Date = Date()) -> String? {
+        let cal = original.copy()
+        cal.remove("METHOD")
+        cal.components.removeAll { $0.name == "VEVENT" && $0.first("UID")?.value == uid && recurrenceID(of: $0, in: cal) == rid }
+        let events = cal.children("VEVENT").filter { $0.first("UID")?.value == uid }
+        guard !events.isEmpty else { return nil }
+        if let master = events.first(where: { $0.first("RECURRENCE-ID") == nil }), let dtstart = master.first("DTSTART"),
+           let start = ICalTime.parse(dtstart, calendar: cal) {
+            // A single (non-recurring) event cancelled at its own start is gone entirely.
+            if master.first("RRULE") == nil && master.first("RDATE") == nil && start.date == rid { return nil }
+            let excluded = master.all("EXDATE").flatMap { ex in
+                ex.value.split(separator: ",").compactMap {
+                    ICalTime.parse(String($0), tzid: ex.param("TZID"), isDate: ex.param("VALUE")?.uppercased() == "DATE", calendar: cal)?.date
+                }
+            }
+            if !excluded.contains(rid) {
+                let exdate: ICalProperty
+                if start.isAllDay {
+                    exdate = ICalTime.property("EXDATE", date: rid, allDay: true, zone: nil)
+                } else if let tzid = dtstart.param("TZID"), !dtstart.value.uppercased().hasSuffix("Z") {
+                    // Same TZID as DTSTART (unknown zones are read as local time, so write it that way too).
+                    exdate = ICalProperty("EXDATE", ICalTime.format(rid, zone: start.timeZone ?? .current), params: ["TZID": tzid])
+                } else if dtstart.value.uppercased().hasSuffix("Z") {
+                    exdate = ICalProperty("EXDATE", ICalTime.formatUTC(rid))
+                } else {
+                    exdate = ICalProperty("EXDATE", ICalTime.format(rid, zone: .current)) // floating, like DTSTART
+                }
+                master.properties.append(exdate)
+                master.set("LAST-MODIFIED", ICalTime.formatUTC(now))
+                master.set("DTSTAMP", ICalTime.formatUTC(now))
+            }
+        }
         ensureTimeZones(cal)
         return cal.serialize()
     }
