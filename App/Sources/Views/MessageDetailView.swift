@@ -126,6 +126,9 @@ struct MessageDetailView: View {
             }
             .keyboardShortcut(model.typingInField ? nil : KeyboardShortcut("u", modifiers: []))
             .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
+            if model.isInJunk(s) {
+                Button("Not Junk") { Task { await model.notJunk([s]) } }
+            }
             Button(s.isFlagged ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: [s]) } }
             Button("Archive") { Task { await model.archive([s]) } }
             Button("Delete") { Task { await model.delete([s], undo: undoManager) } }
@@ -631,6 +634,9 @@ struct MessageMoreMenu: View {
             // Snooze in the main window only (its picker is shown there).
             if onCompose == nil {
                 Divider()
+                if model.isInJunk(summary) {
+                    Button("Not Junk") { Task { await model.notJunk([summary]) } }
+                }
                 // Just this message; the rest of the conversation stays.
                 Button("Move to Trash", role: .destructive) { Task { await model.delete([summary], undo: undoManager) } }
                 if model.isSnoozed(summary) {

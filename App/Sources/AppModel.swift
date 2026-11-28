@@ -233,6 +233,41 @@ final class AppModel {
         didSet { UserDefaults.standard.set(imageSenders.sorted(), forKey: "imageSenders") }
     }
 
+    /// Senders taken out of Junk ("Not Junk"): their mail that lands in Junk again goes to the Inbox; on this device.
+    var notJunkSenders: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "notJunkSenders") ?? []) {
+        didSet { UserDefaults.standard.set(notJunkSenders.sorted(), forKey: "notJunkSenders") }
+    }
+
+    var junkFolder: IMAPFolder? { folders.first { $0.specialUse == .junk } }
+    var inboxFolder: IMAPFolder? { folders.first { $0.specialUse == .inbox } ?? folders.first { $0.serverPath.uppercased() == "INBOX" } }
+    func isInJunk(_ m: MessageSummary) -> Bool { junkFolder.map { m.folder == $0.serverPath } ?? false }
+
+    /// "Not Junk": back to the Inbox, the sender trusted from now on, and the server told ($NotJunk instead of $Junk;
+    /// moving out of Junk also trains mailcow's spam filter).
+    func notJunk(_ list: [MessageSummary]) async {
+        guard let mail, let inbox = inboxFolder else { return }
+        let junk = list.filter(isInJunk)
+        guard !junk.isEmpty else { return }
+        for m in junk { for a in m.from { notJunkSenders.insert(a.address.lowercased()) } }
+        try? await mail.setFlag("$Junk", on: false, for: junk)
+        try? await mail.setFlag("$NotJunk", on: true, for: junk)
+        await move(junk, to: inbox)
+    }
+
+    /// Mail from "Not Junk" senders that landed in Junk again goes to the Inbox (checked with new mail and on refresh).
+    func rescueFromJunk() async {
+        guard let mail, !notJunkSenders.isEmpty, let junk = junkFolder, let inbox = inboxFolder,
+              let r = try? await mail.messages(in: junk.serverPath, page: 0) else { return }
+        let back = r.messages.filter { $0.from.contains { notJunkSenders.contains($0.address.lowercased()) } }
+        guard !back.isEmpty else { return }
+        try? await mail.setFlag("$Junk", on: false, for: back)
+        try? await mail.setFlag("$NotJunk", on: true, for: back)
+        guard (try? await mail.move(back, to: inbox.serverPath)) != nil else { return }
+        if currentFolder == junk.serverPath { removeLocally(back) }
+        if currentFolder == inbox.serverPath, !isSearchActive { await loadMessages(reset: true) }
+        if let f = try? await mail.folders() { folders = f; updateBadge() }
+    }
+
     func loadsImages(from m: ParsedMessage) -> Bool {
         m.from.first.map { imageSenders.contains($0.address.lowercased()) } ?? false
     }
@@ -520,6 +555,7 @@ final class AppModel {
         do {
             folders = try await mail.folders()
             updateBadge()
+            await rescueFromJunk()
             if sidebarSelection == .calendar {
                 await loadEvents(force: true)
             } else {
@@ -533,6 +569,7 @@ final class AppModel {
     func mailChanged() async {
         guard let mail else { return }
         if let f = try? await mail.folders() { folders = f; updateBadge() }
+        await rescueFromJunk()
         if currentFolder == "INBOX" && !isSearchActive {
             await loadMessages(reset: true)
         } else if let a = account, let r = try? await mail.messages(in: "INBOX", page: 0) {

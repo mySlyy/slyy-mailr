@@ -231,6 +231,10 @@ struct MessageMenu: View {
     let list: [MessageSummary]
 
     var body: some View {
+        if list.contains(where: model.isInJunk) {
+            Button("Not Junk") { Task { await model.notJunk(list) } }
+            Divider()
+        }
         Button(list.allSatisfy(\.isSeen) ? "Mark as Unread" : "Mark as Read") { Task { await model.toggleFlag("\\Seen", for: list) } }
         Button(list.allSatisfy(\.isFlagged) ? "Unflag" : "Flag") { Task { await model.toggleFlag("\\Flagged", for: list) } }
         Divider()
