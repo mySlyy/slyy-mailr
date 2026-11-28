@@ -163,7 +163,9 @@ final class AppLogicTests: XCTestCase {
         XCTAssertEqual(out.inReplyTo, "<q1@x.de>")
 
         m.compose(.forward(orig))
-        XCTAssertEqual(m.composeDraft?.blueReply, false, "forwards are not blue")
+        XCTAssertEqual(m.composeDraft?.blueReply, true, "my text is in my colour in forwards too")
+        m.compose(.new)
+        XCTAssertEqual(m.composeDraft?.blueReply, true, "and in new mails")
         m.blueReplies = false
         m.compose(.reply(orig))
         XCTAssertEqual(m.composeDraft?.blueReply, false)
