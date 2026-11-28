@@ -1105,11 +1105,29 @@ final class AppModel {
             await loadMessages(reset: true)
             return
         }
-        guard let undo, !undoable.isEmpty else { return }
-        undo.registerUndo(withTarget: self) { model in
-            Task { @MainActor in await model.restoreFromTrash(undoable) }
+        guard !undoable.isEmpty else { return }
+        // ⌘Z in the main window takes them back (Mailr's own list: the system's undo only reaches the view that
+        // has the keyboard, often the mail view, so it missed this).
+        trashUndo.append(undoable)
+        if trashUndo.count > 20 { trashUndo.removeFirst() }
+        #if os(iOS)
+        // iPhone/iPad: shake to undo (and ⌘Z on a keyboard) through the system's undo.
+        undo?.registerUndo(withTarget: self) { model in
+            Task { @MainActor in await model.undoLastTrash() }
         }
-        undo.setActionName(String(localized: "Move to Trash"))
+        undo?.setActionName(String(localized: "Move to Trash"))
+        #else
+        _ = undo
+        #endif
+    }
+
+    /// Batches moved to the Trash, newest last; ⌘Z restores the newest.
+    private(set) var trashUndo: [[MessageSummary]] = []
+    var canUndoTrash: Bool { !trashUndo.isEmpty }
+
+    func undoLastTrash() async {
+        guard let last = trashUndo.popLast() else { return }
+        await restoreFromTrash(last)
     }
 
     /// Undo of a delete: the messages come back from the Trash to the folder they were in.

@@ -132,6 +132,12 @@ struct MessageListView: View {
         .background(Color.white)
         #if os(macOS)
         .onDeleteCommand { Task { await model.delete(model.selectedMessages, undo: undoManager) } }
+        // ⌘Z: back from the Trash (not while typing in a field, where it stays the text's undo).
+        .background {
+            Button("Undo Move to Trash") { Task { await model.undoLastTrash() } }
+                .keyboardShortcut(model.typingInField || !model.canUndoTrash ? nil : KeyboardShortcut("z", modifiers: .command))
+                .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
+        }
         #endif
     }
 
