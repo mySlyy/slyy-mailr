@@ -6,6 +6,8 @@ struct SidebarView: View {
     @State private var newFolderName = ""
     @State private var showNewFolder = false
     @State private var renaming: IMAPFolder?
+    /// The folder under the pointer while mail is dragged (highlighted, so the drop is precise).
+    @State private var dropTarget: String?
     @State private var renameText = ""
     @State private var showSettings = false
 
@@ -138,6 +140,11 @@ struct SidebarView: View {
             }
         }
         .buttonStyle(SlyyRowButtonStyle(selected: selected))
+        .overlay {
+            if dropTarget == f.serverPath {
+                Rectangle().fill(Slyy.accent.opacity(0.12)).overlay(Rectangle().stroke(Slyy.accent, lineWidth: 1.5)).allowsHitTesting(false)
+            }
+        }
         .contextMenu {
             if f.specialUse == nil {
                 Button("Rename…") { renaming = f; renameText = f.name }
@@ -145,11 +152,15 @@ struct SidebarView: View {
             }
             Button("New Folder…") { showNewFolder = true }
         }
-        .dropDestination(for: String.self) { ids, _ in
-            let list = model.messages.filter { ids.contains($0.id) }
+        .dropDestination(for: String.self) { items, _ in
+            dropTarget = nil
+            let ids = MailDrag.ids(items)
+            let list = model.messages.filter { ids.contains($0.id) && $0.folder != f.serverPath }
             guard !list.isEmpty else { return false }
             Task { await model.move(list, to: f) }
             return true
+        } isTargeted: { over in
+            if over { dropTarget = f.serverPath } else if dropTarget == f.serverPath { dropTarget = nil }
         }
     }
 

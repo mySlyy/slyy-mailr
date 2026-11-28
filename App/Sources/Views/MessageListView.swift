@@ -76,7 +76,7 @@ struct MessageListView: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture { select(t.latest) }
                                 .simultaneousGesture(TapGesture(count: 2).onEnded { openThread(t.latest) })
-                                .draggable(model.actionable(t.messages).last?.id ?? t.latest.id)
+                                .draggable(MailDrag.payload(targets(t))) { MailDragTag(count: targets(t).count) }
                                 .contextMenu { MessageMenu(list: targets(t)) }
                             if t.count > 1 && model.expandedThreads.contains(t.id) {
                                 ForEach(t.messages.reversed()) { m in
@@ -84,7 +84,7 @@ struct MessageListView: View {
                                         .contentShape(Rectangle())
                                         .onTapGesture { select(m) }
                                         .simultaneousGesture(TapGesture(count: 2).onEnded { openThread(m) })
-                                        .draggable(m.id)
+                                        .draggable(MailDrag.payload([m])) { MailDragTag(count: 1) }
                                         .contextMenu { MessageMenu(list: [m]) }
                                 }
                             }
@@ -96,7 +96,7 @@ struct MessageListView: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture { select(m) }
                                 .simultaneousGesture(TapGesture(count: 2).onEnded { openThread(m) })
-                                .draggable(m.id)
+                                .draggable(MailDrag.payload(targets(m))) { MailDragTag(count: targets(m).count) }
                                 .contextMenu { MessageMenu(list: targets(m)) }
                         }
                     }
@@ -168,6 +168,35 @@ struct MessageListView: View {
 
     func targets(_ m: MessageSummary) -> [MessageSummary] {
         model.selectedMessageIDs.contains(m.id) ? model.selectedMessages : [m]
+    }
+}
+
+/// Dragging mail onto a folder: the payload names every dragged message (a conversation, or the selection).
+enum MailDrag {
+    static func payload(_ list: [MessageSummary]) -> String { list.map(\.id).joined(separator: "\n") }
+    static func ids(_ items: [String]) -> Set<String> {
+        Set(items.flatMap { $0.split(separator: "\n").map(String.init) })
+    }
+}
+
+/// The drag image: a small tag below and to the right of the pointer, so the folder under the pointer stays visible
+/// (the whole row as drag image covered the sidebar).
+struct MailDragTag: View {
+    let count: Int
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "envelope.fill").font(.system(size: 10, weight: .semibold))
+            if count > 1 { Text("\(count)").font(Slyy.mono(11)) }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 6)
+        .frame(height: 18)
+        .background(Slyy.accent)
+        // Transparent room above and to the left: the pointer's tip stays free.
+        .padding(.leading, 28)
+        .padding(.top, 22)
+        .padding(.trailing, 4)
+        .padding(.bottom, 4)
     }
 }
 
