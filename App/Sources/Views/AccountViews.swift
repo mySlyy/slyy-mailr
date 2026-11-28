@@ -274,8 +274,6 @@ enum SignInError {
             return String(localized: "\(p.name) refused the password. \(p.name) needs an app password here, not your normal password: follow the steps above.")
         }
         switch error {
-        case let e as OAuthError:
-            return e.errorDescription ?? "\(e)"
         case IMAPError.authenticationFailed:
             return String(localized: "Email or password is wrong (mail server \(s.imap.host)).")
         case IMAPError.startTLSRequired:
