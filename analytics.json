@@ -1,0 +1,26 @@
+{
+  "project": "Slyy Mailr",
+  "modules": [
+    {"name": "Library · mail protocols", "kind": "code", "paths": ["Packages/SlyyMailKit/Sources/SlyyMailKit/IMAP", "Packages/SlyyMailKit/Sources/SlyyMailKit/SMTP", "Packages/SlyyMailKit/Sources/SlyyMailKit/MIME", "Packages/SlyyMailKit/Sources/SlyyMailKit/Transport"]},
+    {"name": "Library · calendar", "kind": "code", "paths": ["Packages/SlyyMailKit/Sources/SlyyMailKit/Calendar", "Packages/SlyyMailKit/Sources/SlyyMailKit/CalDAV"]},
+    {"name": "Library · accounts and sign-in", "kind": "code", "paths": ["Packages/SlyyMailKit/Sources/SlyyMailKit/Account"]},
+    {"name": "Library · services", "kind": "code", "paths": ["Packages/SlyyMailKit/Sources/SlyyMailKit/Services", "Packages/SlyyMailKit/Sources/SlyyMailKit/Video"]},
+    {"name": "Library · Haven agent", "kind": "code", "paths": ["Packages/SlyyMailKit/Sources/SlyyMailKit/Haven"]},
+    {"name": "App · views", "kind": "code", "paths": ["App/Sources/Views"]},
+    {"name": "App · model and support", "kind": "code", "paths": ["App/Sources/AppModel.swift", "App/Sources/SlyyMailApp.swift", "App/Sources/Support"]},
+    {"name": "Library tests", "kind": "test", "paths": ["Packages/SlyyMailKit/Tests"]},
+    {"name": "App tests", "kind": "test", "paths": ["App/Tests"]},
+    {"name": "Translations", "kind": "resources", "paths": ["App/Resources"]},
+    {"name": "Build and release (CI, tools)", "kind": "tooling", "paths": [".github", "Tools", "project.yml", "analytics.json", "Packages/SlyyMailKit/Package.swift"]},
+    {"name": "Website", "kind": "web", "paths": ["Website"]},
+    {"name": "Docs", "kind": "docs", "paths": ["Docs", "README.md", "RELEASE_NOTES.md"]}
+  ],
+  "coverage": {
+    "file": "build/coverage.json",
+    "note": "library only, measured on Linux with the local stand-in servers; Apple-only code (TLS stream, Keychain) is not run there"
+  },
+  "dependencies": {"declared_in": ["project.yml"]},
+  "security": {"entitlements_in": ["project.yml"], "plists_in": ["project.yml"]},
+  "thresholds": {"long_function": 60, "large_file": 500},
+  "history": {"tags": "v*"}
+}
