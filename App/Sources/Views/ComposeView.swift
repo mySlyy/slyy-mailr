@@ -536,49 +536,60 @@ struct AddressField<Trailing: View>: View {
     let field: ComposeView.Field
     @ViewBuilder var trailing: () -> Trailing
 
-    var tokens: [String] {
-        text.split(separator: ",", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
-    }
+    var editing: Bool { focus.wrappedValue == field }
 
-    /// Complete addresses before the last comma become chips.
+    /// Finished addresses; while the field isn't being edited every entry is one (e.g. a reply's prefilled To).
+    var chipTexts: [String] { editing ? AddressEntry.chips(text) : AddressEntry.entries(text) }
+
     var chips: [EmailAddress] {
-        EmailAddress.parseList(tokens.dropLast().joined(separator: ","))
+        chipTexts.map { EmailAddress.parseList($0).first ?? EmailAddress(name: "", address: $0) }
     }
 
-    var current: String { tokens.last ?? "" }
+    var current: String { editing ? (AddressEntry.tokens(text).last ?? "") : "" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(label).foregroundStyle(Slyy.muted).frame(width: 56, alignment: .leading)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(Array(chips.enumerated()), id: \.offset) { i, a in
-                            HStack(spacing: 6) {
-                                Text(a.name.isEmpty ? a.address : a.name)
-                                if !a.name.isEmpty { Text(a.address).font(Slyy.font(12)).foregroundStyle(Slyy.muted) }
-                                Button { remove(at: i) } label: { Image(systemName: "xmark").imageScale(.small) }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Remove \(a.address)")
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(a.isValid ? Slyy.panel : Slyy.orangeTint)
+                // Chips and the typing field flow on one line and wrap, the cursor right after the last chip.
+                AddressFlow(spacing: 6) {
+                    ForEach(Array(chips.enumerated()), id: \.offset) { i, a in
+                        HStack(spacing: 6) {
+                            Text(a.name.isEmpty ? a.address : a.name).lineLimit(1)
+                            if !a.name.isEmpty { Text(a.address).font(Slyy.font(12)).foregroundStyle(Slyy.muted).lineLimit(1) }
+                            Button { remove(at: i) } label: { Image(systemName: "xmark").imageScale(.small) }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove \(a.address)")
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(a.isValid ? Slyy.panel : Slyy.orangeTint)
+                        .help(a.isValid ? a.headerValue : String(localized: "Not a complete address"))
                     }
+                    TextField("", text: Binding(get: { current }, set: { setCurrent($0) }))
+                        .textFieldStyle(.plain)
+                        .focused(focus, equals: field)
+                        .onSubmit { text = AddressEntry.commit(text) }
+                        .onKeyPress(.delete) {
+                            // Backspace in an empty field takes the last chip back for editing.
+                            guard current.isEmpty, let last = chipTexts.last else { return .ignored }
+                            text = AddressEntry.join(Array(chipTexts.dropLast()), current: last)
+                            return .handled
+                        }
+                        #if os(iOS)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        #endif
+                        .frame(minWidth: 140)
                 }
-                .frame(maxWidth: chips.isEmpty ? 0 : .infinity)
-                TextField("", text: Binding(get: { current }, set: { setCurrent($0) }))
-                    .textFieldStyle(.plain)
-                    .focused(focus, equals: field)
-                    .onSubmit { commitCurrent() }
-                    #if os(iOS)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    #endif
-                    .frame(minWidth: 120)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { focus.wrappedValue = field }
                 trailing()
+            }
+            .onChange(of: editing) { _, now in
+                if !now { text = AddressEntry.entries(text).joined(separator: ", ") } // tidy when leaving the field
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -610,26 +621,58 @@ struct AddressField<Trailing: View>: View {
     }
 
     func setCurrent(_ value: String) {
-        var t = tokens
-        if t.isEmpty { t = [value] } else { t[t.count - 1] = value }
-        text = t.joined(separator: ", ")
-    }
-
-    func commitCurrent() {
-        if !current.isEmpty { text = tokens.filter { !$0.isEmpty }.joined(separator: ", ") + ", " }
+        text = AddressEntry.typing(value, chips: chipTexts)
     }
 
     func remove(at index: Int) {
-        var list = chips
+        var list = chipTexts
+        guard list.indices.contains(index) else { return }
         list.remove(at: index)
-        text = list.map(\.headerValue).joined(separator: ", ") + (list.isEmpty ? "" : ", ") + current
+        text = editing ? AddressEntry.join(list, current: current) : list.joined(separator: ", ")
     }
 
     func pick(_ a: EmailAddress) {
-        var t = tokens
-        if !t.isEmpty { t.removeLast() }
-        t.append(a.headerValue)
-        text = t.filter { !$0.isEmpty }.joined(separator: ", ") + ", "
+        text = AddressEntry.join(chipTexts + [a.headerValue], current: "")
+    }
+}
+
+/// Left-to-right flow that wraps; the last item (the typing field) takes the rest of its line.
+struct AddressFlow: Layout {
+    var spacing: CGFloat = 6
+
+    private func rows(_ width: CGFloat, _ subviews: Subviews) -> [(range: Range<Int>, height: CGFloat)] {
+        var rows: [(Range<Int>, CGFloat)] = []
+        var start = 0, x: CGFloat = 0, h: CGFloat = 0
+        for (i, v) in subviews.enumerated() {
+            let s = v.sizeThatFits(.unspecified)
+            let w = i == subviews.count - 1 ? max(140, s.width) : min(s.width, width)
+            if x > 0 && x + w > width { rows.append((start..<i, h)); start = i; x = 0; h = 0 }
+            x += w + spacing
+            h = max(h, s.height)
+        }
+        rows.append((start..<subviews.count, h))
+        return rows
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 600
+        let r = rows(width, subviews)
+        return CGSize(width: width, height: r.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, r.count - 1)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(bounds.width, subviews) {
+            var x = bounds.minX
+            for i in row.range {
+                let s = subviews[i].sizeThatFits(.unspecified)
+                let isLast = i == subviews.count - 1
+                let w = isLast ? max(140, bounds.maxX - x) : min(s.width, bounds.width)
+                subviews[i].place(at: CGPoint(x: x, y: y + (row.height - s.height) / 2), proposal: ProposedViewSize(width: w, height: s.height))
+                x += w + spacing
+            }
+            y += row.height + spacing
+        }
     }
 }
 

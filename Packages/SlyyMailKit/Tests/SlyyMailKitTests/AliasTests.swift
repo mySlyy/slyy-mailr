@@ -112,3 +112,22 @@ extension MailService {
         return try await withIMAP { try await $0.fetchMessage(folder: s.folder, uid: s.uid) }
     }
 }
+
+final class AddressEntryTests: XCTestCase {
+    func testPrefilledAndPastedListsBecomeEntries() {
+        XCTAssertEqual(AddressEntry.entries("sam@cloudfest.com"), ["sam@cloudfest.com"], "a reply's prefilled To is a chip")
+        let pasted = AddressEntry.typing("a@x.de; b@y.de, \"Weber, Anna\" <anna@z.de>\nc@w.de", chips: [])
+        XCTAssertEqual(AddressEntry.chips(pasted), ["a@x.de", "b@y.de", "\"Weber, Anna\" <anna@z.de>"])
+        XCTAssertEqual(AddressEntry.tokens(pasted).last, "c@w.de", "the last one stays editable")
+        XCTAssertEqual(EmailAddress.parseList(pasted).map(\.address), ["a@x.de", "b@y.de", "anna@z.de", "c@w.de"])
+    }
+
+    func testSeparatorsAndSpaceFinishAnAddress() {
+        XCTAssertEqual(AddressEntry.typing("mats@arctoslabs.com,", chips: ["sam@cloudfest.com"]), "sam@cloudfest.com, mats@arctoslabs.com, ")
+        XCTAssertEqual(AddressEntry.typing("mats@arctoslabs.com ", chips: []), "mats@arctoslabs.com, ")
+        XCTAssertEqual(AddressEntry.typing("Anna Weber ", chips: []), "Anna Weber ", "a name with spaces keeps typing")
+        XCTAssertEqual(AddressEntry.typing("\"Weber, Anna\" <a", chips: []), "\"Weber, Anna\" <a", "no split inside quotes or <…>")
+        XCTAssertEqual(AddressEntry.commit("a@x.de, b@y.de"), "a@x.de, b@y.de, ")
+        XCTAssertEqual(AddressEntry.commit(" , "), "")
+    }
+}
