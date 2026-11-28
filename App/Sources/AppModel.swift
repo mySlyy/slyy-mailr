@@ -603,7 +603,12 @@ final class AppModel {
             for part in m.calendarParts {
                 let method = ICalendarReader.read(part).method
                 if method == "REPLY" || method == "CANCEL" {
-                    try? await calendarService?.apply(itip: part)
+                    // Only the organizer may cancel, only the attendee may answer for themself; say so plainly otherwise.
+                    do {
+                        try await calendarService?.apply(itip: part, from: m.from.first?.address ?? "")
+                    } catch let refused as ITIPError {
+                        report(refused)
+                    } catch {}
                 }
             }
         } catch {

@@ -109,7 +109,7 @@ final class SOGoTests: XCTestCase {
         try await attCal.respond(to: invite, status: .accepted)
         let reply = try await TestAccount.waitForMail(mail, subjectContains: "Accepted: \(title)", timeout: 90)[0]
         let replyMessage = try await mail.message(reply, markSeen: false)
-        try await orgCal.apply(itip: try XCTUnwrap(replyMessage.calendarParts.first))
+        try await orgCal.apply(itip: try XCTUnwrap(replyMessage.calendarParts.first), from: try XCTUnwrap(replyMessage.from.first).address)
         let obj = try await orgCal.findObject(uid: e.uid)
         XCTAssertEqual(obj?.events.first?.status(of: alias), .accepted, "the organizer's copy shows the acceptance")
 

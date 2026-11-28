@@ -104,24 +104,24 @@ final class OccurrenceITIPTests: XCTestCase {
             // I'm invited to a weekly series; the organizer cancels only 2027-01-15.
             let uid = "r1-cancel-\(me.token)-\(UUID().uuidString)"
             let stored = try await client.put(ics: Self.series(uid: uid, organizer: "org@example.org", attendee: "r1@example.com", summary: me.tagged("Weekly")), uid: uid, calendarURL: cal.url)
-            try await service.apply(itip: Self.itip("CANCEL", uid: uid, organizer: "org@example.org", attendee: "r1@example.com", rid: "20270115T100000"))
+            try await service.apply(itip: Self.itip("CANCEL", uid: uid, organizer: "org@example.org", attendee: "r1@example.com", rid: "20270115T100000"), from: "org@example.org")
             let afterOne = try await client.object(at: stored.url)
             XCTAssertEqual(starts(afterOne.ics).count, 5, "only the cancelled occurrence is gone")
             XCTAssertFalse(starts(afterOne.ics).contains(Self.date(2027, 1, 15, 10)))
             // Cancelling the moved occurrence drops its override too.
-            try await service.apply(itip: Self.itip("CANCEL", uid: uid, organizer: "org@example.org", attendee: "r1@example.com", rid: "20270122T100000"))
+            try await service.apply(itip: Self.itip("CANCEL", uid: uid, organizer: "org@example.org", attendee: "r1@example.com", rid: "20270122T100000"), from: "org@example.org")
             let afterTwo = try await client.object(at: stored.url)
             XCTAssertEqual(afterTwo.events.count, 1)
             XCTAssertEqual(starts(afterTwo.ics).count, 4)
             // A CANCEL without RECURRENCE-ID still removes the whole series.
-            try await service.apply(itip: Self.itip("CANCEL", uid: uid, organizer: "org@example.org", attendee: "r1@example.com", rid: nil))
+            try await service.apply(itip: Self.itip("CANCEL", uid: uid, organizer: "org@example.org", attendee: "r1@example.com", rid: nil), from: "org@example.org")
             let gone = try await service.findObject(uid: uid)
             XCTAssertNil(gone)
 
             // I organize a series; an attendee accepts only 2027-01-29: the series' status stays as it was.
             let uid2 = "r1-reply-\(me.token)-\(UUID().uuidString)"
             let stored2 = try await client.put(ics: Self.series(uid: uid2, organizer: "r1@example.com", attendee: "guest@example.org", summary: me.tagged("Mine")), uid: uid2, calendarURL: cal.url)
-            try await service.apply(itip: Self.itip("REPLY", uid: uid2, organizer: "r1@example.com", attendee: "guest@example.org", partstat: "ACCEPTED", rid: "20270129T100000"))
+            try await service.apply(itip: Self.itip("REPLY", uid: uid2, organizer: "r1@example.com", attendee: "guest@example.org", partstat: "ACCEPTED", rid: "20270129T100000"), from: "guest@example.org")
             let replied = try await client.object(at: stored2.url)
             XCTAssertEqual(replied.events.first { $0.recurrenceID == nil }?.status(of: "guest@example.org"), .needsAction)
             XCTAssertNotNil(replied.events.first { $0.recurrenceID == nil }?.recurrence)

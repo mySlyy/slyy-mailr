@@ -36,7 +36,7 @@ final class InviteFlowTests: XCTestCase {
         // Alice gets the REPLY and applies it.
         let replyMail = try await TestAccount.waitForMail(aliceMail, subjectContains: "Accepted: \(title)")[0]
         let reply = try await aliceMail.message(replyMail)
-        try await aliceCal.apply(itip: try XCTUnwrap(reply.calendarParts.first))
+        try await aliceCal.apply(itip: try XCTUnwrap(reply.calendarParts.first), from: try XCTUnwrap(reply.from.first).address)
         let aliceObj = try await aliceCal.findObject(uid: e.uid)
         XCTAssertEqual(aliceObj?.events.first?.status(of: "bob@example.com"), .accepted)
 
@@ -44,7 +44,7 @@ final class InviteFlowTests: XCTestCase {
         try await aliceCal.delete(saved)
         let cancelMail = try await TestAccount.waitForMail(bobMail, subjectContains: "Cancelled: \(title)")[0]
         let cancel = try await bobMail.message(cancelMail)
-        try await bobCal.apply(itip: try XCTUnwrap(cancel.calendarParts.first))
+        try await bobCal.apply(itip: try XCTUnwrap(cancel.calendarParts.first), from: try XCTUnwrap(cancel.from.first).address)
         let gone = try await bobCal.findObject(uid: e.uid)
         XCTAssertNil(gone)
 

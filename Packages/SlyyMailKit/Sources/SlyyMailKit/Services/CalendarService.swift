@@ -1,5 +1,18 @@
 import Foundation
 
+/// An incoming iTIP mail that was not applied because its sender may not make that change.
+public enum ITIPError: Error, LocalizedError, Equatable {
+    case cancelNotFromOrganizer
+    case replyNotFromAttendee
+
+    public var errorDescription: String? {
+        switch self {
+        case .cancelNotFromOrganizer: return "This cancellation didn't come from the organizer, so the calendar wasn't changed."
+        case .replyNotFromAttendee: return "This reply didn't come from the attendee it answers for, so the calendar wasn't changed."
+        }
+    }
+}
+
 /// Calendar operations: CalDAV storage plus iTIP mails to attendees (invites, updates, cancellations, replies).
 public actor CalendarService {
     public let account: AccountSettings
@@ -170,11 +183,14 @@ public actor CalendarService {
     }
 
     /// Applies an incoming CANCEL (removes the event) or REPLY (updates the attendee's status) from a mail.
-    public func apply(itip ics: String) async throws {
+    /// `sender` is the mail's From address: a CANCEL is applied only if it is the stored event's organizer,
+    /// a REPLY only if it is the replying attendee (who must be on the stored event). Otherwise throws `ITIPError`.
+    public func apply(itip ics: String, from sender: String) async throws {
         guard let caldav else { return }
         let r = ICalendarReader.read(ics)
         guard let e = r.events.first, let method = r.method else { return }
         guard let obj = try await findObject(uid: e.uid) else { return }
+        try Self.checkSender(sender, method: method, itip: e, stored: obj.events)
         switch method {
         case "CANCEL":
             // One occurrence (RECURRENCE-ID): exclude just that one from the series; otherwise the whole event goes.
@@ -209,6 +225,29 @@ public actor CalendarService {
         o.recurrence = nil
         o.exceptionDates = []
         return o
+    }
+
+    /// Throws unless the mail's sender may send this iTIP message for the stored event.
+    static func checkSender(_ sender: String, method: String, itip e: CalendarEvent, stored: [CalendarEvent]) throws {
+        func same(_ a: String?, _ b: String?) -> Bool {
+            guard let a, let b, !a.isEmpty else { return false }
+            return a.caseInsensitiveCompare(b) == .orderedSame
+        }
+        let master = stored.first { $0.recurrenceID == nil } ?? stored.first
+        switch method {
+        case "CANCEL":
+            let organizer = master?.organizer?.address
+            guard same(organizer, sender), e.organizer == nil || same(e.organizer?.address, organizer) else {
+                throw ITIPError.cancelNotFromOrganizer
+            }
+        case "REPLY":
+            guard let reply = e.attendees.first, same(reply.email, sender),
+                  master?.attendees.contains(where: { same($0.email, reply.email) }) == true else {
+                throw ITIPError.replyNotFromAttendee
+            }
+        default:
+            break
+        }
     }
 
     /// Finds the stored object for a UID by searching all calendars (±2 years).
