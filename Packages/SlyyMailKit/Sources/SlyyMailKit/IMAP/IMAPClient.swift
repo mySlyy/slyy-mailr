@@ -579,9 +579,29 @@ public actor IMAPClient {
         try await command("UID STORE \(set) +FLAGS.SILENT (\\Deleted)")
         if has("UIDPLUS") {
             try await command("UID EXPUNGE \(set)")
-        } else {
-            try await command("EXPUNGE")
+            return
         }
+        // A plain EXPUNGE removes every message flagged \Deleted, including ones another client
+        // only marked. Unmark those for the duration of the EXPUNGE and mark them again afterwards.
+        let ours = Set(uids)
+        let r = try await command("UID SEARCH DELETED")
+        var others: [UInt32] = []
+        for line in r.untagged where line.first?.text?.uppercased() == "SEARCH" {
+            others += line.dropFirst().compactMap { $0.text.flatMap { UInt32($0) } }.filter { !ours.contains($0) }
+        }
+        guard !others.isEmpty else {
+            try await command("EXPUNGE")
+            return
+        }
+        let otherSet = IMAPClient.uidSet(others)
+        try await command("UID STORE \(otherSet) -FLAGS.SILENT (\\Deleted)")
+        do {
+            try await command("EXPUNGE")
+        } catch {
+            _ = try? await command("UID STORE \(otherSet) +FLAGS.SILENT (\\Deleted)")
+            throw error
+        }
+        try await command("UID STORE \(otherSet) +FLAGS.SILENT (\\Deleted)")
     }
 
     /// Appends a message; returns its UID when the server supports UIDPLUS.
