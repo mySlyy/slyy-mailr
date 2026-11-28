@@ -148,3 +148,26 @@ final class SearchResultsTests: XCTestCase {
         XCTAssertEqual(SearchResults(query: "schumann gesprach", hits: hits).direct.map(\.uid), [3], "all words, accents ignored")
     }
 }
+
+final class SearchQueryTests: XCTestCase {
+    func testQuotedPhrasesAndWords() {
+        XCTAssertEqual(SearchQuery("\"Cloud AI\"").terms, ["Cloud AI"])
+        XCTAssertEqual(SearchQuery("\"Cloud   AI\" invoice 2026").terms, ["Cloud AI", "invoice", "2026"])
+        XCTAssertEqual(SearchQuery("„Private Cloud“ rechnung").terms, ["Private Cloud", "rechnung"])
+        XCTAssertEqual(SearchQuery("  ").terms, [])
+        XCTAssertEqual(SearchQuery("\"unclosed phrase").terms, ["unclosed phrase"])
+    }
+
+    func testPhraseMatchesInOrderIgnoringCase() {
+        func m(_ uid: UInt32, _ subject: String) -> MessageSummary {
+            MessageSummary(uid: uid, folder: "INBOX", flags: [], date: Date(timeIntervalSince1970: TimeInterval(uid)), size: 0,
+                           from: [EmailAddress(name: "X", address: "x@y.de")], to: [], cc: [], subject: subject, messageID: nil,
+                           hasAttachments: false, isInvite: false)
+        }
+        let hits = [m(1, "Our cloud ai offer"), m(2, "AI for the cloud"), m(3, "Private CLOUD  AI day")]
+        let phrase = SearchResults(query: "\"Cloud AI\"", hits: hits)
+        XCTAssertEqual(phrase.direct.map(\.uid), [3, 1], "both words in that order, any case")
+        XCTAssertEqual(phrase.mentions.map(\.uid), [2], "words present but not as the phrase")
+        XCTAssertEqual(SearchResults(query: "cloud ai", hits: hits).direct.count, 3, "loose words: any order")
+    }
+}

@@ -17,18 +17,48 @@ public struct SearchResults: Equatable, Sendable {
             if let id = m.messageID?.lowercased(), !id.isEmpty, !seenID.insert(id).inserted { continue }
             unique.append(m)
         }
-        let words = Self.words(query)
+        let terms = SearchQuery(query).terms.map(Self.fold)
         func inHeaders(_ m: MessageSummary) -> Bool {
             let fields = ([m.subject] + (m.from + m.to + m.cc).flatMap { [$0.name, $0.address] }).joined(separator: " ")
             let hay = Self.fold(fields)
-            return !words.isEmpty && words.allSatisfy { hay.contains($0) }
+            return !terms.isEmpty && terms.allSatisfy { hay.contains($0) }
         }
         direct = unique.filter(inHeaders)
         mentions = unique.filter { !inHeaders($0) }
     }
 
-    static func fold(_ s: String) -> String { s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil) }
-    static func words(_ q: String) -> [String] {
-        fold(q).split(whereSeparator: { $0.isWhitespace }).map(String.init).filter { !$0.isEmpty }
+    /// Case and accents ignored; runs of spaces count as one, so a phrase matches across line wraps in headers.
+    static func fold(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+}
+
+/// A search as typed: "quoted text" is one phrase (those words in that order), other words each stand alone;
+/// all must match, case ignored. Curly quotes count too; an unclosed quote runs to the end.
+public struct SearchQuery: Equatable, Sendable {
+    public var terms: [String]
+
+    public init(_ text: String) {
+        var terms: [String] = []
+        var current = ""
+        var inQuotes = false
+        func flush() {
+            let t = current.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            if !t.isEmpty { terms.append(t) }
+            current = ""
+        }
+        for ch in text {
+            if ch == "\"" || ch == "“" || ch == "”" || ch == "„" {
+                flush()
+                inQuotes.toggle()
+            } else if ch.isWhitespace && !inQuotes {
+                flush()
+            } else {
+                current.append(ch)
+            }
+        }
+        flush()
+        self.terms = terms
     }
 }

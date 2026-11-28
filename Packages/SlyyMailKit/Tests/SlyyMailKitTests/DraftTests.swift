@@ -275,3 +275,22 @@ final class UnreadFilterIntegrationTests: XCTestCase {
         await mail.disconnect()
     }
 }
+
+final class PhraseSearchIntegrationTests: XCTestCase {
+    func testQuotedPhraseOnTheServer() async throws {
+        let acc = try TestAccount.local("r9@example.com")
+        let mail = acc.mail()
+        let imap = try await acc.imap()
+        let inOrder = OutgoingMessage(from: acc.address, to: [acc.address], subject: acc.tagged("one"), text: "We offer private CLOUD AI for SMEs.")
+        let reversed = OutgoingMessage(from: acc.address, to: [acc.address], subject: acc.tagged("two"), text: "AI in the cloud, not the other way.")
+        _ = try await imap.append(folder: "INBOX", message: inOrder.render())
+        _ = try await imap.append(folder: "INBOX", message: reversed.render())
+        await imap.logout()
+        let phrase = try await mail.search(in: "INBOX", text: "\"cloud ai\"").filter { $0.subject.contains(acc.token) }
+        XCTAssertEqual(phrase.map(\.subject), [inOrder.subject], "the phrase, any case")
+        let words = try await mail.search(in: "INBOX", text: "cloud ai").filter { $0.subject.contains(acc.token) }
+        XCTAssertEqual(Set(words.map(\.subject)), [inOrder.subject, reversed.subject], "loose words: both")
+        await acc.cleanUp(mail)
+        await mail.disconnect()
+    }
+}

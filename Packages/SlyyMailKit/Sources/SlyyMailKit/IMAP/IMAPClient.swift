@@ -532,15 +532,20 @@ public actor IMAPClient {
     /// Server-side search in subject, from, to and body. Returns newest `limit` matches.
     public func search(folder serverPath: String, text: String, limit: Int = 100) async throws -> [MessageSummary] {
         try await select(serverPath)
-        let q = text.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return [] }
-        let ascii = q.unicodeScalars.allSatisfy(\.isASCII)
-        var parts: [Part] = [.text(ascii ? "UID SEARCH OR OR OR SUBJECT " : "UID SEARCH CHARSET UTF-8 OR OR OR SUBJECT ")]
-        for key in ["FROM", "TO", "BODY"] {
-            parts.append(.astring(q))
-            parts.append(.text(" \(key) "))
+        // "a phrase" in quotes is one term, other words each one term; every term must match (IMAP ANDs the
+        // criteria), each in subject, sender, recipient or text. IMAP SEARCH ignores case.
+        let terms = SearchQuery(text).terms
+        guard !terms.isEmpty else { return [] }
+        let ascii = terms.allSatisfy { $0.unicodeScalars.allSatisfy(\.isASCII) }
+        var parts: [Part] = [.text(ascii ? "UID SEARCH" : "UID SEARCH CHARSET UTF-8")]
+        for term in terms {
+            parts.append(.text(" OR OR OR SUBJECT "))
+            for key in ["FROM", "TO", "BODY"] {
+                parts.append(.astring(term))
+                parts.append(.text(" \(key) "))
+            }
+            parts.append(.astring(term))
         }
-        parts.append(.astring(q))
         let r = try await command(parts, name: "SEARCH")
         var uids: [UInt32] = []
         for line in r.untagged where line.first?.text?.uppercased() == "SEARCH" {
