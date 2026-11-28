@@ -11,7 +11,7 @@ def _file(out: str, name: str, rows: list, meta: list) -> str:
     return path
 
 
-def export(results: dict, out: str, review: dict | None = None) -> list[str]:
+def export(results: dict, out: str, review: dict | None = None, cleanup: dict | None = None) -> list[str]:
     os.makedirs(out, exist_ok=True)
     base = [{"label": "Tool", "value": f"slyy-analytics {results['tool_version']} (Tools/slyy-analytics)"},
             {"label": "Project", "value": results["project"]},
@@ -30,6 +30,10 @@ def export(results: dict, out: str, review: dict | None = None) -> list[str]:
         "review_important": sum(1 for f in findings if f["severity"] == "important"),
         "review_minor": sum(1 for f in findings if f["severity"] != "important"),
         "long_functions": len(s["flags"]["long_functions"]), "large_files": len(s["flags"]["large_files"]),
+        "duplicated_lines": results.get("redundancy", {}).get("duplicates", {}).get("duplicated_lines"),
+        "unused_candidates": len(results.get("redundancy", {}).get("unused", {}).get("candidates", [])),
+        "cleanup_items": len((cleanup or {}).get("items", [])),
+        "cleanup_lines": sum(i.get("lines", 0) for i in (cleanup or {}).get("items", [])),
     }], base + [{"label": "Definitions", "value": "code/test lines exclude comments and blank lines; test ratio = test lines per line of production code; coverage = share of the library's executable lines run by its tests"}]))
     paths.append(_file(out, "modules", [{"module": m["name"], "kind": m.get("kind", ""), "files": m["files"], "code": m["code"], "comment": m["comment"]} for m in s["modules"]], base))
     paths.append(_file(out, "releases", [{"tag": r["tag"], "date": r["date"][:10], "code": r["code"], "test": r["test"]} for r in results["history"].get("releases", [])], base + [{"label": "Method", "value": "lines counted at each release tag from git, without checking it out"}]))
@@ -59,6 +63,14 @@ def export(results: dict, out: str, review: dict | None = None) -> list[str]:
         paths.append(_file(out, "review", [{"id": f["id"], "severity": f["severity"], "area": f["area"], "file": f["file"].split("/")[-1], "path": f["file"], "line": f["line"],
                                              "summary": f["summary"], "scenario": f["scenario"]} for f in findings],
                            base + [{"label": "Review", "value": f"{review.get('method', '')}; scope {review.get('scope', '')}; {review.get('reviewed', '')}"}]))
+    red = results.get("redundancy", {})
+    if red.get("duplicates"):
+        rows = [{"id": f"D{i + 1}", "lines": g["lines"], "places": len(g["places"]),
+                 "where": "; ".join(f"{p['path'].split('/')[-1]}:{p['start']}-{p['end']}" for p in g["places"])}
+                for i, g in enumerate(red["duplicates"]["groups"])]
+        paths.append(_file(out, "duplicates", rows, base + [{"label": "Method", "value": f"blocks of at least {red['duplicates']['min_lines']} significant lines (literals and whitespace normalised) found in more than one place"}]))
+    if cleanup:
+        paths.append(_file(out, "cleanup", cleanup["items"], base + [{"label": "Checked", "value": f"by hand, {cleanup.get('checked', '')}; marked in code as // CLEANUP(Cn), list in docs/CLEANUP.md"}]))
     return paths
 
 
@@ -67,9 +79,11 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(prog="slyy-analytics export")
     p.add_argument("--in", dest="inp", default="build/analytics/analytics.json")
     p.add_argument("--review", default="build/analytics/review.json")
+    p.add_argument("--cleanup", default="build/analytics/cleanup.json")
     p.add_argument("--out", default="build/analytics/dash")
     a = p.parse_args()
     r = json.load(open(a.inp, encoding="utf-8"))
     rv = json.load(open(a.review, encoding="utf-8")) if os.path.exists(a.review) else None
-    for path in export(r, a.out, rv):
+    cl = json.load(open(a.cleanup, encoding="utf-8")) if os.path.exists(a.cleanup) else None
+    for path in export(r, a.out, rv, cl):
         print(path)

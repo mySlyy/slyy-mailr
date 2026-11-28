@@ -65,6 +65,7 @@ struct SidebarView: View {
                         }
                         .buttonStyle(SlyyRowButtonStyle(selected: model.sidebarSelection == .calendar))
                         if model.sidebarSelection == .calendar {
+                            // CLEANUP(C7): same calendar on/off toggle as AccountViews; one CalendarToggle view.
                             ForEach(model.calendars) { c in
                                 Toggle(isOn: Binding(
                                     get: { !model.hiddenCalendars.contains(c.url) },

@@ -190,6 +190,7 @@ public actor IMAPClient {
 
     /// Connects, reads the greeting and capabilities and upgrades with STARTTLS if configured, without logging in.
     /// Used to check that a server is reachable and speaks IMAP securely.
+    // CLEANUP(C4): repeats connect()'s open, greeting and STARTTLS steps; share one private helper.
     public func probe() async throws -> Set<String> {
         let stream = try await Transport.connect(endpoint)
         let io = BufferedStream(stream)

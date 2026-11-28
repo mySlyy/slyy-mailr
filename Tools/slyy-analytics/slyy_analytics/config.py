@@ -16,6 +16,7 @@ class Config:
         self.dependencies = data.get("dependencies", {})
         self.thresholds = {"long_function": 60, "large_file": 500, **data.get("thresholds", {})}
         self.history = data.get("history", {"tags": "v*"})
+        self.redundancy = data.get("redundancy", {})
 
     @classmethod
     def load(cls, path: str, root: str | None = None) -> "Config":

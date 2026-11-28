@@ -997,6 +997,7 @@ extension AppModel {
     /// Tests: change the sample account (the live account changes only through updateAccount).
     func setSampleAccount(_ a: AccountSettings) { account = a }
 
+    // CLEANUP(C2): test fixture shipped in the app; move to App/Tests with setSampleAccount.
     static func sample(calendar: Bool = false, conversation: Bool = false) -> AppModel {
         let m = AppModel(sample: true)
         let account = AccountSettings(

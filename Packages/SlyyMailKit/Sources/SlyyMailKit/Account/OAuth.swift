@@ -6,6 +6,7 @@ import FoundationNetworking
 /// OAuth 2.0 (authorization code + PKCE) for mail providers that sign in in the browser instead of with a password.
 /// No SDKs: the browser shows the provider's own login page, a local one-shot listener receives the code,
 /// tokens live in the Keychain, and IMAP/SMTP log in with XOAUTH2.
+// CLEANUP(C1): OAuth sign-in flow is not used by the app (Google uses app passwords). Keep for Microsoft or remove; see docs/CLEANUP.md.
 public struct OAuthProvider: Sendable, Equatable {
     public var name: String
     public var authorizeURL: URL

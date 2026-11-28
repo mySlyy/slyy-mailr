@@ -217,6 +217,7 @@ struct EventEditorView: View {
                             Picker("Repeat", selection: $repeatOption) {
                                 ForEach(RepeatOption.allCases) { Text($0.label).tag($0) }
                             }
+                            // CLEANUP(C9): labelled form rows repeat the same label/picker layout four times; one FieldRow helper.
                             .labelsHidden()
                             .pickerStyle(.menu)
                             .frame(maxWidth: .infinity, alignment: .leading)

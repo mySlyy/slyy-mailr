@@ -125,6 +125,7 @@ struct MessageDetailView: View {
         .bottomHairline()
     }
 
+    // CLEANUP(C6): same header-bar padding as CalendarView; one shared modifier.
     var topInset: CGFloat {
         #if os(macOS)
         return 30
@@ -216,6 +217,7 @@ struct MessageDetailView: View {
     }
 
     #if os(macOS)
+    // CLEANUP(C10): unused; AttachmentChips opens files through temporaryFile(_:) instead. Remove.
     func openAttachment(_ a: Attachment) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

@@ -54,6 +54,7 @@ public struct KnownProvider: Sendable, Equatable {
     }
 
     /// Does a login error look like "normal password refused, app password needed"?
+    // CLEANUP(C10): only tests call it; wire into the Gmail app-password guide on login failure, or remove.
     public static func needsAppPassword(_ serverText: String) -> Bool {
         let t = serverText.lowercased()
         return ["application-specific password", "app password", "web login required", "authenticationfailed", "invalid credentials", "534-5.7.9", "535-5.7.8"]

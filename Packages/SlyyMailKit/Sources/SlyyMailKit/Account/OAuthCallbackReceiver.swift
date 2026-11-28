@@ -21,6 +21,7 @@ private let tcpStream = Int32(SOCK_STREAM.rawValue)
 #endif
 
 /// Receives the browser's redirect once, on 127.0.0.1 only, then closes. The port is picked by the system.
+// CLEANUP(C1): not used by the app; part of the dormant OAuth flow.
 public final class OAuthCallbackReceiver: @unchecked Sendable {
     public let port: UInt16
     private let fd: Int32

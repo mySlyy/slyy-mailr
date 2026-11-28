@@ -93,6 +93,7 @@ extension Color {
 // MARK: Buttons
 
 /// Black fill, white text (New message, Sign in, selected RSVP).
+// CLEANUP(C5): Primary and Accent styles differ only in colours; make one filled style with fill/pressed colours.
 struct SlyyPrimaryButtonStyle: ButtonStyle {
     var fullWidth = false
     var height: CGFloat = 40
@@ -164,6 +165,7 @@ struct SlyyRowButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == SlyyPrimaryButtonStyle {
+    // CLEANUP(C5): unused shortcut; every caller spells SlyyPrimaryButtonStyle(...).
     static var slyyPrimary: SlyyPrimaryButtonStyle { SlyyPrimaryButtonStyle() }
 }
 

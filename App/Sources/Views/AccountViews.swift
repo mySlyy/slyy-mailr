@@ -765,6 +765,7 @@ struct ShownCalendarsForm: View {
                 Text((model.account?.caldavURL ?? "").isEmpty ? "The calendar is off: no calendar server set." : "No calendars loaded yet.")
                     .font(Slyy.font(13)).foregroundStyle(Slyy.muted)
             }
+            // CLEANUP(C7): same calendar on/off toggle as SidebarView; one CalendarToggle view.
             ForEach(model.calendars) { c in
                 Toggle(isOn: Binding(
                     get: { !model.hiddenCalendars.contains(c.url) },

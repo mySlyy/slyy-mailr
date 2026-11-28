@@ -2,6 +2,7 @@ import Foundation
 #if os(macOS)
 import AppKit
 
+// CLEANUP(C3): remove the pre-rename "Slyy Mail.app" and universal-DMG cleanup (and its two temporary-exception entitlements) once 0.2.x installs are gone.
 /// Removes what earlier versions and their installers leave behind, once per installed version:
 /// - Slyy Mailr installer DMGs (and .sha256 files) in Downloads that are older than the running version,
 /// - mounted "Slyy Mailr …" / "Slyy Mail …" installer volumes (unless the app runs from one),

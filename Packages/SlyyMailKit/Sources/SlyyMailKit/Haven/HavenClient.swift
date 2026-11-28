@@ -181,6 +181,7 @@ public actor HavenClient {
         try await call("tools/call", ["name": .string(name), "arguments": arguments])
     }
 
+    // CLEANUP(C10): not called by the app or tests; remove or use for Haven grants.
     public func requestGrants(classes: [String], sources: [String] = []) async throws -> JSONValue {
         try await call("grants/request", ["classes": .array(classes.map(JSONValue.string)), "sources": .array(sources.map(JSONValue.string))])
     }

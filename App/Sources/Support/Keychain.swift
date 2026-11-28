@@ -6,6 +6,7 @@ import Security
 enum Keychain {
     static let service = "ai.slyy.mailr"
 
+    // CLEANUP(C8): the base query is built three times; one baseQuery(account).
     static func setPassword(_ password: String, for account: UUID) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

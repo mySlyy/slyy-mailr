@@ -34,6 +34,13 @@ def markdown(r: dict) -> str:
     sec = r["security"]
     lines += ["", "## Security", ""] + [f"- [{e['severity']}] {e['entitlement']}: {e['allows']}" for e in sec["entitlements"]]
     lines += [f"- [{h['severity']}] {h['kind']} in `{h['path']}:{h['line']}`" for h in sec["committed_secrets"]]
+    red = r.get("redundancy") or {}
+    if red:
+        dup, un = red["duplicates"], red["unused"]["candidates"]
+        lines += ["", "## Redundancy", "", f"{dup['duplicated_lines']} repeated lines in {len(dup['groups'])} blocks (at least {dup['min_lines']} significant lines each).", ""]
+        lines += [f"- {g['lines']} lines × {len(g['places'])}: " + ", ".join(f"`{p['path']}:{p['start']}`" for p in g["places"]) for g in dup["groups"][:15]]
+        lines += ["", f"{len(un)} declarations whose name appears nowhere else (check by hand; framework callbacks show up here):", ""]
+        lines += [f"- `{u['path']}:{u['line']}` {u['kind']} {u['name']}" for u in un]
     return "\n".join(lines) + "\n"
 
 

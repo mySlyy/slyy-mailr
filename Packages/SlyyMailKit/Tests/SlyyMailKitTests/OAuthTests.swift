@@ -38,6 +38,7 @@ final class TokenEndpointStub: URLProtocol {
 
 final class OAuthTests: XCTestCase {
     /// A provider like Microsoft 365 will be (generic OAuth groundwork; no real endpoint is contacted).
+    // CLEANUP(C11): Yahoo was dropped; rename the test provider and addresses to a neutral example.
     let yahoo = OAuthProvider(name: "Test", authorizeURL: URL(string: "https://login.example.test/authorize")!,
                               tokenURL: URL(string: "https://login.example.test/token")!, scope: "mail",
                               clientID: "cid", clientSecret: "sec", redirectURI: "https://slyy.example/oauth/callback.html")

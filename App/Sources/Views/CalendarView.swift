@@ -102,6 +102,7 @@ struct CalendarView: View {
         .bottomHairline()
     }
 
+    // CLEANUP(C6): same header-bar padding as MessageDetailView/MessageListView; one shared modifier.
     var topInset: CGFloat {
         #if os(macOS)
         return 30
