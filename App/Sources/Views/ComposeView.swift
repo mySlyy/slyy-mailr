@@ -204,6 +204,31 @@ struct ComposeView: View {
     var compact: Bool { false }
     #endif
 
+    /// Pastes my booking link (Settings → Calendar → Booking Link) where the cursor is in my text, else at its end.
+    func bookingButton(_ link: String) -> some View {
+        Button { paste(link) } label: { Image(systemName: "calendar.badge.clock").frame(width: 34, height: 34).hairlineBorder() }
+            .buttonStyle(.plain)
+            .help("Insert booking link")
+            .accessibilityLabel("Insert booking link")
+    }
+
+    func paste(_ text: String) {
+        #if os(macOS)
+        if focus == .body, let tv = NSApp.keyWindow?.firstResponder as? NSTextView, tv.isEditable {
+            tv.insertText(text, replacementRange: tv.selectedRange())
+            return
+        }
+        #endif
+        let body = draft.body
+        // Before the signature if there is one, else at the end.
+        if let sig = body.range(of: "\n-- \n") {
+            let head = body[..<sig.lowerBound].trimmingCharacters(in: .newlines)
+            draft.body = (head.isEmpty ? "" : head + "\n") + text + "\n" + body[sig.lowerBound...]
+        } else {
+            draft.body = body.isEmpty || body.hasSuffix("\n") ? body + text : body + "\n" + text
+        }
+    }
+
     /// ⌘K: insert a link at the cursor (replacing the selected text, which becomes the link's text).
     var linkButton: some View {
         Button { startLink() } label: { Image(systemName: "link").frame(width: 34, height: 34).hairlineBorder() }
@@ -279,6 +304,7 @@ struct ComposeView: View {
                 .frame(maxWidth: .infinity)
             attachButton
             linkButton
+            if let booking = model.account?.bookingURL, !booking.isEmpty { bookingButton(booking) }
             Button { addVideo() } label: { Image(systemName: SlyyIcon.video).frame(width: 34, height: 34).hairlineBorder() }
                 .buttonStyle(.plain)
                 .disabled(draft.videoURL != nil || draft.meeting?.videoURL != nil)

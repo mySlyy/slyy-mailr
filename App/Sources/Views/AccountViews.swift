@@ -337,7 +337,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
             #else
             return [.account, .senders, .reading, .assistant, .servers]
             #endif
-        case .calendar: return [.calendarServer, .calendars]
+        case .calendar: return [.calendarServer, .calendars, .booking]
         case .video: return [.videoServer]
         }
     }
@@ -346,7 +346,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 /// One form in Settings. Each saves on its own.
 enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case account, senders, reading, assistant, servers, updates
-    case calendarServer, calendars
+    case calendarServer, calendars, booking
     case videoServer
     var id: String { rawValue }
     var title: LocalizedStringKey {
@@ -359,6 +359,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .updates: "Updates"
         case .calendarServer: "Calendar Server"
         case .calendars: "Shown Calendars"
+        case .booking: "Booking Link"
         case .videoServer: "Meeting Link"
         }
     }
@@ -519,6 +520,7 @@ struct SettingsSectionView: View {
             case .updates: UpdatesSection()
             case .calendarServer: CalendarServerForm()
             case .calendars: ShownCalendarsForm()
+            case .booking: BookingLinkForm()
             case .videoServer: VideoServerForm()
             }
         }
@@ -1094,5 +1096,38 @@ struct AppPasswordGuide: View {
             Text("\(n)").font(Slyy.mono(11)).foregroundStyle(Slyy.accent)
             Text(text)
         }
+    }
+}
+
+/// Calendar → Booking Link: the page where people pick a free time with me; the writer pastes it at the cursor.
+struct BookingLinkForm: View {
+    @Environment(AppModel.self) private var model
+    @State private var link = ""
+    @State private var state = SaveState()
+
+    var changed: Bool { link.trimmingCharacters(in: .whitespaces) != (model.account?.bookingURL ?? "") }
+    var valid: Bool { link.trimmingCharacters(in: .whitespaces).isEmpty || LinkMarkup.normalizedURL(link) != nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            settingsField("Your booking link") {
+                TextField("https://meetly.rocket.re-cloud.io/yourname", text: $link).textFieldStyle(SlyyFieldStyle(padding: 8)).serverField()
+                    .onSubmit { if changed && valid { Task { _ = await save() } } }
+            }
+            Text("A page where people pick a free time with you. In the writer, the calendar-clock button pastes it where the cursor is. Empty removes the button.")
+                .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            if !valid {
+                Text("Enter a full link, e.g. https://…").font(Slyy.font(12)).foregroundStyle(Slyy.orange)
+            }
+            SectionSaveBar(title: "Save", changed: changed && valid, state: state) { _ = await save() }
+        }
+        .onAppear { link = model.account?.bookingURL ?? "" }
+    }
+
+    func save() async -> Bool {
+        let raw = link.trimmingCharacters(in: .whitespaces)
+        let url = raw.isEmpty ? nil : LinkMarkup.normalizedURL(raw)
+        if let url { link = url }
+        return await saveSection(model, state: $state, reconnect: false, apply: { $0.bookingURL = url })
     }
 }

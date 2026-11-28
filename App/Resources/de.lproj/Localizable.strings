@@ -374,3 +374,7 @@
 "Each meeting gets a private room like" = "Jede Besprechung bekommt einen eigenen Raum wie";
 "Always from this sender" = "Immer von diesem Absender";
 "Not Junk" = "Kein Spam";
+"Booking Link" = "Buchungslink";
+"Your booking link" = "Ihr Buchungslink";
+"A page where people pick a free time with you. In the writer, the calendar-clock button pastes it where the cursor is. Empty removes the button." = "Eine Seite, auf der andere einen freien Termin mit Ihnen wählen. Im Editor fügt die Kalender-Uhr-Taste ihn an der Cursorposition ein. Leer entfernt die Taste.";
+"Insert booking link" = "Buchungslink einfügen";

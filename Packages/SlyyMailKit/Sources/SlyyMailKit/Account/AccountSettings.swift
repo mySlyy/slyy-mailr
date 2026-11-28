@@ -25,6 +25,9 @@ public struct AccountSettings: Codable, Hashable, Sendable, Identifiable {
     public var defaultSender: String?
     /// How Mailr logs in. nil = password (settings saved before 0.3.3).
     public var authMethod: AuthMethod?
+    /// Booking page where people pick a free time with me (e.g. https://meetly.rocket.re-cloud.io/ashant).
+    /// The writer pastes it at the cursor. Optional: settings saved before 0.8.4 load without it.
+    public var bookingURL: String?
 
     public enum AuthMethod: String, Codable, Sendable {
         case password

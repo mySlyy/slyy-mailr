@@ -122,7 +122,7 @@ final class AppLogicTests: XCTestCase {
         XCTAssertEqual(m.account?.aliases, before.aliases)
         XCTAssertEqual(SettingsTab.mail.sections.first, .account)
         XCTAssertTrue(SettingsTab.mail.sections.contains(.senders))
-        XCTAssertEqual(SettingsTab.calendar.sections, [.calendarServer, .calendars])
+        XCTAssertEqual(SettingsTab.calendar.sections, [.calendarServer, .calendars, .booking])
         XCTAssertEqual(SettingsTab.video.sections, [.videoServer], "one page: the meeting link")
         UserDefaults.standard.removeObject(forKey: "accounts.v1")
     }
