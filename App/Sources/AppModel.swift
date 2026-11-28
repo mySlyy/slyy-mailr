@@ -410,7 +410,14 @@ final class AppModel {
     }
 
     /// Shows a message to write: on the Mac in its own resizable window, else (iOS, or no window opener yet) in the sheet.
-    private func present(_ d: ComposeDraft) {
+    private func present(_ draft: ComposeDraft) {
+        var d = draft
+        // My text in the colour from Settings in every mail I write (new, reply, forward, reopened draft);
+        // a draft recovered after a crash keeps the colour it had.
+        if !d.recovered {
+            d.blueReply = blueReplies
+            d.replyColor = replyColorHex
+        }
         #if os(macOS)
         if let open = openComposeWindow {
             composeWindows[d.id] = d
@@ -1133,8 +1140,6 @@ final class AppModel {
             if case .reply = kind { kindOf = .reply } else if case .replyAll = kind { kindOf = .replyAll } else { kindOf = .forward }
             var d = ComposeDraft(m.draft(kindOf, me: id.address, myAddresses: a.myAddresses), signature: signature(for: id))
             d.from = id
-            d.blueReply = kindOf != .forward && blueReplies
-            d.replyColor = replyColorHex
             d.quotedHTML = m.htmlQuote(kindOf) // an HTML mail is quoted as HTML, not as its source
             present(d)
         case .mailto(let url):

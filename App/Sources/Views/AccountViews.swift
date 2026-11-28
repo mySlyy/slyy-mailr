@@ -698,13 +698,13 @@ struct ReadingForm: View {
                 .toggleStyle(SlyyCheckboxStyle())
             HStack(spacing: 10) {
                 Toggle(isOn: Binding(get: { model.blueReplies }, set: { model.blueReplies = $0 })) {
-                    Text("Write my replies in colour")
+                    Text("Write my text in colour")
                 }
                 .toggleStyle(SlyyCheckboxStyle())
                 ColorPicker("Reply colour", selection: Binding(get: { model.replyColor }, set: { model.replyColorHex = $0.hexString }), supportsOpacity: false)
                     .labelsHidden()
                     .disabled(!model.blueReplies)
-                Text("Sample reply").font(Slyy.font(14, .semibold)).foregroundStyle(model.blueReplies ? model.replyColor : Slyy.muted)
+                Text("Sample text").font(Slyy.font(14, .semibold)).foregroundStyle(model.blueReplies ? model.replyColor : Slyy.muted)
                 if model.replyColorHex != Slyy.replyDefaultHex {
                     Button("Slyy blue") { model.replyColorHex = Slyy.replyDefaultHex }
                         .buttonStyle(.slyyOutline)
