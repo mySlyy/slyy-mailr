@@ -182,49 +182,47 @@ final class CalendarTests: XCTestCase {
     }
 }
 
-/// Live CalDAV tests against Radicale on 127.0.0.1:5232 (SLYY_IT=1).
+/// Live CalDAV tests on the local Radicale (SLYY_IT=1), in a calendar made and deleted for the run.
 final class CalDAVIntegrationTests: XCTestCase {
-    override func setUp() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLYY_IT"] == "1", "integration tests disabled")
-    }
-
     func testCalendarLifecycle() async throws {
-        let base = URL(string: ProcessInfo.processInfo.environment["SLYY_CALDAV_URL"] ?? "http://127.0.0.1:5232/")!
-        let client = CalDAVClient(baseURL: base, username: "alice@example.com", password: "secret")
-        let home = try await client.discover()
+        let alice = try TestAccount.local()
+        let home = try await alice.caldav().discover()
         XCTAssertTrue(home.absoluteString.contains("alice"))
-        let cal = try await client.makeCalendar(name: "Test \(Int.random(in: 1...9999))")
-        let cals = try await client.calendars()
-        XCTAssertTrue(cals.contains { $0.url == cal.url })
+        try await alice.withTestCalendar { client, cal in
+            let cals = try await client.calendars()
+            XCTAssertTrue(cals.contains { $0.url == cal.url })
 
-        let start = Date().addingTimeInterval(3600)
-        var e = CalendarEvent(summary: "Live test", start: start, end: start.addingTimeInterval(1800), timeZoneID: "Europe/Berlin")
-        e.videoURL = JitsiRoom.newURL()
-        e.recurrence = RecurrenceRule(frequency: .daily, count: 3)
-        let created = try await client.put(ics: ICalendarWriter.object(e), uid: e.uid, calendarURL: cal.url)
+            let start = Date().addingTimeInterval(3600)
+            var e = CalendarEvent(summary: alice.tagged("Live test"), start: start, end: start.addingTimeInterval(1800), timeZoneID: "Europe/Berlin")
+            e.videoURL = JitsiRoom.newURL()
+            e.recurrence = RecurrenceRule(frequency: .daily, count: 3)
+            let created = try await client.put(ics: ICalendarWriter.object(e), uid: e.uid, calendarURL: cal.url)
 
-        let objs = try await client.objects(in: cal, from: start.addingTimeInterval(-86400), to: start.addingTimeInterval(5 * 86400))
-        let obj = try XCTUnwrap(objs.first { $0.events.first?.uid == e.uid })
-        XCTAssertEqual(obj.events.first?.videoURL, e.videoURL)
-        let occ = ICalendarReader.expand(obj.events, from: start.addingTimeInterval(-60), to: start.addingTimeInterval(5 * 86400))
-        XCTAssertEqual(occ.count, 3)
+            let objs = try await client.objects(in: cal, from: start.addingTimeInterval(-86400), to: start.addingTimeInterval(5 * 86400))
+            let obj = try XCTUnwrap(objs.first { $0.events.first?.uid == e.uid })
+            XCTAssertEqual(obj.events.first?.videoURL, e.videoURL)
+            let occ = ICalendarReader.expand(obj.events, from: start.addingTimeInterval(-60), to: start.addingTimeInterval(5 * 86400))
+            XCTAssertEqual(occ.count, 3)
 
-        // Update with the ETag, keeping the original object.
-        var changed = obj.events[0]
-        changed.summary = "Live test (moved)"
-        changed.sequence += 1
-        try await client.put(ics: ICalendarWriter.object(changed, keeping: ICalComponent.parse(obj.ics)), uid: e.uid, calendarURL: cal.url, objectURL: obj.url, etag: obj.etag ?? created.etag)
-        let reread = try await client.object(at: obj.url)
-        XCTAssertEqual(reread.events.first?.summary, "Live test (moved)")
+            // Update with the ETag, keeping the original object.
+            var changed = obj.events[0]
+            changed.summary = alice.tagged("Live test (moved)")
+            changed.sequence += 1
+            try await client.put(ics: ICalendarWriter.object(changed, keeping: ICalComponent.parse(obj.ics)), uid: e.uid, calendarURL: cal.url, objectURL: obj.url, etag: obj.etag ?? created.etag)
+            let reread = try await client.object(at: obj.url)
+            XCTAssertEqual(reread.events.first?.summary, alice.tagged("Live test (moved)"))
 
-        // A stale ETag must be rejected.
-        do {
-            try await client.put(ics: ICalendarWriter.object(changed), uid: e.uid, calendarURL: cal.url, objectURL: obj.url, etag: "\"stale\"")
-            XCTFail("expected conflict")
-        } catch CalDAVError.conflict {}
+            // A stale ETag must be rejected.
+            do {
+                try await client.put(ics: ICalendarWriter.object(changed), uid: e.uid, calendarURL: cal.url, objectURL: obj.url, etag: "\"stale\"")
+                XCTFail("expected conflict")
+            } catch CalDAVError.conflict {}
 
-        try await client.delete(objectURL: obj.url, etag: reread.etag)
-        let after = try await client.objects(in: cal, from: start.addingTimeInterval(-86400), to: start.addingTimeInterval(5 * 86400))
-        XCTAssertFalse(after.contains { $0.url == obj.url })
+            try await client.delete(objectURL: obj.url, etag: reread.etag)
+            let after = try await client.objects(in: cal, from: start.addingTimeInterval(-86400), to: start.addingTimeInterval(5 * 86400))
+            XCTAssertFalse(after.contains { $0.url == obj.url })
+        }
+        let left = try await alice.caldav().calendars()
+        XCTAssertFalse(left.contains { $0.name.contains(alice.token) }, "the run's calendar is gone")
     }
 }

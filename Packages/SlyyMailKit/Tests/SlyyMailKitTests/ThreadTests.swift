@@ -85,42 +85,29 @@ final class ThreadTests: XCTestCase {
 }
 
 final class ThreadIntegrationTests: XCTestCase {
-    override func setUp() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLYY_IT"] == "1", "integration tests disabled")
-    }
-
-    func account(_ email: String, _ name: String) -> AccountSettings {
-        AccountSettings(email: email, displayName: name, imap: ServerEndpoint(host: "127.0.0.1", port: 1143, security: .plain), smtp: ServerEndpoint(host: "127.0.0.1", port: 1025, security: .plain))
-    }
-
-    func wait(_ mail: MailService, _ subject: String, from: String) async throws -> MessageSummary {
-        for _ in 0..<40 {
-            if let m = try await mail.messages(in: "INBOX", page: 0).messages.first(where: { $0.subject == subject && $0.from.first?.address == from }) { return m }
-            try await Task.sleep(nanoseconds: 250_000_000)
-        }
-        throw XCTSkip("mail did not arrive")
-    }
-
     func testConversationIncludesMyRepliesFromSent() async throws {
-        let alice = MailService(account: account("alice@example.com", "Alice"), password: "secret")
-        let bob = MailService(account: account("bob@example.com", "Bob"), password: "secret")
-        let topic = "Thread \(UUID().uuidString.prefix(6))"
+        let aliceAcc = try TestAccount.local("alice@example.com", name: "Alice")
+        let bobAcc = try TestAccount.local("bob@example.com", name: "Bob")
+        let alice = aliceAcc.mail(), bob = bobAcc.mail()
+        let topic = aliceAcc.tagged("Thread")
+        func from(_ subject: String, _ sender: String) -> @Sendable (MessageSummary) -> Bool {
+            { $0.subject == subject && $0.from.first?.address == sender }
+        }
 
-        try await bob.send(OutgoingMessage(from: EmailAddress(name: "Bob", address: "bob@example.com"), to: [EmailAddress(address: "alice@example.com")], subject: topic, text: "first"))
-        let first = try await wait(alice, topic, from: "bob@example.com")
+        try await bob.send(OutgoingMessage(from: bobAcc.address, to: [aliceAcc.address], subject: topic, text: "first"))
+        let first = try await TestAccount.waitForMail(alice, where: from(topic, "bob@example.com"))[0]
 
         // Alice replies (filed in her Sent folder).
-        let parsedFirst = try await alice.message(first)
-        var reply = parsedFirst.draft(.reply, me: EmailAddress(name: "Alice", address: "alice@example.com"))
+        var reply = try await alice.message(first).draft(.reply, me: aliceAcc.address)
         reply.text = "second"
         try await alice.send(reply)
 
         // Bob answers Alice's reply.
-        let replyAtBob = try await wait(bob, "Re: \(topic)", from: "alice@example.com")
-        var again = try await bob.message(replyAtBob).draft(.reply, me: EmailAddress(name: "Bob", address: "bob@example.com"))
+        let replyAtBob = try await TestAccount.waitForMail(bob, where: from("Re: \(topic)", "alice@example.com"))[0]
+        var again = try await bob.message(replyAtBob).draft(.reply, me: bobAcc.address)
         again.text = "third"
         try await bob.send(again)
-        let third = try await wait(alice, "Re: \(topic)", from: "bob@example.com")
+        let third = try await TestAccount.waitForMail(alice, where: from("Re: \(topic)", "bob@example.com"))[0]
 
         // Grouping in Alice's inbox: both of Bob's mails are one thread.
         let inbox = try await alice.messages(in: "INBOX", page: 0).messages.filter { $0.subject.contains(topic) }
@@ -132,6 +119,8 @@ final class ThreadIntegrationTests: XCTestCase {
         XCTAssertEqual(convo.map { $0.from.first?.address }, ["bob@example.com", "alice@example.com", "bob@example.com"])
         let sent = try await alice.folderPath(.sent)
         XCTAssertEqual(convo[1].folder, sent)
+        await aliceAcc.cleanUp(alice)
+        await bobAcc.cleanUp(bob)
         await alice.disconnect()
         await bob.disconnect()
     }

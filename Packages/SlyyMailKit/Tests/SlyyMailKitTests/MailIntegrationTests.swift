@@ -4,12 +4,11 @@ import XCTest
 /// Live tests against local dev servers (see Tools/dev-servers/README.md).
 /// Run with SLYY_IT=1; skipped otherwise (e.g. on CI without servers).
 final class MailIntegrationTests: XCTestCase {
-    var env: [String: String] { ProcessInfo.processInfo.environment }
-    var imapEndpoint: ServerEndpoint { ServerEndpoint(host: "127.0.0.1", port: Int(env["SLYY_IMAP_PORT"] ?? "1143")!, security: .plain) }
-    var smtpEndpoint: ServerEndpoint { ServerEndpoint(host: "127.0.0.1", port: Int(env["SLYY_SMTP_PORT"] ?? "1025")!, security: .plain) }
+    var imapEndpoint: ServerEndpoint { (try? TestAccount.local().settings.imap) ?? ServerEndpoint(host: "127.0.0.1", port: 1143, security: .plain) }
+    var smtpEndpoint: ServerEndpoint { (try? TestAccount.local().settings.smtp) ?? ServerEndpoint(host: "127.0.0.1", port: 1025, security: .plain) }
 
     override func setUp() async throws {
-        try XCTSkipUnless(env["SLYY_IT"] == "1", "integration tests disabled (set SLYY_IT=1)")
+        _ = try TestAccount.local() // skips without SLYY_IT=1
     }
 
     func login(_ user: String = "alice@example.com") async throws -> IMAPClient {

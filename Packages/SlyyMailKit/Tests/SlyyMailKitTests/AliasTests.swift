@@ -80,28 +80,21 @@ final class AliasTests: XCTestCase {
 }
 
 final class AliasIntegrationTests: XCTestCase {
-    override func setUp() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLYY_IT"] == "1", "integration tests disabled")
-    }
-
     func testSendFromAliasUsesAliasAsSenderAndEnvelope() async throws {
-        var bob = AccountSettings(email: "bob@example.com", displayName: "Bob", imap: ServerEndpoint(host: "127.0.0.1", port: 1143, security: .plain), smtp: ServerEndpoint(host: "127.0.0.1", port: 1025, security: .plain))
-        bob.aliases = [SenderIdentity(name: "Example Sales", email: "sales@example.com")]
-        let mail = MailService(account: bob, password: "secret")
-        let subject = "Alias \(UUID().uuidString.prefix(6))"
-        try await mail.send(OutgoingMessage(from: bob.identities[1].address, to: [EmailAddress(address: "alice@example.com")], subject: subject, text: "hi"))
-        let alice = MailService(account: AccountSettings(email: "alice@example.com", imap: bob.imap, smtp: bob.smtp), password: "secret")
-        var hit: MessageSummary?
-        for _ in 0..<40 where hit == nil {
-            hit = try await alice.messages(in: "INBOX", page: 0).messages.first { $0.subject == subject }
-            if hit == nil { try await Task.sleep(nanoseconds: 250_000_000) }
-        }
-        let m = try XCTUnwrap(hit)
+        var bob = try TestAccount.local("bob@example.com", name: "Bob")
+        bob.settings.aliases = [SenderIdentity(name: "Example Sales", email: "sales@example.com")]
+        let alice = try TestAccount.local()
+        let mail = bob.mail(), aliceMail = alice.mail()
+        let subject = bob.tagged("Alias")
+        try await mail.send(OutgoingMessage(from: bob.settings.identities[1].address, to: [alice.address], subject: subject, text: "hi"))
+        let m = try await TestAccount.waitForMail(aliceMail) { $0.subject == subject }[0]
         XCTAssertEqual(m.from.first?.address, "sales@example.com")
         XCTAssertEqual(m.from.first?.name, "Example Sales")
-        let raw = String(decoding: try await alice.rawMessage(m), as: UTF8.self)
+        let raw = String(decoding: try await aliceMail.rawMessage(m), as: UTF8.self)
         XCTAssertTrue(raw.contains("Return-Path: <sales@example.com>"), "envelope sender is the alias")
+        await alice.cleanUp(aliceMail)
+        await bob.cleanUp(mail)
         await mail.disconnect()
-        await alice.disconnect()
+        await aliceMail.disconnect()
     }
 }

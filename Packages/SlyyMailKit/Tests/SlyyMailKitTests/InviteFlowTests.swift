@@ -1,40 +1,16 @@
 import XCTest
 @testable import SlyyMailKit
 
-/// End to end: Alice invites Bob with a video call; Bob accepts from his inbox; Alice's calendar records it.
-/// Needs Dovecot (1143), the SMTP sink delivering to Dovecot (1025) and Radicale (5232). SLYY_IT=1.
+/// End to end on the local stand-ins: Alice invites Bob with a video call; Bob accepts from his inbox;
+/// Alice's calendar records it; Alice cancels. (SOGoTests runs the same flow against the real mailcow SOGo.)
 final class InviteFlowTests: XCTestCase {
-    override func setUp() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLYY_IT"] == "1", "integration tests disabled")
-    }
-
-    func account(_ email: String, name: String) -> AccountSettings {
-        AccountSettings(
-            email: email,
-            displayName: name,
-            imap: ServerEndpoint(host: "127.0.0.1", port: 1143, security: .plain),
-            smtp: ServerEndpoint(host: "127.0.0.1", port: 1025, security: .plain),
-            caldavURL: "http://127.0.0.1:5232/"
-        )
-    }
-
-    func waitForMail(_ mail: MailService, subjectContains s: String) async throws -> MessageSummary {
-        for _ in 0..<40 {
-            if let hit = try await mail.messages(in: "INBOX", page: 0).messages.first(where: { $0.subject.contains(s) }) { return hit }
-            try await Task.sleep(nanoseconds: 250_000_000)
-        }
-        throw XCTSkip("mail with subject \(s) did not arrive")
-    }
-
     func testInviteAcceptReply() async throws {
-        let alice = account("alice@example.com", name: "Alice")
-        let bob = account("bob@example.com", name: "Bob")
-        let aliceMail = MailService(account: alice, password: "secret")
-        let bobMail = MailService(account: bob, password: "secret")
-        let aliceCal = CalendarService(account: alice, password: "secret", mail: aliceMail)
-        let bobCal = CalendarService(account: bob, password: "secret", mail: bobMail)
+        let alice = try TestAccount.local("alice@example.com", name: "Alice")
+        let bob = try TestAccount.local("bob@example.com", name: "Bob")
+        let aliceMail = alice.mail(), bobMail = bob.mail()
+        let aliceCal = alice.calendar(aliceMail), bobCal = bob.calendar(bobMail)
 
-        let title = "Abstimmung \(UUID().uuidString.prefix(6))"
+        let title = alice.tagged("Abstimmung")
         let start = Calendar.current.date(byAdding: .day, value: 2, to: Date())!
         var e = CalendarEvent(summary: title, start: start, end: start.addingTimeInterval(3600), timeZoneID: "Europe/Berlin")
         e.attendees = [Attendee(email: "bob@example.com", name: "Bob")]
@@ -44,7 +20,7 @@ final class InviteFlowTests: XCTestCase {
         XCTAssertEqual(saved.attendees.first?.status, .accepted) // organizer added as CHAIR
 
         // Bob receives the invite with the video link and accepts.
-        let inviteMail = try await waitForMail(bobMail, subjectContains: title)
+        let inviteMail = try await TestAccount.waitForMail(bobMail, subjectContains: title)[0]
         let parsed = try await bobMail.message(inviteMail)
         XCTAssertTrue(parsed.textBody?.contains(e.videoURL!.absoluteString) == true)
         let ics = try XCTUnwrap(parsed.calendarParts.first)
@@ -58,7 +34,7 @@ final class InviteFlowTests: XCTestCase {
         XCTAssertEqual(bobObj?.events.first?.status(of: "bob@example.com"), .accepted)
 
         // Alice gets the REPLY and applies it.
-        let replyMail = try await waitForMail(aliceMail, subjectContains: "Accepted: \(title)")
+        let replyMail = try await TestAccount.waitForMail(aliceMail, subjectContains: "Accepted: \(title)")[0]
         let reply = try await aliceMail.message(replyMail)
         try await aliceCal.apply(itip: try XCTUnwrap(reply.calendarParts.first))
         let aliceObj = try await aliceCal.findObject(uid: e.uid)
@@ -66,17 +42,20 @@ final class InviteFlowTests: XCTestCase {
 
         // Alice cancels; Bob applies the CANCEL and the event disappears from his calendar.
         try await aliceCal.delete(saved)
-        let cancelMail = try await waitForMail(bobMail, subjectContains: "Cancelled: \(title)")
+        let cancelMail = try await TestAccount.waitForMail(bobMail, subjectContains: "Cancelled: \(title)")[0]
         let cancel = try await bobMail.message(cancelMail)
         try await bobCal.apply(itip: try XCTUnwrap(cancel.calendarParts.first))
         let gone = try await bobCal.findObject(uid: e.uid)
         XCTAssertNil(gone)
 
         // Regular sends are filed in Sent (iTIP mails are not).
-        let msg = OutgoingMessage(from: alice.address, to: [bob.address], subject: "Filed \(title)", text: "x")
-        try await aliceMail.send(msg)
+        let filed = alice.tagged("Filed")
+        try await aliceMail.send(OutgoingMessage(from: alice.address, to: [bob.address], subject: filed, text: "x"))
         let sentAfter = try await aliceMail.messages(in: try await aliceMail.folderPath(.sent), page: 0).messages
-        XCTAssertTrue(sentAfter.contains { $0.subject == "Filed \(title)" })
+        XCTAssertTrue(sentAfter.contains { $0.subject == filed })
+
+        await alice.cleanUp(aliceMail)
+        await bob.cleanUp(bobMail)
         await aliceMail.disconnect()
         await bobMail.disconnect()
     }

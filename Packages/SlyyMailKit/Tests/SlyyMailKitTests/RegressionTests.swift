@@ -160,18 +160,14 @@ final class SmallRegressionTests: XCTestCase {
 /// Concurrent app activity on one account (list refresh, open message, folder counts, IDLE wake-ups)
 /// must not hang or mix up replies. Needs the dev servers (SLYY_IT=1).
 final class ConcurrencyRegressionTests: XCTestCase {
-    override func setUp() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SLYY_IT"] == "1", "integration tests disabled")
-    }
-
     func testParallelMailOperationsAllComplete() async throws {
-        let account = AccountSettings(email: "alice@example.com", imap: ServerEndpoint(host: "127.0.0.1", port: 1143, security: .plain), smtp: ServerEndpoint(host: "127.0.0.1", port: 1025, security: .plain))
-        let mail = MailService(account: account, password: "secret")
-        let seed = IMAPClient(endpoint: account.imap)
-        try await seed.connect(user: "alice@example.com", password: "secret")
+        let alice = try TestAccount.local()
+        let account = alice.settings
+        let mail = alice.mail()
+        let seed = try await alice.imap()
         var uids: [UInt32] = []
         for i in 0..<5 {
-            let m = OutgoingMessage(from: account.address, to: [], subject: "parallel \(i) \(UUID())", text: "body \(i)")
+            let m = OutgoingMessage(from: account.address, to: [], subject: alice.tagged("parallel \(i)"), text: "body \(i)")
             if let u = try await seed.append(folder: "INBOX", message: m.render()) { uids.append(u) }
         }
         let start = Date()
@@ -191,18 +187,17 @@ final class ConcurrencyRegressionTests: XCTestCase {
     }
 
     func testInviteShowsAsInviteInList() async throws {
-        let account = AccountSettings(email: "alice@example.com", imap: ServerEndpoint(host: "127.0.0.1", port: 1143, security: .plain), smtp: ServerEndpoint(host: "127.0.0.1", port: 1025, security: .plain))
-        let mail = MailService(account: account, password: "secret")
-        var e = CalendarEvent(summary: "Invite list \(UUID().uuidString.prefix(6))", start: Date().addingTimeInterval(86400), end: Date().addingTimeInterval(90000))
+        let alice = try TestAccount.local()
+        let account = alice.settings
+        let mail = alice.mail()
+        var e = CalendarEvent(summary: alice.tagged("Invite list"), start: Date().addingTimeInterval(86400), end: Date().addingTimeInterval(90000))
         e.organizer = EmailAddress(address: "bob@example.com")
         e.attendees = [Attendee(email: "alice@example.com")]
         try await mail.sendCalendarMail(to: [account.address], subject: "Invitation: \(e.summary)", text: "x", method: "REQUEST", ics: ICalendarWriter.request(e))
-        var hit: MessageSummary?
-        for _ in 0..<40 where hit == nil {
-            hit = try await mail.messages(in: "INBOX", page: 0).messages.first { $0.subject.contains(e.summary) }
-            if hit == nil { try await Task.sleep(nanoseconds: 250_000_000) }
-        }
+        let summary = e.summary
+        let hit = try await TestAccount.waitForMail(mail, subjectContains: summary).first
         XCTAssertEqual(hit?.isInvite, true)
+        await alice.cleanUp(mail)
         await mail.disconnect()
     }
 }
