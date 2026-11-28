@@ -20,6 +20,13 @@ struct ComposeView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
     @State private var confirmClose = false
+    @State private var linkSheet = false
+    @State private var linkText = ""
+    @State private var linkURL = ""
+    #if os(macOS)
+    @State private var linkTarget: NSTextView?
+    @State private var linkRange = NSRange(location: NSNotFound, length: 0)
+    #endif
     @State private var editingMeeting = false
     /// Why Send failed, shown on this sheet / window (not on the main window behind it).
     @State private var sendError: String?
@@ -195,6 +202,51 @@ struct ComposeView: View {
     var compact: Bool { false }
     #endif
 
+    /// ⌘K: insert a link at the cursor (replacing the selected text, which becomes the link's text).
+    var linkButton: some View {
+        Button { startLink() } label: { Image(systemName: "link").frame(width: 34, height: 34).hairlineBorder() }
+            .buttonStyle(.plain)
+            .keyboardShortcut("k", modifiers: .command)
+            .help("Insert link (⌘K)")
+            .accessibilityLabel("Insert link")
+            .popover(isPresented: $linkSheet, arrowEdge: .bottom) {
+                LinkPrompt(text: $linkText, url: $linkURL, onInsert: insertLink, onCancel: { linkSheet = false })
+            }
+    }
+
+    func startLink() {
+        linkText = ""
+        linkURL = ""
+        #if os(macOS)
+        // The selected text in my text becomes the link's text; the link replaces it.
+        if let tv = NSApp.keyWindow?.firstResponder as? NSTextView, tv.isEditable {
+            linkTarget = tv
+            linkRange = tv.selectedRange()
+            linkText = (tv.string as NSString).substring(with: linkRange)
+        } else {
+            linkTarget = nil
+        }
+        if let clip = NSPasteboard.general.string(forType: .string), let u = LinkMarkup.normalizedURL(clip), clip.contains(".") {
+            linkURL = u
+        }
+        #endif
+        linkSheet = true
+    }
+
+    func insertLink() {
+        guard let url = LinkMarkup.normalizedURL(linkURL) else { return }
+        let markup = LinkMarkup.make(text: linkText, url: url)
+        linkSheet = false
+        #if os(macOS)
+        if let tv = linkTarget, linkRange.location != NSNotFound, NSMaxRange(linkRange) <= (tv.string as NSString).length {
+            tv.window?.makeFirstResponder(tv)
+            tv.insertText(markup, replacementRange: linkRange)
+            return
+        }
+        #endif
+        draft.body = draft.body.hasSuffix("\n") || draft.body.isEmpty ? draft.body + markup : draft.body + " " + markup
+    }
+
     @ViewBuilder var attachButton: some View {
         #if os(iOS)
         Menu {
@@ -224,6 +276,7 @@ struct ComposeView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
             attachButton
+            linkButton
             Button { addVideo() } label: { Image(systemName: SlyyIcon.video).frame(width: 34, height: 34).hairlineBorder() }
                 .buttonStyle(.plain)
                 .disabled(draft.videoURL != nil || draft.meeting?.videoURL != nil)
@@ -955,3 +1008,38 @@ struct CameraPicker: UIViewControllerRepresentable {
     }
 }
 #endif
+
+/// The ⌘K prompt: the link's text and address. Return inserts, Esc cancels.
+struct LinkPrompt: View {
+    @Binding var text: String
+    @Binding var url: String
+    var onInsert: () -> Void
+    var onCancel: () -> Void
+    @FocusState private var focus: Int?
+
+    var valid: Bool { LinkMarkup.normalizedURL(url) != nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Insert link").font(Slyy.font(14, .semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Text").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                TextField("", text: $text).textFieldStyle(SlyyFieldStyle(padding: 6)).focused($focus, equals: 0)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Link").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+                TextField("https://…", text: $url).textFieldStyle(SlyyFieldStyle(padding: 6)).font(Slyy.mono(12)).focused($focus, equals: 1)
+                    .onSubmit { if valid { onInsert() } }
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel).buttonStyle(.slyyOutline).keyboardShortcut(.cancelAction)
+                Button("Insert", action: onInsert).buttonStyle(.slyyPrimary(height: 32)).keyboardShortcut(.defaultAction).disabled(!valid)
+            }
+        }
+        .padding(14)
+        .frame(width: 340)
+        .background(Color.white)
+        .onAppear { focus = url.isEmpty ? 1 : 0 }
+    }
+}

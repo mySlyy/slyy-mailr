@@ -341,3 +341,22 @@ final class HTMLTextTests: XCTestCase {
         XCTAssertNil(p.quoting("Punkt 1").htmlQuote(.reply), "a quoted selection stays plain")
     }
 }
+
+final class LinkMarkupTests: XCTestCase {
+    func testNamedLinkInHTMLAndPlain() {
+        let text = "See the [CloudFest booklet](https://www.cloudfest.com/CF27.pdf?a=1&b=2) and https://slyy.ai."
+        let html = HTMLText.fromPlain(text)
+        XCTAssertTrue(html.contains("<a href=\"https://www.cloudfest.com/CF27.pdf?a=1&amp;b=2\">CloudFest booklet</a>"), html)
+        XCTAssertTrue(html.contains("<a href=\"https://slyy.ai\">https://slyy.ai</a>."), html)
+        XCTAssertFalse(html.contains("[CloudFest"))
+        XCTAssertEqual(LinkMarkup.toPlain(text), "See the CloudFest booklet (https://www.cloudfest.com/CF27.pdf?a=1&b=2) and https://slyy.ai.")
+    }
+
+    func testMakeAndNormalize() {
+        XCTAssertEqual(LinkMarkup.make(text: " Booklet ", url: "https://x.de"), "[Booklet](https://x.de)")
+        XCTAssertEqual(LinkMarkup.make(text: "", url: "https://x.de"), "[https://x.de](https://x.de)")
+        XCTAssertEqual(LinkMarkup.normalizedURL("cloudfest.com/agenda"), "https://cloudfest.com/agenda")
+        XCTAssertNil(LinkMarkup.normalizedURL("not a link"))
+        XCTAssertNil(LinkMarkup.normalizedURL("localhost"))
+    }
+}

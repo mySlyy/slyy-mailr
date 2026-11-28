@@ -86,6 +86,8 @@ new_items = '''
   [138, "org", "Drag to a folder: a small tag instead of the whole row, the target folder highlighted; whole conversations move", "", D, N],
   [139, "write", "Edit as New Message: any mail as a new one to change and send again", "Right-click menu and the … menu.", D, B],
   [140, "read", "Click \u201cn unread\u201d to show only unread mail of the folder", "From the server, so older unread mail shows too; click again for all.", D, B],
+  [141, "write", "⌘K inserts a link (selected text becomes its label)", "Sent as a real link in HTML, as text (address) in plain text.", D, B],
+  [142, "write", "↑/↓ and Return/Tab in address suggestions", "", D, B],
 '''
 bl_js = bl_js.replace('  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]', '  [88, "q", "Privacy-friendly crash reports", "", T, T, 3],' + new_items.rstrip().rstrip(','))
 assert '[109,' in bl_js

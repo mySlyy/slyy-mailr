@@ -231,6 +231,38 @@ public extension ParsedMessage {
     }
 }
 
+/// "[text](https://…)" links written in plain text (⌘K in the writer).
+public enum LinkMarkup {
+    static let pattern = "\\[([^\\]\\n]{1,200})\\]\\((https?://[^\\s)]+)\\)"
+
+    static func parse(_ s: String) -> (text: String, url: String)? {
+        guard let rx = try? NSRegularExpression(pattern: "^" + pattern + "$"),
+              let m = rx.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
+              let t = Range(m.range(at: 1), in: s), let u = Range(m.range(at: 2), in: s) else { return nil }
+        return (String(s[t]), String(s[u]))
+    }
+
+    /// The markup for a link; the text falls back to the address.
+    public static func make(text: String, url: String) -> String {
+        let label = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "]", with: ")")
+        return "[\(label.isEmpty ? url : label)](\(url))"
+    }
+
+    /// For the plain-text part: "text (https://…)".
+    public static func toPlain(_ text: String) -> String {
+        text.replacingOccurrences(of: pattern, with: "$1 ($2)", options: .regularExpression)
+    }
+
+    /// A web address the user typed or pasted, completed with https:// when it has none.
+    public static func normalizedURL(_ raw: String) -> String? {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty, !s.contains(" ") else { return nil }
+        if !s.lowercased().hasPrefix("http://") && !s.lowercased().hasPrefix("https://") { s = "https://" + s }
+        guard let u = URL(string: s), let host = u.host, host.contains(".") else { return nil }
+        return s
+    }
+}
+
 public enum HTMLText {
     /// HTML → readable text for quotes, plain alternatives and the assistant: no markup, comments, styles or
     /// scripts; the HTML source's own line breaks and indentation are just spaces; <br> is one line break,
@@ -322,13 +354,23 @@ public enum HTMLText {
     }
 
     /// Plain text → simple HTML with clickable links (used for display of text-only mail).
+    /// "[text](https://…)" (inserted with ⌘K in the writer) becomes a link labelled "text".
     public static func fromPlain(_ text: String) -> String {
         let escaped = escape(text)
-        let linked = escaped.replacingOccurrences(
-            of: "(https?://[^\\s<>\"]+[^\\s<>\".,;:!?)])",
+        var links: [String] = []
+        // Named links first, parked as placeholders so the bare-URL rule below doesn't touch them.
+        let named = escaped.replacingOccurrences(of: LinkMarkup.pattern, with: "\u{1}$0\u{1}", options: .regularExpression)
+            .components(separatedBy: "\u{1}").enumerated().map { i, part -> String in
+                guard i % 2 == 1, let m = LinkMarkup.parse(part) else { return part }
+                links.append("<a href=\"\(m.url)\">\(m.text)</a>")
+                return "\u{2}\(links.count - 1)\u{2}"
+            }.joined()
+        var linked = named.replacingOccurrences(
+            of: "(https?://[^\\s<>\"\u{2}]+[^\\s<>\"\u{2}.,;:!?)])",
             with: "<a href=\"$1\">$1</a>",
             options: .regularExpression
         )
+        for (i, link) in links.enumerated() { linked = linked.replacingOccurrences(of: "\u{2}\(i)\u{2}", with: link) }
         return "<div style=\"white-space:pre-wrap\">\(linked)</div>"
     }
 }

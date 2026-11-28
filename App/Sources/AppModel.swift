@@ -82,7 +82,8 @@ struct ComposeDraft: Identifiable, Codable {
         return JitsiRoom.descriptionBlock(videoURL) + "\n" + body
     }
 
-    var plainText: String { fullBody + quoted }
+    /// Text part: "[text](url)" links (⌘K) as "text (url)".
+    var plainText: String { LinkMarkup.toPlain(fullBody) + quoted }
 
     /// HTML part: my text (blue for replies), then the quote in the default colour.
     var html: String {
