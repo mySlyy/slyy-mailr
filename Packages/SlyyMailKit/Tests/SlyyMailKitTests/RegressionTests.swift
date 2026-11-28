@@ -291,7 +291,8 @@ final class IMAPIdleSerializationTests: XCTestCase {
     func waitUntil(_ condition: () -> Bool) async throws {
         let deadline = Date().addingTimeInterval(5)
         while !condition(), Date() < deadline { try await Task.sleep(nanoseconds: 2_000_000) }
-        XCTAssertTrue(condition(), "timed out")
+        let met = condition()
+        XCTAssertTrue(met, "timed out")
     }
 
     /// Wire order of IDLE, DONE and STATUS.
