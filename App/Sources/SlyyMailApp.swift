@@ -87,6 +87,13 @@ struct SlyyMailApp: App {
         }
         .defaultSize(width: 860, height: 760)
 
+        // A message being written: its own resizable window (iOS writes in a sheet).
+        WindowGroup("New Message", id: "compose", for: UUID.self) { $id in
+            ComposeWindow(id: id)
+                .environment(model)
+        }
+        .defaultSize(width: 860, height: 700)
+
         WindowGroup("Video Call", for: URL.self) { $url in
             if let url {
                 VideoCallView(url: url)

@@ -3,6 +3,8 @@ import SlyyMailKit
 import UniformTypeIdentifiers
 #if os(iOS)
 import PhotosUI
+#else
+import AppKit
 #endif
 
 struct ComposeView: View {
@@ -18,6 +20,11 @@ struct ComposeView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     #endif
     @State private var confirmClose = false
+    @State private var editingMeeting = false
+    /// Why Send failed, shown on this sheet / window (not on the main window behind it).
+    @State private var sendError: String?
+    /// Closed by Cancel / Send / Save Draft (not by the window's close button).
+    @State private var closed = false
     @State private var lastSaved: String = ""
     /// The content as the window opened (signature left out), to tell whether anything was written since.
     @State private var openedKey: String?
@@ -59,6 +66,7 @@ struct ComposeView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    if let m = draft.meeting { meetingCard(m) }
                     if let v = draft.videoURL { videoCard(v) }
                     TextEditor(text: $draft.body)
                         .font(Slyy.font(14))
@@ -95,15 +103,29 @@ struct ComposeView: View {
         .background(Color.white)
         .tint(Slyy.accent)
         .preferredColorScheme(.light)
+        .overlay { if confirmClose { closePrompt } }
         #if os(macOS)
-        .frame(minWidth: 680, idealWidth: 860, minHeight: 560, idealHeight: 680)
+        // Sheet: opens at the ideal size. Own window: resizable from the minimum up, no maximum.
+        .frame(minWidth: 680, idealWidth: 860, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
+        .navigationTitle(draft.subject.isEmpty ? String(localized: "New Message") : draft.subject)
+        // Esc also while the cursor is in the text (the text view would keep Esc for word completion).
+        .background(EscapeKeyCatcher { cancelTapped() })
+        .onDisappear {
+            // Window closed with its close button: the text is kept in Drafts instead of being lost.
+            guard !closed, !untouched else { return }
+            let d = draft
+            Task {
+                let saved = await model.saveDraft(d)
+                if saved.draftUID != nil { DraftJournal.standard.remove(d.id) }
+            }
+        }
         #endif
         .interactiveDismissDisabled(!untouched)
         .onAppear { if openedKey == nil { openedKey = currentKey } }
-        .confirmationDialog("Save this message as a draft?", isPresented: $confirmClose) {
-            Button("Save Draft") { Task { _ = await model.saveDraft(draft); close() } }
-            Button("Discard", role: .destructive) { close() }
-            Button("Keep Editing", role: .cancel) {}
+        .alert("Not sent", isPresented: Binding(get: { sendError != nil }, set: { if !$0 { sendError = nil } })) {
+            Button("OK", role: .cancel) { sendError = nil }
+        } message: {
+            Text(sendError ?? "")
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
@@ -181,7 +203,7 @@ struct ComposeView: View {
 
     var topBar: some View {
         HStack(spacing: 8) {
-            Button("Cancel") { if untouched { close() } else { confirmClose = true } }
+            Button("Cancel") { cancelTapped() }
                 .buttonStyle(.slyyOutline)
                 .keyboardShortcut(.cancelAction)
             Text(draft.subject.isEmpty ? String(localized: "New message") : draft.subject)
@@ -189,15 +211,25 @@ struct ComposeView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
             attachButton
-            if compact {
-                Button { addVideo() } label: { Image(systemName: SlyyIcon.video).frame(width: 34, height: 34).hairlineBorder() }
+            Button { addVideo() } label: { Image(systemName: SlyyIcon.video).frame(width: 34, height: 34).hairlineBorder() }
+                .buttonStyle(.plain)
+                .disabled(draft.videoURL != nil || draft.meeting?.videoURL != nil)
+                .help("Add video link")
+                .accessibilityLabel("Add video link")
+            if model.hasCalendar {
+                Button { editingMeeting = true } label: { Image(systemName: "calendar.badge.plus").frame(width: 34, height: 34).hairlineBorder() }
                     .buttonStyle(.plain)
-                    .disabled(draft.videoURL != nil)
-                    .accessibilityLabel("Add video link")
-            } else {
-                Button { addVideo() } label: { Label("Add video link", systemImage: SlyyIcon.video) }
-                    .buttonStyle(.slyyOutline)
-                    .disabled(draft.videoURL != nil)
+                    .help("Add meeting invitation")
+                    .accessibilityLabel("Add meeting invitation")
+                    .popover(isPresented: $editingMeeting, arrowEdge: .bottom) {
+                        MeetingEditor(
+                            meeting: draft.meeting ?? newMeeting(),
+                            isNew: draft.meeting == nil,
+                            newVideoURL: { model.newMeetingURL() },
+                            onDone: { setMeeting($0) },
+                            onCancel: { editingMeeting = false }
+                        )
+                    }
             }
             Button {
                 Task { await send() }
@@ -210,7 +242,8 @@ struct ComposeView: View {
             }
             .buttonStyle(.slyyAccent(height: 34))
             .keyboardShortcut(.return, modifiers: .command)
-            .disabled(sending || (draft.to.trimmingCharacters(in: .whitespaces).isEmpty && draft.cc.isEmpty && draft.bcc.isEmpty))
+            // With a meeting, Send stays on and asks for the people to invite.
+            .disabled(sending || (draft.meeting == nil && draft.to.trimmingCharacters(in: .whitespaces).isEmpty && draft.cc.isEmpty && draft.bcc.isEmpty))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -270,7 +303,7 @@ struct ComposeView: View {
             Image(systemName: SlyyIcon.video).foregroundStyle(Slyy.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Join video call / Videokonferenz beitreten").font(Slyy.font(14, .semibold))
-                Text(v.absoluteString).font(Slyy.mono(12)).foregroundStyle(Slyy.ink2).textSelection(.enabled)
+                VideoLinkField(url: v) { draft.videoURL = $0 }
             }
             Spacer()
             Button("Remove") { draft.videoURL = nil }
@@ -279,6 +312,102 @@ struct ComposeView: View {
         .padding(12)
         .background(Slyy.tint)
         .overlay(Rectangle().stroke(Slyy.accent, lineWidth: 1))
+    }
+
+    func meetingCard(_ m: MeetingInvite) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "calendar").foregroundStyle(Slyy.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(meetingTitle(m)).font(Slyy.font(14, .semibold))
+                Text(m.start.formatted(date: .complete, time: .shortened) + " – " + m.end.formatted(date: .omitted, time: .shortened))
+                    .font(Slyy.font(13))
+                    .foregroundStyle(Slyy.ink2)
+                if let v = m.videoURL {
+                    VideoLinkField(url: v) { draft.meeting?.videoURL = $0 }
+                }
+                Text("Everyone in To and Cc is invited. Saved in your calendar when you send.")
+                    .font(Slyy.font(12))
+                    .foregroundStyle(Slyy.muted)
+            }
+            Spacer()
+            if model.hasCalendar {
+                Button("Edit") { editingMeeting = true }
+                    .buttonStyle(SlyyOutlineButtonStyle(strong: true, height: 32))
+            }
+            Button("Remove") { draft.meeting = nil }
+                .buttonStyle(SlyyOutlineButtonStyle(strong: true, height: 32))
+        }
+        .padding(12)
+        .background(Slyy.tint)
+        .overlay(Rectangle().stroke(Slyy.accent, lineWidth: 1))
+    }
+
+    func meetingTitle(_ m: MeetingInvite) -> String {
+        let t = m.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !t.isEmpty { return t }
+        return draft.subject.isEmpty ? String(localized: "Meeting") : draft.subject
+    }
+
+    /// A new meeting: the subject as title, the next half hour, 30 minutes, with a video link (the mail's own, if it has one).
+    func newMeeting() -> MeetingInvite {
+        MeetingInvite(title: draft.subject, start: AppModel.nextHalfHour(), minutes: 30,
+                      videoURL: draft.videoURL ?? model.newMeetingURL())
+    }
+
+    func setMeeting(_ m: MeetingInvite) {
+        draft.meeting = m
+        // The meeting card shows the link; the mail's own video card would repeat it.
+        if let v = m.videoURL, v == draft.videoURL { draft.videoURL = nil }
+        if draft.subject.isEmpty { draft.subject = m.title.isEmpty ? String(localized: "Meeting") : m.title }
+        editingMeeting = false
+    }
+
+    /// Cancel button and Esc: closes an untouched message, else asks; with the question open, Esc keeps editing.
+    func cancelTapped() {
+        if confirmClose {
+            confirmClose = false
+        } else if untouched {
+            close()
+        } else {
+            focus = nil // so Return answers the question instead of typing a new line
+            confirmClose = true
+        }
+    }
+
+    /// "Save this message as a draft?" in Slyy's own style, over the dimmed editor.
+    var closePrompt: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {}
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Save this message as a draft?")
+                    .font(Slyy.font(16, .semibold))
+                    .foregroundStyle(Slyy.ink)
+                Text("Saved drafts are in the Drafts folder.")
+                    .font(Slyy.font(13))
+                    .foregroundStyle(Slyy.ink2)
+                HStack(spacing: 8) {
+                    Button { close() } label: { Text("Discard").foregroundStyle(Slyy.danger) }
+                        .buttonStyle(.slyyOutline)
+                        .overlay(Rectangle().stroke(Slyy.danger, lineWidth: 1))
+                    Spacer(minLength: 16)
+                    Button("Keep Editing") { confirmClose = false }
+                        .buttonStyle(.slyyOutline)
+                    Button("Save Draft") { Task { _ = await model.saveDraft(draft); close() } }
+                        .buttonStyle(.slyyPrimary(height: 34))
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: 420)
+            .background(Color.white)
+            .hairlineBorder()
+            .padding(24)
+            .accessibilityAddTraits(.isModal)
+        }
+        .font(Slyy.body)
     }
 
     var attachmentStrip: some View {
@@ -305,35 +434,39 @@ struct ComposeView: View {
         .bottomHairline()
     }
 
-    var footer: some View {
-        HStack {
-            if draft.recovered {
-                Text("Recovered after Mailr quit unexpectedly").foregroundStyle(Slyy.accent)
-            } else if let saved = draft.lastSaved {
-                Text("Draft saved to Drafts · \(saved.formatted(date: .omitted, time: .shortened))")
+    /// Only what's useful: the draft status, and a warning if the mail would go out unencrypted. Nothing to say: no bar.
+    @ViewBuilder var footer: some View {
+        let unencrypted = model.account?.smtp.security == .plain
+        if draft.recovered || draft.lastSaved != nil || unencrypted {
+            HStack(spacing: 12) {
+                if draft.recovered {
+                    Text("Recovered after Mailr quit unexpectedly").foregroundStyle(Slyy.accent)
+                } else if let saved = draft.lastSaved {
+                    Text("Draft saved \(saved.formatted(date: .omitted, time: .shortened))")
+                }
+                Spacer()
+                if unencrypted {
+                    Label("Not encrypted: this mail is sent without TLS", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(Slyy.danger)
+                        .lineLimit(1)
+                }
             }
-            Spacer()
-            if let a = model.account {
-                Text("Sent from \(currentIdentity?.email ?? a.email) via \(a.smtp.host) · \(a.smtp.security == .plain ? "no encryption" : "TLS")")
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
+            .font(Slyy.font(12))
+            .foregroundStyle(Slyy.muted)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
         }
-        .font(Slyy.font(12))
-        .foregroundStyle(Slyy.muted)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
     }
 
     func send() async {
         sending = true
         defer { sending = false }
-        if await model.send(draft) { close() }
+        if await model.send(draft, onError: { sendError = $0 }) { close() }
     }
 
     func addVideo() {
-        draft.videoURL = JitsiRoom.newURL(server: model.account?.jitsiURL ?? JitsiRoom.defaultServer)
+        draft.videoURL = model.newMeetingURL()
         if draft.subject.isEmpty { draft.subject = String(localized: "Video call") }
     }
 
@@ -351,7 +484,7 @@ struct ComposeView: View {
     /// Saves to the Drafts folder every 10 s while there are unsaved changes.
     /// Changes whenever anything in the mail changes.
     var journalKey: String {
-        "\(draft.to)|\(draft.cc)|\(draft.bcc)|\(draft.subject)|\(draft.body)|\(draft.quoted)|\(draft.attachments.count)|\(draft.videoURL?.absoluteString ?? "")|\(draft.from?.email ?? "")|\(draft.draftUID ?? 0)"
+        "\(draft.to)|\(draft.cc)|\(draft.bcc)|\(draft.subject)|\(draft.body)|\(draft.quoted)|\(draft.attachments.count)|\(draft.videoURL?.absoluteString ?? "")|\(draft.meeting.map(ComposeDraft.meetingKey) ?? "")|\(draft.from?.email ?? "")|\(draft.draftUID ?? 0)"
     }
 
     /// Normal close (sent, saved to Drafts, discarded): the crash copy is no longer needed.
@@ -362,6 +495,8 @@ struct ComposeView: View {
     var untouched: Bool { draft.isEmpty || (!draft.recovered && openedKey == currentKey) }
 
     func close() {
+        closed = true
+        confirmClose = false
         DraftJournal.standard.remove(draft.id)
         dismiss()
     }
@@ -370,7 +505,7 @@ struct ComposeView: View {
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 10_000_000_000)
             guard model.autoSave else { continue }
-            let fingerprint = "\(draft.to)|\(draft.cc)|\(draft.bcc)|\(draft.subject)|\(draft.body)|\(draft.attachments.count)|\(draft.videoURL?.absoluteString ?? "")"
+            let fingerprint = "\(draft.to)|\(draft.cc)|\(draft.bcc)|\(draft.subject)|\(draft.body)|\(draft.attachments.count)|\(draft.videoURL?.absoluteString ?? "")|\(draft.meeting.map(ComposeDraft.meetingKey) ?? "")"
             guard !untouched, fingerprint != lastSaved, !sending else { continue }
             let saved = await model.saveDraft(draft)
             if saved.draftUID != nil || draft.draftUID == nil {
@@ -487,6 +622,214 @@ struct AddressField<Trailing: View>: View {
         text = t.filter { !$0.isEmpty }.joined(separator: ", ") + ", "
     }
 }
+
+/// The video link on a card in the writer, editable. Only a full http(s) link is taken; while the text isn't one,
+/// a hint shows and the last valid link stays the one sent.
+struct VideoLinkField: View {
+    let url: URL
+    var onChange: (URL) -> Void
+    @State private var text: String
+    @State private var invalid = false
+
+    init(url: URL, onChange: @escaping (URL) -> Void) {
+        self.url = url
+        self.onChange = onChange
+        _text = State(initialValue: url.absoluteString)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            TextField("https://…", text: $text)
+                .textFieldStyle(.plain)
+                .font(Slyy.mono(12))
+                .foregroundStyle(Slyy.ink)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(Color.white)
+                .hairlineBorder(invalid ? Slyy.danger : Slyy.line)
+                #if os(iOS)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                #endif
+                .onChange(of: text) { _, t in take(t) }
+                .onSubmit { take(text) }
+                .onChange(of: url) { _, new in
+                    // Changed elsewhere (the meeting editor): show the new link.
+                    if JitsiRoom.parseLink(text) != new { text = new.absoluteString; invalid = false }
+                }
+                .accessibilityLabel("Video link")
+            if invalid {
+                Text("Enter a full link, e.g. https://…")
+                    .font(Slyy.font(12))
+                    .foregroundStyle(Slyy.danger)
+            }
+        }
+        .frame(maxWidth: 520, alignment: .leading)
+    }
+
+    func take(_ t: String) {
+        guard let u = JitsiRoom.parseLink(t) else {
+            invalid = true
+            return
+        }
+        invalid = false
+        if u != url { onChange(u) }
+    }
+}
+
+/// "Add meeting invitation": title, day, start, length and an optional video link for the meeting this mail invites to.
+struct MeetingEditor: View {
+    @State var meeting: MeetingInvite
+    @State private var withVideo: Bool
+    let isNew: Bool
+    let newVideoURL: () -> URL
+    var onDone: (MeetingInvite) -> Void
+    var onCancel: () -> Void
+
+    init(meeting: MeetingInvite, isNew: Bool, newVideoURL: @escaping () -> URL, onDone: @escaping (MeetingInvite) -> Void, onCancel: @escaping () -> Void) {
+        _meeting = State(initialValue: meeting)
+        _withVideo = State(initialValue: meeting.videoURL != nil || isNew)
+        self.isNew = isNew
+        self.newVideoURL = newVideoURL
+        self.onDone = onDone
+        self.onCancel = onCancel
+    }
+
+    var durations: [Int] {
+        var list = [15, 30, 45, 60, 90, 120]
+        if !list.contains(meeting.minutes) { list.append(meeting.minutes); list.sort() }
+        return list
+    }
+
+    static func durationText(_ minutes: Int) -> String {
+        let f = DateComponentsFormatter()
+        f.allowedUnits = [.hour, .minute]
+        f.unitsStyle = .short
+        return f.string(from: TimeInterval(minutes * 60)) ?? "\(minutes)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(isNew ? "Add meeting invitation" : "Meeting invitation")
+                .font(Slyy.font(16, .semibold))
+            row("Title") {
+                TextField("Title", text: $meeting.title)
+                    .textFieldStyle(SlyyFieldStyle(padding: 8))
+            }
+            HStack(spacing: 10) {
+                row("Date") { boxed { DatePicker("Date", selection: $meeting.start, displayedComponents: [.date]) } }
+                row("Starts") { boxed { DatePicker("Starts", selection: $meeting.start, displayedComponents: [.hourAndMinute]) } }
+            }
+            row("Duration") {
+                boxed {
+                    Picker("Duration", selection: $meeting.minutes) {
+                        ForEach(durations, id: \.self) { m in Text(Self.durationText(m)).tag(m) }
+                    }
+                }
+            }
+            Toggle(isOn: $withVideo) { Text("Video link").font(Slyy.font(14)) }
+                .toggleStyle(SlyySwitchStyle())
+            Text("Everyone in To and Cc is invited. Saved in your calendar when you send.")
+                .font(Slyy.font(12))
+                .foregroundStyle(Slyy.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(.slyyOutline)
+                    .keyboardShortcut(.cancelAction)
+                Button(isNew ? "Add" : "Done") {
+                    var m = meeting
+                    m.videoURL = withVideo ? (m.videoURL ?? newVideoURL()) : nil
+                    onDone(m)
+                }
+                .buttonStyle(.slyyPrimary(height: 34))
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .font(Slyy.body)
+        .foregroundStyle(Slyy.ink)
+        .tint(Slyy.accent)
+        .padding(18)
+        #if os(macOS)
+        .frame(width: 360)
+        #else
+        .frame(minWidth: 320)
+        .presentationDetents([.medium, .large])
+        #endif
+        .background(Color.white)
+    }
+
+    func row<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            content()
+        }
+    }
+
+    func boxed<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(4)
+            .hairlineBorder(Slyy.lineStrong)
+    }
+}
+
+#if os(macOS)
+/// Esc anywhere in the editor's window calls `onEscape`, also while the cursor is in the text
+/// (an NSTextView keeps Esc for word completion, so the Cancel button's shortcut wouldn't fire).
+/// Popovers and sheets are other windows and keep their own Esc; so does text being composed in an input method.
+struct EscapeKeyCatcher: NSViewRepresentable {
+    var onEscape: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.view = view
+        context.coordinator.start()
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.onEscape = onEscape
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(onEscape: onEscape) }
+
+    final class Coordinator {
+        weak var view: NSView?
+        var onEscape: () -> Void
+        private var monitor: Any?
+
+        init(onEscape: @escaping () -> Void) { self.onEscape = onEscape }
+
+        func start() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, event.keyCode == 53,
+                      event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function]).isEmpty,
+                      let window = self.view?.window, event.window === window, window.attachedSheet == nil
+                else { return event }
+                if let text = window.firstResponder as? NSTextView, text.hasMarkedText() { return event }
+                self.onEscape()
+                return nil
+            }
+        }
+
+        func stop() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
+        deinit { stop() }
+    }
+}
+#endif
 
 #if os(iOS)
 /// Photos are sent as JPEG, at most 2560 px on the long side (a 12 MP original would make mails of 5 MB and more).

@@ -32,6 +32,15 @@ public enum JitsiRoom {
         return path.isEmpty ? nil : url
     }
 
+    /// A meeting link typed or edited by hand: a full http(s) link with a host, else nil (the editor keeps the last valid one).
+    public static func parseLink(_ text: String) -> URL? {
+        let s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.contains(where: { $0.isWhitespace }), let url = URL(string: s),
+              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = url.host, !host.isEmpty else { return nil }
+        return url
+    }
+
     /// URL with display name/email pre-filled for the Jitsi web app (hash config, ignored by other servers).
     public static func joinURL(_ room: URL, displayName: String, email: String) -> URL {
         let name = displayName.isEmpty ? email : displayName

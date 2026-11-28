@@ -96,7 +96,7 @@ struct MessageDetailView: View {
                 quickActions: QuickAction.reader,
                 draftButtons: [("Reply with this", { p in
                     model.compose(.reply(m))
-                    model.composeDraft?.apply(p)
+                    model.amendComposed { $0.apply(p) }
                 })],
                 placeholder: "Ask Haven about this mail…"
             )

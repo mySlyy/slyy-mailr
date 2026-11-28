@@ -56,6 +56,9 @@ struct ComposeDraft: Identifiable, Codable {
     /// Stays the same for every autosave, so a copy can be found without UIDPLUS.
     var messageID: String?
     var showCcBcc = false
+    /// Meeting sent with this mail as an invitation (to the To and Cc recipients); nil = none.
+    /// Optional so journals written before meetings existed still decode.
+    var meeting: MeetingInvite?
     /// Video call link shown as a card while writing; added at the top of the text when sent.
     var videoURL: URL?
     var lastSaved: Date?
@@ -86,14 +89,18 @@ struct ComposeDraft: Identifiable, Codable {
         return top + HTMLText.fromPlain(quoted)
     }
 
-    var isEmpty: Bool { to.isEmpty && cc.isEmpty && subject.isEmpty && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty }
+    var isEmpty: Bool { to.isEmpty && cc.isEmpty && subject.isEmpty && body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty && videoURL == nil && meeting == nil }
 
     /// What the user can change, without the signature block: equal keys mean nothing was written.
     func contentKey(signature: String) -> String {
         var text = body
         if !signature.isEmpty { text = text.replacingOccurrences(of: "-- \n" + signature, with: "") }
         text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return [to, cc, bcc, subject, text, attachments.map(\.filename).joined(separator: "/"), videoURL?.absoluteString ?? ""].joined(separator: "\u{1F}")
+        return [to, cc, bcc, subject, text, attachments.map(\.filename).joined(separator: "/"), videoURL?.absoluteString ?? "", meeting.map(Self.meetingKey) ?? ""].joined(separator: "\u{1F}")
+    }
+
+    static func meetingKey(_ m: MeetingInvite) -> String {
+        "\(m.uid)|\(m.title)|\(m.start.timeIntervalSince1970)|\(m.minutes)|\(m.videoURL?.absoluteString ?? "")"
     }
 
     func message(from fallback: EmailAddress) -> OutgoingMessage {
@@ -160,7 +167,15 @@ final class AppModel {
     var searchText = ""
     private(set) var isSearching = false
     private(set) var isRefreshing = false
+    /// The message being written in a sheet (iOS, and the Mac's fallback before a window can be opened).
     var composeDraft: ComposeDraft?
+    #if os(macOS)
+    /// Messages being written in their own resizable windows ("compose" WindowGroup), by window value.
+    var composeWindows: [UUID: ComposeDraft] = [:]
+    /// Opens a compose window for an entry of `composeWindows`; set by the views from `@Environment(\.openWindow)`.
+    @ObservationIgnored var openComposeWindow: ((UUID) -> Void)?
+    @ObservationIgnored private var lastComposeWindow: UUID?
+    #endif
 
     // Conversations
     /// Group the list by conversation (saved per device).
@@ -252,6 +267,8 @@ final class AppModel {
     var editingEvent: CalendarEvent?
     var selectedEvent: CalendarEvent?
     private var loadedRange: (Date, Date)?
+    /// Meetings already stored by a Send whose mail then failed, by UID (a retry updates them).
+    @ObservationIgnored private var savedMeetings: [String: CalendarEvent] = [:]
 
     // Video
     /// iOS: presented full screen. macOS: RootView opens a window and clears it.
@@ -327,9 +344,37 @@ final class AppModel {
     /// Called when the editor closes: the next recovered draft, if any.
     func openNextRecovered() {
         guard composeDraft == nil, !recovered.isEmpty else { return }
+        #if os(macOS)
+        // One recovered mail at a time, as with the sheet: the next opens when this one closes.
+        guard !composeWindows.values.contains(where: \.recovered) else { return }
+        #endif
         var d = recovered.removeFirst()
         d.recovered = true
+        present(d)
+    }
+
+    /// Shows a message to write: on the Mac in its own resizable window, else (iOS, or no window opener yet) in the sheet.
+    private func present(_ d: ComposeDraft) {
+        #if os(macOS)
+        if let open = openComposeWindow {
+            composeWindows[d.id] = d
+            lastComposeWindow = d.id
+            open(d.id)
+            return
+        }
+        #endif
         composeDraft = d
+    }
+
+    /// Changes the message just opened by `compose(_:)` (e.g. Haven's text for a reply), in the sheet or its window.
+    func amendComposed(_ change: (inout ComposeDraft) -> Void) {
+        if composeDraft != nil {
+            change(&composeDraft!)
+            return
+        }
+        #if os(macOS)
+        if let id = lastComposeWindow, composeWindows[id] != nil { change(&composeWindows[id]!) }
+        #endif
     }
 
     /// Saves settings that need no reconnect (name, signature, sender addresses, video server).
@@ -791,11 +836,11 @@ final class AppModel {
         guard let a = account else { return }
         switch kind {
         case .new:
-            composeDraft = newDraft(a)
+            present(newDraft(a))
         case .to(let addr):
             var d = newDraft(a)
             d.to = addr.headerValue
-            composeDraft = d
+            present(d)
         case .reply(let m), .replyAll(let m), .forward(let m):
             // Answer from the address the mail was sent to (alias), and keep all my addresses out of Reply All.
             let id = a.identity(forReplyTo: m)
@@ -805,7 +850,7 @@ final class AppModel {
             d.from = id
             d.blueReply = kindOf != .forward && blueReplies
             d.replyColor = replyColorHex
-            composeDraft = d
+            present(d)
         case .mailto(let url):
             var d = newDraft(a)
             let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -819,7 +864,7 @@ final class AppModel {
                 default: break
                 }
             }
-            composeDraft = d
+            present(d)
         case .draft(let s):
             Task {
                 guard let mail else { return }
@@ -836,7 +881,7 @@ final class AppModel {
                     d.draftUID = s.uid
                     d.messageID = m.messageID
                     d.showCcBcc = !m.cc.isEmpty
-                    composeDraft = d
+                    present(d)
                 } catch { report(error) }
             }
         }
@@ -866,19 +911,49 @@ final class AppModel {
         event.attendees.first { isMine($0.email) }?.status
     }
 
-    func send(_ draft: ComposeDraft) async -> Bool {
+    /// Sends a message. Problems go to `onError` (the editor shows them on its own sheet or window), else to `errorMessage`.
+    func send(_ draft: ComposeDraft, onError: ((String) -> Void)? = nil) async -> Bool {
         guard let mail, let a = account else { return false }
-        let msg = draft.message(from: a.address)
-        guard !msg.envelopeRecipients.isEmpty else {
-            errorMessage = String(localized: "Add at least one recipient.")
+        func fail(_ text: String) -> Bool {
+            if let onError { onError(text) } else { errorMessage = text }
             return false
         }
+        func describe(_ error: Error) -> String { (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+        var msg = draft.message(from: a.address)
+        if draft.meeting != nil, (msg.to + msg.cc).isEmpty {
+            return fail(String(localized: "Add the people you are inviting under To or Cc."))
+        }
+        guard !msg.envelopeRecipients.isEmpty else {
+            return fail(String(localized: "Add at least one recipient."))
+        }
         if let bad = (msg.to + msg.cc + msg.bcc).first(where: { !$0.isValid }) {
-            errorMessage = String(localized: "Invalid address: \(bad.address)")
-            return false
+            return fail(String(localized: "Invalid address: \(bad.address)"))
+        }
+        if let meeting = draft.meeting {
+            // The event goes into my calendar first (no separate invitation mails); this mail is the invitation.
+            guard let cal = calendarService, hasCalendar else {
+                return fail(String(localized: "This account has no calendar, so the meeting can't be saved."))
+            }
+            var event = meeting.event(organizer: msg.from, attendees: msg.to + msg.cc, fallbackTitle: draft.subject.isEmpty ? String(localized: "Meeting") : draft.subject)
+            if let earlier = savedMeetings[meeting.uid] {
+                // Saved by an earlier Send that then failed: update that event instead of creating it twice.
+                event.objectURL = earlier.objectURL
+                event.etag = earlier.etag
+                event.calendarURL = earlier.calendarURL
+                event.sequence = earlier.sequence
+            }
+            do {
+                let saved = try await cal.save(event, notify: false)
+                savedMeetings[meeting.uid] = saved
+                msg = msg.invitation(for: saved)
+                loadedRange = nil
+            } catch {
+                return fail(String(localized: "The meeting could not be saved in your calendar, so the mail was not sent.") + "\n\n" + describe(error))
+            }
         }
         do {
             try await mail.send(msg, replacingDraft: draft.draftUID)
+            if let meeting = draft.meeting { savedMeetings[meeting.uid] = nil }
             contacts.add(msg.to + msg.cc + msg.bcc)
             if let original = openSummary, draft.inReplyTo != nil, draft.inReplyTo == openMessage?.messageID {
                 setLocalFlag("\\Answered", on: true, ids: [original.id])
@@ -886,10 +961,12 @@ final class AppModel {
             }
             return true
         } catch {
-            report(error)
-            return false
+            return fail(describe(error))
         }
     }
+
+    /// The account has a calendar server (CalDAV), so meetings can be added to mails.
+    var hasCalendar: Bool { !(account?.caldavURL.isEmpty ?? true) }
 
     /// Saves to Drafts; returns the draft with its new UID.
     func saveDraft(_ draft: ComposeDraft) async -> ComposeDraft {
@@ -1028,7 +1105,7 @@ final class AppModel {
         d.to = people.map(\.headerValue).joined(separator: ", ")
         d.subject = String(localized: "Video call now")
         d.videoURL = url
-        composeDraft = d
+        present(d)
         join(url)
     }
 

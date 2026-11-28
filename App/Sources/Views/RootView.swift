@@ -38,6 +38,8 @@ struct RootView: View {
                 .environment(model)
         }
         #if os(macOS)
+        // New messages open in their own resizable windows.
+        .onAppear { model.openComposeWindow = { id in openWindow(id: "compose", value: id) } }
         .onChange(of: model.videoCall) { _, url in
             if let url {
                 openWindow(value: url)

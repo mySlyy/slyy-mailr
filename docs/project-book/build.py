@@ -70,6 +70,10 @@ new_items = '''
   [110, "read", "… menu on every message: reply, reply all or forward just that one", "In conversations, the thread window and a single mail; a folded message loads first.", D, B],
   [111, "read", "Reply or forward only the selected text", "Selected text in a mail is all that is quoted; a forward of a selection carries no attachments.", D, B],
   [112, "read", "Double-click a message header opens just that message in its own window", "Also … → Open in New Window.", D, N],
+  [120, "write", "Writer in its own resizable window on the Mac", "Each new message, reply or forward opens in a window you can resize; iPhone and iPad keep the sheet.", D, N],
+  [121, "write", "Video link button as an icon; the link can be edited in the mail", "Only a full http(s) link is taken.", D, B],
+  [122, "write", "Meeting invitation from the writer (calendar icon)", "Title, date, time, length and video link; To and Cc are invited, the event is saved in your calendar and the mail carries the invitation.", D, B],
+  [123, "write", "Slyy-styled “Save as draft?” prompt; quieter footer", "Esc closes an untouched message without asking; the footer only shows the draft status or a warning if not encrypted.", D, B],
 '''
 bl_js = bl_js.replace('  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]', '  [88, "q", "Privacy-friendly crash reports", "", T, T, 3],' + new_items.rstrip().rstrip(','))
 assert '[109,' in bl_js
