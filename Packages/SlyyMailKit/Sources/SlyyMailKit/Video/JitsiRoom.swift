@@ -15,6 +15,23 @@ public enum JitsiRoom {
         return URL(string: "\(base)/\(prefix)-\(slug)") ?? URL(string: "\(defaultServer)/\(prefix)-\(slug)")!
     }
 
+    /// The link for a new meeting from the Video setting: a full room link (e.g. https://vid.rocket.re-cloud.io/MeetAshant)
+    /// is the user's own meeting room and is used as it is; a bare server address gets a new private room each time.
+    public static func meetingURL(setting: String) -> URL {
+        if let room = personalRoom(setting) { return room }
+        return newURL(server: setting.isEmpty ? defaultServer : setting)
+    }
+
+    /// The user's own room if the setting names one (a path after the server), else nil.
+    public static func personalRoom(_ setting: String) -> URL? {
+        var s = setting.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        if !s.lowercased().hasPrefix("http") { s = "https://" + s }
+        guard let url = URL(string: s), url.host != nil else { return nil }
+        let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return path.isEmpty ? nil : url
+    }
+
     /// URL with display name/email pre-filled for the Jitsi web app (hash config, ignored by other servers).
     public static func joinURL(_ room: URL, displayName: String, email: String) -> URL {
         let name = displayName.isEmpty ? email : displayName

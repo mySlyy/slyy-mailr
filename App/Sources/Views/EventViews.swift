@@ -404,7 +404,7 @@ struct EventEditorView: View {
     }
 
     func setVideo(_ on: Bool) {
-        event.videoURL = on ? (event.videoURL ?? JitsiRoom.newURL(server: model.account?.jitsiURL ?? JitsiRoom.defaultServer)) : nil
+        event.videoURL = on ? (event.videoURL ?? model.newMeetingURL()) : nil
     }
 
     var startBinding: Binding<Date> {

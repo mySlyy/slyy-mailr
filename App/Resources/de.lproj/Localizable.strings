@@ -311,3 +311,11 @@
 "Message" = "E-Mail";
 "Open in New Window" = "In neuem Fenster öffnen";
 "More actions for this message" = "Weitere Aktionen für diese E-Mail";
+"Your meeting link" = "Ihr Besprechungslink";
+"Meeting Link" = "Besprechungslink";
+"New meetings use" = "Neue Besprechungen verwenden";
+"Private room per meeting" = "Eigener Raum je Besprechung";
+"The link you share with partners, e.g. https://vid.rocket.re-cloud.io/YourName." = "Der Link, den Sie mit Partnern teilen, z. B. https://vid.rocket.re-cloud.io/IhrName.";
+"The link you share with partners. Video links in mails, meetings and “Meet now” use it. Only a server address: every meeting gets its own private room." = "Der Link, den Sie mit Partnern teilen. Videolinks in Mails, Besprechungen und „Jetzt besprechen“ verwenden ihn. Nur eine Serveradresse: Jede Besprechung bekommt einen eigenen privaten Raum.";
+"Your own meeting room, the same link every time. You can change the link in each mail." = "Ihr eigener Besprechungsraum, jedes Mal derselbe Link. Sie können den Link in jeder Mail ändern.";
+"Every meeting gets its own unguessable room name. Set your own meeting link to share the same room every time." = "Jede Besprechung bekommt einen eigenen, nicht zu erratenden Raumnamen. Legen Sie Ihren eigenen Besprechungslink fest, um immer denselben Raum zu teilen.";

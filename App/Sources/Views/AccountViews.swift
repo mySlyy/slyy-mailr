@@ -18,7 +18,7 @@ struct ServerSettingsForm: View {
                 field("Calendar server (CalDAV)", text: $settings.caldavURL, hint: "Slyy finds your calendars from here. Empty turns the calendar off.")
             }
             if parts.contains(.video) {
-                field("Video call server", text: $settings.jitsiURL, hint: "Jitsi Meet server for new meetings and \u{201C}Meet now\u{201D}.")
+                field("Your meeting link", text: $settings.jitsiURL, hint: "The link you share with partners, e.g. https://vid.rocket.re-cloud.io/YourName.")
             }
         }
     }
@@ -359,7 +359,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .updates: "Updates"
         case .calendarServer: "Calendar Server"
         case .calendars: "Shown Calendars"
-        case .videoServer: "Video Server"
+        case .videoServer: "Meeting Link"
         case .rooms: "Room Links"
         }
     }
@@ -810,12 +810,13 @@ struct VideoServerForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            settingsField("Video call server") {
-                TextField("", text: $server).textFieldStyle(SlyyFieldStyle(padding: 8)).serverField()
+            settingsField("Your meeting link") {
+                TextField("https://vid.rocket.re-cloud.io/YourName", text: $server).textFieldStyle(SlyyFieldStyle(padding: 8)).serverField()
             }
-            Text("Jitsi Meet server for new meetings and \u{201C}Meet now\u{201D}.").font(Slyy.font(12)).foregroundStyle(Slyy.muted)
+            Text("The link you share with partners. Video links in mails, meetings and \u{201C}Meet now\u{201D} use it. Only a server address: every meeting gets its own private room.")
+                .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
             HStack(spacing: 10) {
-                Button("Use default") { server = JitsiRoom.defaultServer }
+                Button("Private room per meeting") { server = JitsiRoom.defaultServer }
                     .buttonStyle(.slyyOutline)
                     .disabled(server == JitsiRoom.defaultServer)
                 Button { model.meetNow() } label: { Label("Test call", systemImage: SlyyIcon.video) }
@@ -835,10 +836,12 @@ struct RoomLinksInfo: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("New rooms look like")
-            Text(JitsiRoom.newURL(server: model.account?.jitsiURL ?? JitsiRoom.defaultServer).absoluteString)
+            SectionLabel("New meetings use")
+            Text(model.newMeetingURL().absoluteString)
                 .font(Slyy.mono(12)).foregroundStyle(Slyy.ink2).textSelection(.enabled)
-            Text("Every meeting gets its own unguessable room name. Meetings and \u{201C}Meet now\u{201D} add the link to invitations automatically.")
+            Text(JitsiRoom.personalRoom(model.account?.jitsiURL ?? "") != nil
+                 ? LocalizedStringKey("Your own meeting room, the same link every time. You can change the link in each mail.")
+                 : LocalizedStringKey("Every meeting gets its own unguessable room name. Set your own meeting link to share the same room every time."))
                 .font(Slyy.font(12)).foregroundStyle(Slyy.muted)
         }
     }

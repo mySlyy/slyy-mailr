@@ -226,3 +226,21 @@ final class CalDAVIntegrationTests: XCTestCase {
         XCTAssertFalse(left.contains { $0.name.contains(alice.token) }, "the run's calendar is gone")
     }
 }
+
+final class MeetingLinkTests: XCTestCase {
+    func testPersonalRoomIsUsedAsIs() {
+        let url = JitsiRoom.meetingURL(setting: "https://vid.rocket.re-cloud.io/MeetAshant")
+        XCTAssertEqual(url.absoluteString, "https://vid.rocket.re-cloud.io/MeetAshant")
+        XCTAssertEqual(JitsiRoom.meetingURL(setting: " vid.rocket.re-cloud.io/MeetAshant/ ").host, "vid.rocket.re-cloud.io")
+        XCTAssertEqual(JitsiRoom.personalRoom("vid.rocket.re-cloud.io/MeetAshant")?.lastPathComponent, "MeetAshant")
+    }
+
+    func testServerOnlyGetsAPrivateRoomEachTime() {
+        let a = JitsiRoom.meetingURL(setting: "https://vid.rocket.re-cloud.io")
+        let b = JitsiRoom.meetingURL(setting: "https://vid.rocket.re-cloud.io/")
+        XCTAssertNotEqual(a, b)
+        XCTAssertTrue(a.lastPathComponent.hasPrefix("slyy-"))
+        XCTAssertNil(JitsiRoom.personalRoom("https://vid.rocket.re-cloud.io/"))
+        XCTAssertTrue(JitsiRoom.meetingURL(setting: "").absoluteString.hasPrefix(JitsiRoom.defaultServer + "/slyy-"))
+    }
+}

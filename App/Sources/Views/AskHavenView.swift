@@ -250,7 +250,7 @@ struct AskHavenBar: View {
 
     func review(_ e: EventProposal) {
         var event = e.calendarEvent(organizer: model.account?.address)
-        if e.video { event.videoURL = JitsiRoom.newURL(server: model.account?.jitsiURL ?? JitsiRoom.defaultServer) }
+        if e.video { event.videoURL = model.newMeetingURL() }
         event.calendarURL = model.calendars.first { !$0.isReadOnly }?.url
         reviewing = event
     }

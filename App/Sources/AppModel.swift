@@ -1011,16 +1011,19 @@ final class AppModel {
         videoCall = JitsiRoom.joinURL(url, displayName: a.displayName, email: a.email)
     }
 
-    /// Ad-hoc meeting: new room, link copied to the clipboard, call opened.
+    /// The link for a new meeting: the user's own room if Settings → Video Calls names one, else a new private room.
+    func newMeetingURL() -> URL { JitsiRoom.meetingURL(setting: account?.jitsiURL ?? JitsiRoom.defaultServer) }
+
+    /// Ad-hoc meeting: the meeting link copied to the clipboard, call opened.
     func meetNow() {
-        let url = JitsiRoom.newURL(server: account?.jitsiURL ?? JitsiRoom.defaultServer)
+        let url = newMeetingURL()
         copyToClipboard(url.absoluteString)
         join(url)
     }
 
     /// New room + mail with the link to the given people (e.g. "Call" on a message).
     func call(_ people: [EmailAddress]) {
-        let url = JitsiRoom.newURL(server: account?.jitsiURL ?? JitsiRoom.defaultServer)
+        let url = newMeetingURL()
         var d = ComposeDraft()
         d.to = people.map(\.headerValue).joined(separator: ", ")
         d.subject = String(localized: "Video call now")
