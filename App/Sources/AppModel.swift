@@ -52,6 +52,9 @@ struct ComposeDraft: Identifiable, Codable {
     var inReplyTo: String?
     var references: [String] = []
     var draftUID: UInt32?
+    /// Message-ID of a draft reopened from the Drafts folder; nil = derived from `id`.
+    /// Stays the same for every autosave, so a copy can be found without UIDPLUS.
+    var messageID: String?
     var showCcBcc = false
     /// Video call link shown as a card while writing; added at the top of the text when sent.
     var videoURL: URL?
@@ -96,7 +99,8 @@ struct ComposeDraft: Identifiable, Codable {
             html: html,
             attachments: attachments,
             inReplyTo: inReplyTo,
-            references: references
+            references: references,
+            messageID: messageID ?? "<\(id.uuidString.lowercased())@\(fallback.domain.isEmpty ? "slyy.mail" : fallback.domain)>"
         )
         return m
     }
@@ -786,6 +790,7 @@ final class AppModel {
                     d.inReplyTo = m.inReplyTo
                     d.references = m.references
                     d.draftUID = s.uid
+                    d.messageID = m.messageID
                     d.showCcBcc = !m.cc.isEmpty
                     composeDraft = d
                 } catch { report(error) }
