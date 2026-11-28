@@ -45,12 +45,16 @@ public actor MailService {
     private let lock = AsyncLock()
 
     /// Runs an IMAP operation exclusively, reconnecting once if the connection dropped.
-    func withIMAP<T>(_ op: (IMAPClient) async throws -> T) async throws -> T {
+    /// `retry: false` for operations that are not safe to repeat (APPEND, MOVE/COPY, EXPUNGE, folder CREATE/RENAME/DELETE):
+    /// the server may have carried them out before the connection dropped, so a replay could e.g. file a second Sent copy.
+    /// Those surface the error instead; the dropped connection is still discarded so the next call reconnects.
+    func withIMAP<T>(retry: Bool = true, _ op: (IMAPClient) async throws -> T) async throws -> T {
         try await lock.run {
             do {
                 return try await op(try await imap())
-            } catch is TransportError {
+            } catch let e as TransportError {
                 client = nil
+                guard retry else { throw e }
                 return try await op(try await imap())
             }
         }
@@ -87,7 +91,7 @@ public actor MailService {
         case .inbox: return "INBOX"
         case .all, .flagged: name = use.rawValue.capitalized
         }
-        try await withIMAP { try await $0.createFolder(name) }
+        try await withIMAP(retry: false) { try await $0.createFolder(name) }
         _ = try await folders()
         return ModifiedUTF7.encode(name)
     }
@@ -152,7 +156,7 @@ public actor MailService {
     public func move(_ messages: [MessageSummary], to target: String) async throws {
         for (folder, group) in Dictionary(grouping: messages, by: \.folder) where folder != target {
             let uids = group.map(\.uid)
-            try await withIMAP { try await $0.move(folder: folder, uids: uids, to: target) }
+            try await withIMAP(retry: false) { try await $0.move(folder: folder, uids: uids, to: target) }
             for u in uids { cache?.removeBody(uid: u, folder: folder, account: account.id) }
         }
     }
@@ -165,7 +169,7 @@ public actor MailService {
         if !others.isEmpty { try await move(others, to: trash) }
         if !inTrash.isEmpty {
             let uids = inTrash.map(\.uid)
-            try await withIMAP { try await $0.expunge(folder: trash, uids: uids) }
+            try await withIMAP(retry: false) { try await $0.expunge(folder: trash, uids: uids) }
         }
     }
 
@@ -179,16 +183,16 @@ public actor MailService {
     }
 
     public func createFolder(_ name: String) async throws {
-        try await withIMAP { try await $0.createFolder(name) }
+        try await withIMAP(retry: false) { try await $0.createFolder(name) }
     }
 
     public func renameFolder(_ f: IMAPFolder, to name: String) async throws {
         let newPath = f.delimiter.isEmpty || f.depth == 0 ? name : (f.path.components(separatedBy: f.delimiter).dropLast() + [name]).joined(separator: f.delimiter)
-        try await withIMAP { try await $0.renameFolder(f.serverPath, to: newPath) }
+        try await withIMAP(retry: false) { try await $0.renameFolder(f.serverPath, to: newPath) }
     }
 
     public func deleteFolder(_ f: IMAPFolder) async throws {
-        try await withIMAP { try await $0.deleteFolder(f.serverPath) }
+        try await withIMAP(retry: false) { try await $0.deleteFolder(f.serverPath) }
     }
 
     // MARK: Sending
@@ -206,18 +210,18 @@ public actor MailService {
         }
         await smtp.quit()
         if !account.serverSavesSent, let sent = try? await folderPath(.sent) {
-            _ = try? await withIMAP { try await $0.append(folder: sent, message: data, flags: ["\\Seen"]) }
+            _ = try? await withIMAP(retry: false) { try await $0.append(folder: sent, message: data, flags: ["\\Seen"]) }
         }
         if let draftUID, let drafts = try? await folderPath(.drafts) {
-            try? await withIMAP { try await $0.expunge(folder: drafts, uids: [draftUID]) }
+            try? await withIMAP(retry: false) { try await $0.expunge(folder: drafts, uids: [draftUID]) }
         }
     }
 
     /// Saves a draft (replacing the previous version); returns the new UID if the server reports it.
     public func saveDraft(_ message: OutgoingMessage, replacing oldUID: UInt32?) async throws -> UInt32? {
         let drafts = try await folderPath(.drafts)
-        let uid = try await withIMAP { try await $0.append(folder: drafts, message: message.render(), flags: ["\\Draft", "\\Seen"]) }
-        if let oldUID { try? await withIMAP { try await $0.expunge(folder: drafts, uids: [oldUID]) } }
+        let uid = try await withIMAP(retry: false) { try await $0.append(folder: drafts, message: message.render(), flags: ["\\Draft", "\\Seen"]) }
+        if let oldUID { try? await withIMAP(retry: false) { try await $0.expunge(folder: drafts, uids: [oldUID]) } }
         return uid
     }
 
