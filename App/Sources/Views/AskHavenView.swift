@@ -179,6 +179,7 @@ struct AskHavenBar: View {
                     .lineLimit(1...4)
                     .focused($focused)
                     .onChange(of: focused) { _, f in model.typingInField = f }
+                    .onDisappear { if focused { model.typingInField = false } }
                     .onSubmit { send(prompt) }
                     .disabled(run.running)
                     .accessibilityLabel("Ask Haven")
@@ -492,6 +493,7 @@ struct HavenAnswerView: View {
                     .font(Slyy.font(13))
                     .focused($followUpFocused)
                     .onChange(of: followUpFocused) { _, f in model.typingInField = f } // letters are text here, not shortcuts
+                    .onDisappear { if followUpFocused { model.typingInField = false } }
                     .onSubmit(askFollowUp)
                     .disabled(run.running)
             }

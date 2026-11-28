@@ -160,6 +160,9 @@ struct MessageListView: View {
 
     func select(_ m: MessageSummary) {
         model.havenQuestion = nil // picking a mail closes Haven's answer pane
+        // Clicking a mail leaves the search field, so ⌘⌫, ⌘A and U act on mail again (not on the field's text).
+        searchFocused = false
+        model.typingInField = false
         #if os(macOS)
         if NSEvent.modifierFlags.contains(.command) {
             if model.selectedMessageIDs.contains(m.id) { model.selectedMessageIDs.remove(m.id) } else { model.selectedMessageIDs.insert(m.id) }
