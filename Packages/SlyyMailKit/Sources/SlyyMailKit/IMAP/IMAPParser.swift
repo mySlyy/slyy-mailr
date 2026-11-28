@@ -79,12 +79,14 @@ public struct IMAPParser {
         if i < bytes.count, bytes[i] == UInt8(ascii: "[") {
             i += 1
             var items: [IMAPValue] = []
+            // A malformed reply may end before the closing "]": every access is bounds-checked
+            // and whatever was parsed up to the end of the line becomes the code.
             while i < bytes.count, bytes[i] != UInt8(ascii: "]") {
                 skipSpaces()
-                if bytes[i] == UInt8(ascii: "]") { break }
+                if i >= bytes.count || bytes[i] == UInt8(ascii: "]") { break }
                 items.append(value())
             }
-            i += 1
+            if i < bytes.count { i += 1 } // consume "]"
             code = items
             skipSpaces()
         }
@@ -107,7 +109,7 @@ public struct IMAPParser {
                     if i < bytes.count, bytes[i] == UInt8(ascii: "]") { break }
                     items.append(value())
                 }
-                i += 1
+                if i < bytes.count { i += 1 } // consume "]"
                 out.append(.list([.atom("[")] + items))
                 continue
             }
@@ -197,14 +199,15 @@ public struct IMAPParser {
         i += 1
         var n = 0
         while i < bytes.count, let d = digit(bytes[i]) {
-            n = n * 10 + d
+            // A bogus huge length must not overflow (trap); it is clamped to the input below anyway.
+            n = min(n, bytes.count) * 10 + d
             i += 1
         }
         if i < bytes.count, bytes[i] == UInt8(ascii: "+") { i += 1 }
         if i < bytes.count, bytes[i] == UInt8(ascii: "}") { i += 1 }
         if i < bytes.count, bytes[i] == 0x0D { i += 1 }
         if i < bytes.count, bytes[i] == 0x0A { i += 1 }
-        let end = min(i + n, bytes.count)
+        let end = i + min(n, bytes.count - i)
         let out = Data(bytes[i..<end])
         i = end
         return out

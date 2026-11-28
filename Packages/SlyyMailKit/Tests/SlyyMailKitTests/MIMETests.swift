@@ -142,6 +142,37 @@ final class IMAPParserTests: XCTestCase {
         XCTAssertEqual(text, "Append completed.")
     }
 
+    /// Regression R5: a tagged reply with an unfinished "[code" read past the end of the buffer and trapped.
+    func testMalformedResponseCodesDoNotCrash() {
+        func tagged(_ line: String) -> (String, String, [IMAPValue]?, String)? {
+            guard case .tagged(let tag, let status, let code, let text) = IMAPParser.parse(Data(line.utf8)) else { return nil }
+            return (tag, status, code, text)
+        }
+        for line in ["A1 OK [UIDNEXT", "A1 OK [UIDNEXT ", "A1 NO [", "A1 NO [ ", "A1 NO [  ", "A1 BAD [ALERT (a b"] {
+            XCTAssertNotNil(tagged(line), line)
+        }
+        let r1 = tagged("A1 OK [UIDNEXT ")
+        XCTAssertEqual(r1?.0, "A1")
+        XCTAssertEqual(r1?.1, "OK")
+        XCTAssertEqual(r1?.2, [.atom("UIDNEXT")])
+        XCTAssertEqual(r1?.3, "")
+        let r2 = tagged("A1 NO [ ")
+        XCTAssertEqual(r2?.1, "NO")
+        XCTAssertEqual(r2?.2, [])
+        // Well-formed code is still parsed as before.
+        XCTAssertEqual(tagged("A1 OK [UIDNEXT 7] done")?.2, [.atom("UIDNEXT"), .atom("7")])
+
+        for line in ["* OK [PERMANENTFLAGS (\\Seen", "* OK [", "* OK [ ", "* NO [ALERT "] {
+            guard case .untagged = IMAPParser.parse(Data(line.utf8)) else { return XCTFail(line) }
+        }
+        guard case .untagged(let v) = IMAPParser.parse(Data("* OK [PERMANENTFLAGS (\\Seen".utf8)) else { return XCTFail() }
+        XCTAssertEqual(v, [.atom("OK"), .list([.atom("["), .atom("PERMANENTFLAGS"), .list([.atom("\\Seen")])])])
+
+        // A bogus literal length must neither overflow nor read past the end.
+        guard case .untagged(let lit) = IMAPParser.parse(Data("* 1 FETCH (BODY[] {99999999999999999999999}\r\nabc".utf8)) else { return XCTFail() }
+        XCTAssertEqual(lit.last?.list?.last?.text, "abc")
+    }
+
     func testListAndQuoted() {
         guard case .untagged(let v) = IMAPParser.parse(Data("* LIST (\\HasNoChildren \\Drafts) \"/\" \"Entw&APw-rfe\"".utf8)) else { return XCTFail() }
         XCTAssertEqual(v[2].text, "/")
