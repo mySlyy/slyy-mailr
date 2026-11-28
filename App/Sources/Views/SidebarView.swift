@@ -10,6 +10,9 @@ struct SidebarView: View {
     @State private var dropTarget: String?
     @State private var renameText = ""
     @State private var showSettings = false
+    #if os(macOS)
+    @Environment(\.openSettings) private var openSettings
+    #endif
 
     var specialFolders: [IMAPFolder] {
         model.folders.filter { $0.isSelectable && $0.specialUse != nil && $0.specialUse != .all && $0.specialUse != .flagged }
@@ -101,13 +104,12 @@ struct SidebarView: View {
             Button("Rename") { if let f = renaming { let n = renameText; Task { await model.renameFolder(f, to: n) } }; renaming = nil }
             Button("Cancel", role: .cancel) { renaming = nil }
         }
+        #if os(iOS)
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
                 .environment(model)
-                #if os(macOS)
-                .frame(width: 560, height: 640)
-                #endif
         }
+        #endif
     }
 
     var nextEvent: CalendarEvent? {
@@ -165,7 +167,14 @@ struct SidebarView: View {
     }
 
     var accountFooter: some View {
-        Button { showSettings = true } label: {
+        Button {
+            // Mac: the Settings window (same as ⌘,), resizable; iPad: a sheet.
+            #if os(macOS)
+            openSettings()
+            #else
+            showSettings = true
+            #endif
+        } label: {
             HStack(spacing: 10) {
                 InitialsAvatar(name: model.account?.displayName.isEmpty == false ? model.account!.displayName : (model.account?.email ?? ""))
                 VStack(alignment: .leading, spacing: 0) {

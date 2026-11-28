@@ -108,8 +108,10 @@ struct SlyyMailApp: App {
         Settings {
             SettingsView()
                 .environment(model)
-                .frame(width: 880, height: 680) // tabs, a 200 pt section pane and the form with even margins
+                // Opens at 880×680 (tabs, a 200 pt section pane, the form with even margins); can be made larger.
+                .frame(minWidth: 760, idealWidth: 880, maxWidth: .infinity, minHeight: 560, idealHeight: 680, maxHeight: .infinity)
         }
+        .windowResizability(.contentMinSize)
         #endif
     }
 }
