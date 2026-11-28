@@ -266,6 +266,11 @@ public final class CalDAVClient: NSObject, @unchecked Sendable, URLSessionTaskDe
         if r.status == 412 { throw CalDAVError.conflict }
         guard (200...299).contains(r.status) || r.status == 404 else { throw CalDAVError.http(r.status, objectURL) }
     }
+
+    /// Deletes a whole calendar with its events (used to clean up test calendars).
+    public func deleteCalendar(_ calendar: CalDAVCalendar) async throws {
+        try await delete(objectURL: calendar.url, etag: nil)
+    }
 }
 
 extension String {

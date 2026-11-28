@@ -1,0 +1,42 @@
+name: SOGo calendar test
+
+# Started by hand only (Actions → SOGo calendar test → Run workflow).
+# Uses the mailcow mailbox from the repository secrets (an app password, revocable in mailcow),
+# works in a calendar made for the run, invites only the mailbox's own alias, and deletes
+# everything it created (calendar and test mails) at the end.
+on:
+  workflow_dispatch:
+    inputs:
+      alias:
+        description: "An alias of the mailbox that receives the test invitations (nobody else gets mail)"
+        default: "ach@slyy.ai"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sogo-test
+  cancel-in-progress: false
+
+jobs:
+  sogo:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -v beta | sort -V | tail -1)"
+
+      - name: Calendar round trip against SOGo
+        env:
+          SLYY_SOGO_USER: ${{ secrets.MAILCOW_TEST_USER }}
+          SLYY_SOGO_PASSWORD: ${{ secrets.MAILCOW_TEST_PASSWORD }}
+          SLYY_SOGO_ALIAS: ${{ inputs.alias }}
+          SLYY_SOGO_RUN: ${{ github.run_id }}
+        run: |
+          test -n "$SLYY_SOGO_USER" && test -n "$SLYY_SOGO_PASSWORD" || { echo "::error::Set the secrets MAILCOW_TEST_USER and MAILCOW_TEST_PASSWORD (a mailcow app password)."; exit 1; }
+          set -o pipefail
+          swift test --package-path Packages/SlyyMailKit --filter SOGoTests 2>&1 | tee sogo.log | grep -E "SOGo:|error|passed|failed|skipped|Executed"
+          ! grep -q "skipped" sogo.log
