@@ -201,3 +201,184 @@ final class ConcurrencyRegressionTests: XCTestCase {
         await mail.disconnect()
     }
 }
+
+/// IDLE and normal commands on one IMAPClient must share the connection's command slot:
+/// nothing may be written between "IDLE" and "DONE", and a command issued meanwhile ends the IDLE and runs after it.
+final class IMAPIdleSerializationTests: XCTestCase {
+    override func tearDown() { Transport.factory = nil }
+
+    final class IdleState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _idleTag: String?
+        private var _violations: [String] = []
+        /// Hold back "+ idling" / the STATUS reply until the test pushes them.
+        var holdContinuation = false
+        var holdStatus = false
+        var idleTag: String? {
+            get { lock.withLock { _idleTag } }
+            set { lock.withLock { _idleTag = newValue } }
+        }
+        var violations: [String] {
+            get { lock.withLock { _violations } }
+            set { lock.withLock { _violations = newValue } }
+        }
+        private(set) var heldStatusTag: String?
+        func holdStatusReply(_ tag: String) { lock.withLock { heldStatusTag = tag } }
+    }
+
+    /// Scripted server that answers a command sent while idling with BAD, like Dovecot, and records it.
+    func idleServer(_ state: IdleState) -> ScriptedServer {
+        ScriptedServer(greeting: "* OK ready") { line in
+            if let idleTag = state.idleTag {
+                if line == "DONE" {
+                    state.idleTag = nil
+                    return ["\(idleTag) OK Idle completed"]
+                }
+                state.violations.append(line)
+                let tag = line.split(separator: " ").first.map(String.init) ?? "*"
+                return ["\(tag) BAD Expected DONE"]
+            }
+            let parts = line.split(separator: " ", maxSplits: 2).map(String.init)
+            guard parts.count >= 2 else {
+                state.violations.append(line)
+                return ["* BAD stray line"]
+            }
+            let tag = parts[0]
+            switch parts[1].uppercased() {
+            case "CAPABILITY": return ["* CAPABILITY IMAP4rev1 IDLE", "\(tag) OK done"]
+            case "LOGIN": return ["\(tag) OK logged in"]
+            case "SELECT": return ["* 3 EXISTS", "* OK [UIDVALIDITY 7] ok", "* OK [UIDNEXT 4] ok", "\(tag) OK [READ-WRITE] selected"]
+            case "STATUS":
+                if state.holdStatus { state.holdStatusReply(tag); return [] }
+                return ["* STATUS INBOX (MESSAGES 3 UNSEEN 1)", "\(tag) OK status"]
+            case "IDLE":
+                state.idleTag = tag
+                return state.holdContinuation ? [] : ["+ idling"]
+            case "LOGOUT": return ["* BYE", "\(tag) OK bye"]
+            default: return ["\(tag) OK"]
+            }
+        }
+    }
+
+    /// Asserts the client never wrote a command while the server was idling, and every IDLE was ended with DONE.
+    func assertValidWire(_ server: ScriptedServer, _ state: IdleState, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(state.violations, [], "commands written during IDLE", file: file, line: line)
+        var idling = false
+        for l in server.received {
+            if l.hasSuffix(" IDLE") {
+                XCTAssertFalse(idling, "IDLE while idling", file: file, line: line)
+                idling = true
+            } else if l == "DONE" {
+                XCTAssertTrue(idling, "DONE outside IDLE", file: file, line: line)
+                idling = false
+            } else {
+                XCTAssertFalse(idling, "\(l) between IDLE and DONE", file: file, line: line)
+            }
+        }
+        XCTAssertFalse(idling, "IDLE never ended", file: file, line: line)
+    }
+
+    func connectedClient() async throws -> (IMAPClient, ScriptedServer, IdleState) {
+        let state = IdleState()
+        let server = idleServer(state)
+        Transport.factory = { _ in server }
+        let c = IMAPClient(endpoint: ServerEndpoint(host: "imap.test", port: 143, security: .plain))
+        try await c.connect(user: "r7@example.com", password: "secret")
+        try await c.select("INBOX")
+        return (c, server, state)
+    }
+
+    func waitUntil(_ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition(), Date() < deadline { try await Task.sleep(nanoseconds: 2_000_000) }
+        XCTAssertTrue(condition(), "timed out")
+    }
+
+    /// Wire order of IDLE, DONE and STATUS.
+    func order(_ server: ScriptedServer) -> [String] {
+        server.received.compactMap { l in
+            if l.hasSuffix(" IDLE") { return "IDLE" }
+            if l == "DONE" { return "DONE" }
+            if l.contains(" STATUS ") { return "STATUS" }
+            return nil
+        }
+    }
+
+    /// The reported bug: a status check while IDLE is starting (written, "+ idling" not yet read).
+    func testCommandIssuedWhileIdleStartsWaitsForDone() async throws {
+        let (c, server, state) = try await connectedClient()
+        state.holdContinuation = true
+        let idling = Task { try await c.idle(folder: "INBOX", timeout: 30) }
+        try await waitUntil { state.idleTag != nil }
+        async let counts = c.status("INBOX")
+        // STATUS must not reach the wire; DONE must wait for the continuation.
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(order(server), ["IDLE"])
+        server.push(["+ idling"])
+        let (messages, unseen) = try await counts
+        XCTAssertEqual(messages, 3)
+        XCTAssertEqual(unseen, 1)
+        let result = try await idling.value
+        XCTAssertEqual(result, .timeout, "the IDLE was ended by the waiting command, not by a change")
+        XCTAssertEqual(order(server), ["IDLE", "DONE", "STATUS"])
+        assertValidWire(server, state)
+        let connected = await c.isConnected
+        XCTAssertTrue(connected)
+        await c.logout()
+    }
+
+    func testCommandDuringRunningIdleEndsItFirst() async throws {
+        let (c, server, state) = try await connectedClient()
+        let idling = Task { try await c.idle(folder: "INBOX", timeout: 30) }
+        try await waitUntil { state.idleTag != nil }
+        let (messages, _) = try await c.status("INBOX")
+        XCTAssertEqual(messages, 3)
+        let result = try await idling.value
+        XCTAssertEqual(result, .timeout)
+        XCTAssertEqual(order(server), ["IDLE", "DONE", "STATUS"])
+        assertValidWire(server, state)
+        await c.logout()
+    }
+
+    func testIdleStartedWhileCommandInFlightWaitsForIt() async throws {
+        let (c, server, state) = try await connectedClient()
+        state.holdStatus = true
+        async let counts = c.status("INBOX")
+        try await waitUntil { state.heldStatusTag != nil }
+        let idling = Task { try await c.idle(folder: "INBOX", timeout: 30) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(order(server), ["STATUS"], "IDLE must wait for the STATUS reply")
+        server.push(["* STATUS INBOX (MESSAGES 3 UNSEEN 1)", "\(state.heldStatusTag ?? "") OK status"])
+        let (messages, _) = try await counts
+        XCTAssertEqual(messages, 3)
+        try await waitUntil { state.idleTag != nil }
+        await c.stopIdle()
+        _ = try await idling.value
+        XCTAssertEqual(order(server), ["STATUS", "IDLE", "DONE"])
+        assertValidWire(server, state)
+        await c.logout()
+    }
+
+    /// A command queued behind a waiting IDLE ends that IDLE as soon as it starts.
+    func testCommandQueuedBehindWaitingIdleEndsIt() async throws {
+        let (c, server, state) = try await connectedClient()
+        state.holdStatus = true
+        async let first = c.status("INBOX")
+        try await waitUntil { state.heldStatusTag != nil }
+        state.holdStatus = false
+        let idling = Task { try await c.idle(folder: "INBOX", timeout: 30) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        async let second = c.status("INBOX")
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let start = Date()
+        server.push(["* STATUS INBOX (MESSAGES 3 UNSEEN 1)", "\(state.heldStatusTag ?? "") OK status"])
+        _ = try await first
+        let (messages, _) = try await second
+        XCTAssertEqual(messages, 3)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 5, "the second STATUS must not wait for the IDLE timeout")
+        _ = try await idling.value
+        XCTAssertEqual(order(server), ["STATUS", "IDLE", "DONE", "STATUS"])
+        assertValidWire(server, state)
+        await c.logout()
+    }
+}
