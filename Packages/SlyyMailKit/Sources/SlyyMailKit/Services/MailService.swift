@@ -241,6 +241,8 @@ public actor MailWatcher {
     private let tokenSource: (@Sendable () async throws -> String)?
     private var task: Task<Void, Never>?
     private var client: IMAPClient?
+    /// Length of one backoff step (the delay doubles from 2 steps up to 300). Tests shorten it.
+    var backoffUnit: UInt64 = 1_000_000_000
 
     public init(account: AccountSettings, password: String, tokenSource: (@Sendable () async throws -> String)? = nil) {
         self.account = account
@@ -250,11 +252,11 @@ public actor MailWatcher {
 
     public func start(folder: String = "INBOX", onChange: @escaping @Sendable () async -> Void) {
         task?.cancel()
-        task = Task { [account, password, tokenSource] in
+        task = Task { [account, password, tokenSource, backoffUnit] in
             var backoff: UInt64 = 2
             while !Task.isCancelled {
+                let c = IMAPClient(endpoint: account.imap)
                 do {
-                    let c = IMAPClient(endpoint: account.imap)
                     let secret = try await tokenSource?() ?? password
                     try await c.connect(user: account.username, password: secret, oauth: account.usesOAuth)
                     self.setClient(c)
@@ -265,7 +267,10 @@ public actor MailWatcher {
                     }
                     await c.logout()
                 } catch {
-                    try? await Task.sleep(nanoseconds: backoff * 1_000_000_000)
+                    // Every failed iteration (transport error, NO/BAD on SELECT or IDLE, cancellation) must
+                    // release its connection before retrying, or each retry leaks a logged-in connection.
+                    await c.logout()
+                    try? await Task.sleep(nanoseconds: backoff * backoffUnit)
                     backoff = min(backoff * 2, 300)
                 }
             }
@@ -274,6 +279,10 @@ public actor MailWatcher {
 
     private func setClient(_ c: IMAPClient) {
         client = c
+    }
+
+    func setBackoffUnit(_ nanoseconds: UInt64) {
+        backoffUnit = nanoseconds
     }
 
     public func stop() async {
