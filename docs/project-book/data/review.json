@@ -1,13 +1,107 @@
-{"reviewed": "2026-11-28", "scope": "Packages/SlyyMailKit/Sources, App/Sources", "method": "code review (medium depth) of the whole library and app",
+{
+ "reviewed": "2026-11-28",
+ "scope": "Packages/SlyyMailKit/Sources, App/Sources",
+ "method": "code review (medium depth) of the whole library and app",
  "findings": [
-  {"id": "R1", "severity": "important", "area": "Calendar", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/CalendarService.swift", "line": 174, "summary": "Cancelling one occurrence of a recurring meeting deletes the whole series", "scenario": "The organizer cancels only next Friday's meeting; opening that mail deletes every future occurrence."},
-  {"id": "R2", "severity": "important", "area": "Calendar", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/CalendarService.swift", "line": 167, "summary": "Cancellations and replies are applied without checking who sent them", "scenario": "Anyone who knows an event's ID can mail a CANCEL and the event disappears when the mail is opened, or fake an attendee's answer."},
-  {"id": "R3", "severity": "important", "area": "Mail", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/IMAP/IMAPClient.swift", "line": 590, "summary": "Without UIDPLUS, removing one message can permanently delete others", "scenario": "On a server without MOVE and UIDPLUS, archiving one mail also erases mails another client had marked for deletion."},
-  {"id": "R4", "severity": "important", "area": "Mail", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/MailService.swift", "line": 224, "summary": "Without UIDPLUS, every autosave adds another copy of the draft", "scenario": "On servers that don't report the new message's ID, Drafts fills with copies while typing and they stay after sending."},
-  {"id": "R5", "severity": "important", "area": "Mail", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/IMAP/IMAPParser.swift", "line": 84, "summary": "A malformed server reply can crash the app", "scenario": "A tagged reply with an unfinished [code] reads past the end of the buffer."},
-  {"id": "R6", "severity": "important", "area": "Mail", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/MailService.swift", "line": 52, "summary": "After a dropped connection, actions can run twice", "scenario": "The connection drops after the server stored a Sent copy but before it said so; the retry stores a second copy."},
-  {"id": "R7", "severity": "important", "area": "Mail", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/IMAP/IMAPClient.swift", "line": 625, "summary": "Waiting for new mail (IDLE) can mix with another command on the same connection", "scenario": "A status check sent while IDLE starts gets a BAD answer and both read each other's replies."},
-  {"id": "R8", "severity": "important", "area": "Reader", "file": "App/Sources/Views/MessageDetailView.swift", "line": 446, "summary": "Inline images can be swapped when their IDs share a prefix", "scenario": "Images image1 and image10: image10 shows image1's data and breaks."},
-  {"id": "R9", "severity": "important", "area": "Mail", "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/MailService.swift", "line": 272, "summary": "The new-mail watcher leaks a connection on each failed IDLE", "scenario": "While the server refuses the Inbox, every retry leaves a logged-in connection open until the server locks the account."},
-  {"id": "R10", "severity": "minor", "area": "Privacy", "file": "App/Sources/Support/WebViews.swift", "line": 104, "summary": "A mail could perhaps get around blocked remote images with a meta refresh", "scenario": "A tracking mail redirects to a data: page whose images might load without the injected content rules (unconfirmed whether WebKit allows it)."}
- ]}
+  {
+   "id": "R1",
+   "severity": "important",
+   "area": "Calendar",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/CalendarService.swift",
+   "line": 174,
+   "summary": "Cancelling one occurrence of a recurring meeting deletes the whole series",
+   "scenario": "The organizer cancels only next Friday's meeting; opening that mail deletes every future occurrence.",
+   "status": "fixed 2702bb0"
+  },
+  {
+   "id": "R2",
+   "severity": "important",
+   "area": "Calendar",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/CalendarService.swift",
+   "line": 167,
+   "summary": "Cancellations and replies are applied without checking who sent them",
+   "scenario": "Anyone who knows an event's ID can mail a CANCEL and the event disappears when the mail is opened, or fake an attendee's answer.",
+   "status": "fixed c5a8652"
+  },
+  {
+   "id": "R3",
+   "severity": "important",
+   "area": "Mail",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/IMAP/IMAPClient.swift",
+   "line": 590,
+   "summary": "Without UIDPLUS, removing one message can permanently delete others",
+   "scenario": "On a server without MOVE and UIDPLUS, archiving one mail also erases mails another client had marked for deletion.",
+   "status": "fixed e73dbd9"
+  },
+  {
+   "id": "R4",
+   "severity": "important",
+   "area": "Mail",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/MailService.swift",
+   "line": 224,
+   "summary": "Without UIDPLUS, every autosave adds another copy of the draft",
+   "scenario": "On servers that don't report the new message's ID, Drafts fills with copies while typing and they stay after sending.",
+   "status": "fixed 7b4dfec"
+  },
+  {
+   "id": "R5",
+   "severity": "important",
+   "area": "Mail",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/IMAP/IMAPParser.swift",
+   "line": 84,
+   "summary": "A malformed server reply can crash the app",
+   "scenario": "A tagged reply with an unfinished [code] reads past the end of the buffer.",
+   "status": "fixed 4d914ce"
+  },
+  {
+   "id": "R6",
+   "severity": "important",
+   "area": "Mail",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/MailService.swift",
+   "line": 52,
+   "summary": "After a dropped connection, actions can run twice",
+   "scenario": "The connection drops after the server stored a Sent copy but before it said so; the retry stores a second copy.",
+   "status": "fixed fdf9607"
+  },
+  {
+   "id": "R7",
+   "severity": "important",
+   "area": "Mail",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/IMAP/IMAPClient.swift",
+   "line": 625,
+   "summary": "Waiting for new mail (IDLE) can mix with another command on the same connection",
+   "scenario": "A status check sent while IDLE starts gets a BAD answer and both read each other's replies.",
+   "status": "fixed 640482a"
+  },
+  {
+   "id": "R8",
+   "severity": "important",
+   "area": "Reader",
+   "file": "App/Sources/Views/MessageDetailView.swift",
+   "line": 446,
+   "summary": "Inline images can be swapped when their IDs share a prefix",
+   "scenario": "Images image1 and image10: image10 shows image1's data and breaks.",
+   "status": "fixed 9766d27"
+  },
+  {
+   "id": "R9",
+   "severity": "important",
+   "area": "Mail",
+   "file": "Packages/SlyyMailKit/Sources/SlyyMailKit/Services/MailService.swift",
+   "line": 272,
+   "summary": "The new-mail watcher leaks a connection on each failed IDLE",
+   "scenario": "While the server refuses the Inbox, every retry leaves a logged-in connection open until the server locks the account.",
+   "status": "fixed 5df3b21"
+  },
+  {
+   "id": "R10",
+   "severity": "minor",
+   "area": "Privacy",
+   "file": "App/Sources/Support/WebViews.swift",
+   "line": 104,
+   "summary": "A mail could perhaps get around blocked remote images with a meta refresh",
+   "scenario": "A tracking mail redirects to a data: page whose images might load without the injected content rules (unconfirmed whether WebKit allows it).",
+   "status": "open"
+  }
+ ]
+}

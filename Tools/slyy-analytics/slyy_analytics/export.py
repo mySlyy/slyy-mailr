@@ -61,7 +61,7 @@ def export(results: dict, out: str, review: dict | None = None, cleanup: dict | 
     paths.append(_file(out, "security", sec_rows, base))
     if review:
         paths.append(_file(out, "review", [{"id": f["id"], "severity": f["severity"], "area": f["area"], "file": f["file"].split("/")[-1], "path": f["file"], "line": f["line"],
-                                             "summary": f["summary"], "scenario": f["scenario"]} for f in findings],
+                                             "summary": f["summary"], "scenario": f["scenario"], "status": f.get("status", "open")} for f in findings],
                            base + [{"label": "Review", "value": f"{review.get('method', '')}; scope {review.get('scope', '')}; {review.get('reviewed', '')}"}]))
     red = results.get("redundancy", {})
     if red.get("duplicates"):

@@ -65,7 +65,7 @@ new_items = '''
   [105, "mac", "Apple Silicon only", "Smaller download from 0.4.0.", D, N],
   [106, "mac", "Slyy update window with plain release notes", "", D, N],
   [107, "q", "Shared test setup; manual calendar test on the real SOGo server", "", D, D],
-  [108, "q", "Fix the 9 bugs from the code review", "Calendar first: a single cancelled occurrence deletes the series; cancellations are applied without checking the sender. See Code analytics.", T, T, 1],
+  [108, "q", "Fix the 9 bugs from the code review", "Done 28 Nov, each with a regression test. See Code analytics.", D, D],
   [109, "q", "Remove the redundant code C1–C11", "Done 28 Nov: 474 lines of production code removed.", D, D],
 '''
 bl_js = bl_js.replace('  [88, "q", "Privacy-friendly crash reports", "", T, T, 3]', '  [88, "q", "Privacy-friendly crash reports", "", T, T, 3],' + new_items.rstrip().rstrip(','))
@@ -128,12 +128,12 @@ an = f'''
     <p class="meta">Snapshot of commit {commit}, 28 Nov 2026, made by slyy-analytics (Tools/slyy-analytics in the repo). Rerun with <code>python3 -m slyy_analytics</code> (see Tools/slyy-analytics/README.md).</p>
   </div>
   <h3 id="an-summary">Summary</h3>
-  <p class="lead">Slyy Mailr has {f(tot["code_lines"])} lines of production code and {f(tot["test_lines"])} lines of tests. The library's tests run {tot["coverage_percent"]}% of its code. The review found {tot["review_important"]} bugs worth fixing, The cleanup of {tot["cleanup_items"]} pieces of redundant code is done: production code went from 12,013 to {f(tot["code_lines"])} lines.</p>
+  <p class="lead">Slyy Mailr has {f(tot["code_lines"])} lines of production code and {f(tot["test_lines"])} lines of tests. The library's tests run {tot["coverage_percent"]}% of its code. The review found {tot["review_important"]} bugs worth fixing, and all are fixed. The cleanup of {tot["cleanup_items"]} pieces of redundant code is done: production code went from 12,013 to {f(tot["code_lines"])} lines.</p>
   <div class="tiles">
     <div class="tile"><span class="k">Production code</span><span class="v">{f(tot["code_lines"])}</span><span class="n">lines, without comments and blanks</span></div>
     <div class="tile"><span class="k">Tests</span><span class="v">{f(tot["test_lines"])}</span><span class="n">{tot["test_ratio"]} lines per line of code</span></div>
     <div class="tile"><span class="k">Library coverage</span><span class="v">{tot["coverage_percent"]}%</span><span class="n">the app's views aren't measured</span></div>
-    <div class="tile"><span class="k">Review findings</span><span class="v">{tot["review_important"]}</span><span class="n">important, plus {tot["review_minor"]} minor</span></div>
+    <div class="tile"><span class="k">Review findings</span><span class="v">{tot["review_important"]}</span><span class="n">important, all fixed; {tot["review_minor"]} minor open</span></div>
     <div class="tile"><span class="k">Cleanup</span><span class="v">{tot["cleanup_items"]}</span><span class="n">items, all done</span></div>
     <div class="tile"><span class="k">Functions</span><span class="v">{tot["functions"]}</span><span class="n">median {tot["median_function_lines"]} lines; {tot["long_functions"]} over 60</span></div>
   </div>
@@ -147,8 +147,8 @@ an = f'''
       <p class="note">Least covered: {", ".join(f'{r["file"]} {r["percent"]}%' for r in covf[:4])}.</p></div>
   </div>
   <h3 id="an-review">Code review findings</h3>
-  <p class="lead">Found by reading the code before the cleanup; line numbers may have moved. Not fixed yet.</p>
-  {table([("#", "id", 0), ("Severity", "severity", 0), ("Area", "area", 0), ("Problem", "summary", 0), ("When it happens", "scenario", 0), ("File", "file", 0), ("Line", "line", 1)], rev, "severity")}
+  <p class="lead">Found by reading the code on 28 Nov. The 9 important ones are fixed, each with a regression test (28 Nov); the minor one is still open.</p>
+  {table([("#", "id", 0), ("Severity", "severity", 0), ("Area", "area", 0), ("Problem", "summary", 0), ("When it happened", "scenario", 0), ("File", "file", 0), ("Status", "status", 0)], rev, "severity")}
   <h3 id="an-cleanup">Cleanup backlog</h3>
   <p class="lead">Each item is marked in the code as <code>// CLEANUP(Cn)</code> and listed in <code>docs/CLEANUP.md</code>. All done on 28 Nov (commits 131b068 to b886029); the build passed.</p>
   {table([("#", "id", 0), ("Action", "action", 0), ("What", "summary", 0), ("Fix", "fix", 0), ("Files", "files", 0), ("~Lines", "lines", 1)], cln)}
