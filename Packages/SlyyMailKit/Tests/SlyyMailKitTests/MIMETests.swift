@@ -38,6 +38,45 @@ final class MIMETests: XCTestCase {
         XCTAssertNotNil(RFC822Date.parse(RFC822Date.format(Date())))
     }
 
+    func testInlineImagesResolveWholeCIDsOnly() {
+        // image1 must not match inside image10 (regression: substring replacement).
+        let raw = """
+        From: r8@example.com\r
+        To: r8@example.com\r
+        Subject: Inline\r
+        MIME-Version: 1.0\r
+        Content-Type: multipart/related; boundary="RR"\r
+        \r
+        --RR\r
+        Content-Type: text/html; charset=utf-8\r
+        \r
+        <img src="cid:image1"><img src='cid:image10'><div style="background:url(CID:image10)"></div><img src=cid:image1 alt=x><img src="cid:missing">\r
+        --RR\r
+        Content-Type: image/png\r
+        Content-ID: <image1>\r
+        Content-Transfer-Encoding: base64\r
+        \r
+        AQID\r
+        --RR\r
+        Content-Type: image/gif\r
+        Content-ID: <image10>\r
+        Content-Transfer-Encoding: base64\r
+        \r
+        CgsM\r
+        --RR--\r
+        """
+        let m = ParsedMessage(data: Data(raw.utf8))
+        let html = InlineImages.resolve(m.htmlBody ?? "", attachments: m.attachments)
+        let one = "data:image/png;base64,AQID"
+        let ten = "data:image/gif;base64,CgsM"
+        XCTAssertEqual(html, "<img src=\"\(one)\"><img src='\(ten)'><div style=\"background:url(\(ten))\"></div><img src=\(one) alt=x><img src=\"cid:missing\">")
+
+        // Content-ID with brackets, percent-encoded reference, and no false match on "acid:".
+        let a = Attachment(id: 0, filename: "a b", mimeType: "image/png", data: Data([1]), contentID: "<a b@x>")
+        XCTAssertEqual(InlineImages.resolve("<img src=\"cid:a%20b@x\"> acid:a b@x", attachments: [a]),
+                       "<img src=\"data:image/png;base64,AQ==\"> acid:a b@x")
+    }
+
     func testMultipartParsing() {
         let raw = """
         From: =?utf-8?Q?J=C3=BCrgen?= <j@example.com>\r

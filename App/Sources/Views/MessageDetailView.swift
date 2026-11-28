@@ -420,11 +420,7 @@ enum EventFormat {
 enum MessageBody {
     static func html(_ m: ParsedMessage) -> String {
         if let html = m.htmlBody {
-            var out = html
-            for a in m.attachments where a.contentID != nil {
-                out = out.replacingOccurrences(of: "cid:\(a.contentID!)", with: "data:\(a.mimeType);base64,\(a.data.base64EncodedString())")
-            }
-            return out
+            return InlineImages.resolve(html, attachments: m.attachments)
         }
         return HTMLText.fromPlain(m.textBody ?? "")
     }
