@@ -850,6 +850,9 @@ final class AppModel {
     func focus(_ m: MessageSummary) {
         openSummary = m
         if let body = conversationBodies[m.id] { openMessage = body }
+        // The Delete key and list actions then act on this message, not the whole conversation
+        // (unless several rows are selected on purpose).
+        if selectedMessageIDs.count <= 1, messages.contains(where: { $0.id == m.id }) { selectedMessageIDs = [m.id] }
     }
 
     // MARK: Reply to a selection / one message
@@ -920,11 +923,27 @@ final class AppModel {
         let ids = Set(list.map(\.id))
         messages.removeAll { ids.contains($0.id) }
         selectedMessageIDs.subtract(ids)
-        if let s = openSummary, ids.contains(s.id) {
+        companions.removeAll { ids.contains($0.id) }
+        let remaining = openConversation.filter { !ids.contains($0.id) }
+        // Only part of the open conversation went (e.g. one message moved to the Trash): it stays open.
+        let keepConversation = remaining.count < openConversation.count && remaining.contains { $0.folder == currentFolder }
+        if keepConversation {
+            let position = openSummary.flatMap { s in openConversation.firstIndex { $0.id == s.id } } ?? 0
+            openConversation = remaining
+            for id in ids { conversationBodies[id] = nil; expandedMessages.remove(id) }
+            if let s = openSummary, ids.contains(s.id) {
+                // Focus the message that followed it (else the last one) and show its body.
+                let next = remaining[min(position, remaining.count - 1)]
+                openSummary = next
+                openMessage = conversationBodies[next.id]
+                if next.folder == currentFolder, selectedMessageIDs.isEmpty { selectedMessageIDs = [next.id] }
+                if openMessage == nil { Task { await unfold(next) } } else { expandedMessages.insert(next.id) }
+            }
+        } else if let s = openSummary, ids.contains(s.id) {
             openSummary = nil
             openMessage = nil
         }
-        totalMessages = max(0, totalMessages - list.count)
+        totalMessages = max(0, totalMessages - list.filter { $0.folder == currentFolder }.count)
     }
 
     func delete(_ list: [MessageSummary]) async {

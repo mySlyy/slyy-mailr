@@ -593,7 +593,7 @@ struct AccordionSection: View {
     }
 }
 
-/// "…" on one message: Reply / Reply all / Forward of just that message (only the selected text, if any),
+/// "…" on one message: Reply / Reply all / Forward of just that message (only the selected text, if any), Move to Trash,
 /// and on the Mac "Open in New Window". A folded message's body is loaded first.
 struct MessageMoreMenu: View {
     @Environment(AppModel.self) private var model
@@ -614,6 +614,8 @@ struct MessageMoreMenu: View {
             // Snooze in the main window only (its picker is shown there).
             if onCompose == nil {
                 Divider()
+                // Just this message; the rest of the conversation stays.
+                Button("Move to Trash", role: .destructive) { Task { await model.delete([summary]) } }
                 if model.isSnoozed(summary) {
                     Button("Unsnooze") { Task { await model.unsnooze(summary) } }
                 } else {
