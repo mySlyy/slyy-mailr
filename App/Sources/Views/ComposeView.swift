@@ -64,29 +64,32 @@ struct ComposeView: View {
 
             if !draft.attachments.isEmpty { attachmentStrip }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let m = draft.meeting { meetingCard(m) }
-                    if let v = draft.videoURL { videoCard(v) }
-                    TextEditor(text: $draft.body)
+            // No scrolling page around the text: each text area scrolls itself, so the wheel works wherever the
+            // pointer is (a text area inside a scroll view kept the wheel). My text takes the free space.
+            VStack(alignment: .leading, spacing: 12) {
+                if let m = draft.meeting { meetingCard(m) }
+                if let v = draft.videoURL { videoCard(v) }
+                TextEditor(text: $draft.body)
+                    .font(Slyy.font(14))
+                    .lineSpacing(4)
+                    .foregroundStyle(draft.blueReply ? (Color(sixDigitHex: draft.replyColor) ?? Slyy.accent) : Slyy.ink)
+                    .focused($focus, equals: .body)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 120, maxHeight: .infinity)
+                    .layoutPriority(1)
+                if !draft.quoted.isEmpty {
+                    TextEditor(text: $draft.quoted)
                         .font(Slyy.font(14))
                         .lineSpacing(4)
-                        .foregroundStyle(draft.blueReply ? (Color(sixDigitHex: draft.replyColor) ?? Slyy.accent) : Slyy.ink)
-                        .focused($focus, equals: .body)
+                        .foregroundStyle(Slyy.ink2)
                         .scrollContentBackground(.hidden)
-                        .frame(minHeight: draft.quoted.isEmpty ? 300 : 120)
-                    if !draft.quoted.isEmpty {
-                        TextEditor(text: $draft.quoted)
-                            .font(Slyy.font(14))
-                            .lineSpacing(4)
-                            .foregroundStyle(Slyy.ink2)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 180)
-                            .accessibilityLabel("Quoted message")
-                    }
+                        .frame(minHeight: 100, idealHeight: 220, maxHeight: 260)
+                        .overlay(alignment: .top) { Rectangle().fill(Slyy.line).frame(height: 1) }
+                        .accessibilityLabel("Quoted message")
                 }
-                .padding(16)
             }
+            .padding(16)
+            .frame(maxHeight: .infinity, alignment: .top)
 
             if model.havenState == .connected {
                 AskHavenBar(

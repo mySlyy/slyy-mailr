@@ -69,7 +69,14 @@ struct MailHTMLView: PlatformViewRepresentable {
             // Through a weak proxy: the content controller keeps its handlers alive.
             scripts.add(WeakScriptMessageHandler(context.coordinator), contentWorld: .defaultClient, name: Self.selectionHandler)
         }
-        let web = WKWebView(frame: .zero, configuration: config)
+        let web = MailWebView(frame: .zero, configuration: config)
+        // Sized to its whole mail inside a scrolling page (conversations): the page scrolls, not the web view.
+        let fitsContent = onHeight != nil
+        #if os(macOS)
+        web.passesScrollToPage = fitsContent
+        #else
+        web.scrollView.isScrollEnabled = !fitsContent
+        #endif
         web.navigationDelegate = context.coordinator
         load(web, context: context)
         return web
@@ -232,4 +239,20 @@ struct JitsiWebView: PlatformViewRepresentable {
             }
         }
     }
+}
+
+/// The mail's web view. On the Mac, when it is as tall as its mail (a message in a conversation), the scroll wheel
+/// goes on to the page around it; a plain WKWebView keeps the wheel and the page wouldn't move under the pointer.
+final class MailWebView: WKWebView {
+    #if os(macOS)
+    var passesScrollToPage = false
+
+    override func scrollWheel(with event: NSEvent) {
+        if passesScrollToPage, let next = nextResponder {
+            next.scrollWheel(with: event)
+        } else {
+            super.scrollWheel(with: event)
+        }
+    }
+    #endif
 }
